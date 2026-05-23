@@ -81,7 +81,7 @@ export function DocumentTemplate({
         backgroundColor: "white",
         fontFamily: "'Outfit', 'Segoe UI', Arial, sans-serif",
         color: BLACK,
-        padding: "12mm 14mm",
+        padding: "12mm 14mm 16mm",
         fontSize: "10pt",
         boxSizing: "border-box",
         display: "flex",
@@ -563,6 +563,7 @@ export function DocumentTemplate({
                   borderRadius: "2mm",
                   border: `1.5px solid ${ORANGE}`,
                   marginTop: "2mm",
+                  marginBottom: "6mm",
                 }}
               >
                 <span
@@ -596,7 +597,7 @@ export function DocumentTemplate({
       <div
         style={{
           marginTop: "auto",
-          paddingTop: "5mm",
+          paddingTop: "8mm",
           borderTop: `1px solid #D2D2D7`,
         }}
       >
@@ -630,9 +631,9 @@ export function DocumentTemplate({
                 color: GRAY,
                 border: `1px solid #D2D2D7`,
                 borderRadius: "2mm",
-                padding: "6mm",
+                padding: "4mm 5mm",
                 lineHeight: 1.6,
-                minHeight: "22mm",
+                minHeight: "14mm",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -652,10 +653,10 @@ export function DocumentTemplate({
                   fontWeight: 700,
                   border: `1.5px solid ${RED}60`,
                   borderRadius: "2mm",
-                  padding: "6mm",
+                  padding: "4mm 5mm",
                   backgroundColor: "rgba(224,49,49,0.04)",
                   lineHeight: 1.6,
-                  minHeight: "22mm",
+                  minHeight: "14mm",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
