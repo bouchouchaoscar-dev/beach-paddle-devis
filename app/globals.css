@@ -1,0 +1,171 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-outfit: 'Outfit', system-ui, sans-serif;
+  --font-geist-mono: 'JetBrains Mono', 'Courier New', monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-outfit), system-ui, sans-serif;
+  background-color: #F5F5F7;
+  color: #1D1D1F;
+  line-height: 1.6;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #F0F0F5;
+}
+::-webkit-scrollbar-thumb {
+  background: #C7C7CC;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #8E8E93;
+}
+
+/* Focus styles */
+*:focus-visible {
+  outline: 2px solid #0071E3;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Selection */
+::selection {
+  background-color: rgba(0, 113, 227, 0.12);
+  color: #1D1D1F;
+}
+
+/* Input autofill */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset;
+  -webkit-text-fill-color: #1D1D1F;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-brand-orange text-white font-semibold text-sm transition-all duration-200 hover:bg-brand-orange-dark active:scale-[0.98] active:-translate-y-px disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-white text-ink font-semibold text-sm border border-surface-border transition-all duration-200 hover:bg-surface-muted active:scale-[0.98] active:-translate-y-px;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-ink-secondary font-medium text-sm transition-all duration-200 hover:bg-surface-muted hover:text-ink active:scale-[0.98];
+  }
+
+  .card {
+    @apply bg-surface-card rounded-2xl shadow-card border border-surface-border;
+  }
+
+  .input-field {
+    @apply w-full px-4 py-2.5 rounded-xl border border-surface-border bg-white text-ink placeholder:text-ink-placeholder text-sm transition-all duration-200 focus:outline-none focus:border-brand-orange focus:shadow-orange-glow;
+  }
+
+  .label {
+    @apply block text-sm font-medium text-ink-secondary mb-1.5;
+  }
+
+  .section-title {
+    @apply text-xs font-semibold uppercase tracking-widest text-ink-muted mb-4;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold;
+  }
+
+  .toggle-pill {
+    @apply relative inline-flex h-6 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange focus-visible:ring-offset-2;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .animate-delay-100 { animation-delay: 100ms; }
+  .animate-delay-200 { animation-delay: 200ms; }
+  .animate-delay-300 { animation-delay: 300ms; }
+  .animate-delay-400 { animation-delay: 400ms; }
+  .animate-delay-500 { animation-delay: 500ms; }
+
+  .opacity-0-start {
+    opacity: 0;
+    animation-fill-mode: forwards;
+  }
+
+  .gradient-brand {
+    background: linear-gradient(135deg, #0071E3 0%, #0052A3 100%);
+  }
+
+  .gradient-teal {
+    background: linear-gradient(135deg, #0071E3 0%, #0052A3 100%);
+  }
+
+  .noise-overlay::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0.4;
+  }
+}
+
+/* Keyframes explicites — nécessaires pour les animations inline (style={{ animation: "..." }})
+   Tailwind ne génère les keyframes que si la classe utilitaire est utilisée dans le markup.
+   Comme on les applique via style={} en JS, on les déclare ici pour garantir leur présence. */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to   { background-position:  200% 0; }
+}
+@keyframes pulseSoft {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.6; }
+}
+
+/* Print styles for PDF generation */
+@media print {
+  body { background: white; }
+}
