@@ -102,7 +102,14 @@ export function DocumentPreview({ form, calc, onClose, onFormChange }: Props) {
       const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
       pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
 
-      const fileName = `${documentType === "facture" ? "Facture" : "Devis"}_${numero.replace("N°", "").replace("/", "-")}_${form.clientName.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
+      const activityLabel =
+        form.activity === "paddle" ? "Paddle" :
+        form.activity === "kayak" ? "Kayak" :
+        form.activity === "hybride" ? "Paddle-Kayak" : "";
+      const safeClient = form.clientName.replace(/[/\\:*?"<>|]/g, " ").trim();
+      const fileName = [documentType === "facture" ? "Facture" : "Devis", activityLabel, safeClient]
+        .filter(Boolean)
+        .join(" ") + ".pdf";
       pdf.save(fileName);
 
       if (!saved) {
