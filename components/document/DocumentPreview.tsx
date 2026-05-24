@@ -86,21 +86,65 @@ export function DocumentPreview({ form, calc, onClose, onFormChange }: Props) {
       const el = document.getElementById("document-template");
       if (!el) return;
 
+      // A4 height in natural CSS pixels (DOC_NATURAL_WIDTH = 210mm at 96dpi = 794px)
+      const A4_H_PX = Math.round(DOC_NATURAL_WIDTH * 297 / 210); // ≈ 1123
+
+      // For multi-page documents: push footer entirely onto the last page if it
+      // would otherwise be split by a page boundary.
+      const footerEl = document.getElementById("document-footer");
+      let prevMarginTop = "";
+      if (footerEl && el.scrollHeight > A4_H_PX) {
+        const footerTopInDoc = footerEl.offsetTop;   // natural CSS px from doc top
+        const footerHeightPx = footerEl.offsetHeight; // natural CSS px
+
+        const posOnPage = footerTopInDoc % A4_H_PX;
+        const remainingOnPage = A4_H_PX - posOnPage;
+
+        if (posOnPage > 0 && footerHeightPx > remainingOnPage) {
+          // Footer spans a page boundary → add margin to push it to the next page
+          prevMarginTop = footerEl.style.marginTop;
+          footerEl.style.marginTop = `${Math.ceil(remainingOnPage) + 8}px`;
+        }
+      }
+
       const canvas = await html2canvas(el, {
         scale: 2.5,
         useCORS: true,
         allowTaint: true,
         backgroundColor: "#ffffff",
         logging: false,
-        width: el.offsetWidth,
-        height: el.offsetHeight,
+        width: el.scrollWidth,
+        height: el.scrollHeight, // re-read after potential margin change
       });
 
+      // Restore footer margin immediately after capture
+      if (prevMarginTop !== "" && footerEl) {
+        footerEl.style.marginTop = prevMarginTop;
+      }
+
       const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-      const imgData = canvas.toDataURL("image/png");
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+      const pdfW = pdf.internal.pageSize.getWidth();   // 210mm
+      const pdfH = pdf.internal.pageSize.getHeight();  // 297mm
+
+      // Split canvas into A4-sized slices, one per page
+      const pxPerMm = canvas.width / pdfW;
+      const pageHPx = Math.round(pdfH * pxPerMm);
+      const totalPages = Math.ceil(canvas.height / pageHPx);
+
+      for (let i = 0; i < totalPages; i++) {
+        if (i > 0) pdf.addPage();
+        const srcY = i * pageHPx;
+        const srcH = Math.min(pageHPx, canvas.height - srcY);
+
+        const pc = document.createElement("canvas");
+        pc.width = canvas.width;
+        pc.height = pageHPx;
+        const ctx = pc.getContext("2d")!;
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, pageHPx);
+        ctx.drawImage(canvas, 0, srcY, canvas.width, srcH, 0, 0, canvas.width, srcH);
+        pdf.addImage(pc.toDataURL("image/png"), "PNG", 0, 0, pdfW, pdfH);
+      }
 
       const activityLabel =
         form.activity === "paddle" ? "Paddle" :

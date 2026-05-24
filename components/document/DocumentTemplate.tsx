@@ -595,6 +595,7 @@ export function DocumentTemplate({
 
       {/* ── FOOTER ──────────────────────────────────────── */}
       <div
+        id="document-footer"
         style={{
           marginTop: "auto",
           paddingTop: "8mm",
