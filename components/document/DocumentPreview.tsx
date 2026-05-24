@@ -24,6 +24,7 @@ export function DocumentPreview({ form, calc, onClose, onFormChange }: Props) {
   const [generating, setGenerating] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveLocal, setSaveLocal] = useState(false); // true = Supabase unavailable, saved to localStorage
+  const [pdfError, setPdfError] = useState<string | null>(null);
   const [todayStr] = useState(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -80,91 +81,19 @@ export function DocumentPreview({ form, calc, onClose, onFormChange }: Props) {
 
   async function handleDownloadPDF() {
     setGenerating(true);
+    setPdfError(null);
     try {
-      const { default: html2canvas } = await import("html2canvas");
-      const { default: jsPDF } = await import("jspdf");
+      const activityLabel =
+        form.activity === "paddle" ? "Paddle" :
+        form.activity === "kayak" ? "Kayak" :
+        form.activity === "hybride" ? "Paddle-Kayak" : "";
+      const safeClient = form.clientName.replace(/[/\\:*?"<>|]/g, " ").trim();
+      const fileName = [documentType === "facture" ? "Facture" : "Devis", activityLabel, safeClient]
+        .filter(Boolean)
+        .join(" ") + ".pdf";
 
-      const el = document.getElementById("document-template");
-      if (!el) return;
-
-      // Ensure all fonts are loaded before capture (critical on mobile)
-      await document.fonts.ready;
-
-      // iOS Safari silently fails or corrupts canvas when > ~16M pixels.
-      // Scale 2.5 → 1985×2807 ≈ 22MB per A4 page → crashes on mobile.
-      // Scale 2.0 → 1588×2246 ≈ 14MB → within safe limits.
-      const isMobile =
-        /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) ||
-        window.innerWidth < 768;
-      const captureScale = isMobile ? 2 : 2.5;
-
-      // A4 height in natural CSS pixels (DOC_NATURAL_WIDTH = 210mm = 794px at 96dpi)
-      const A4_H_PX = Math.round(DOC_NATURAL_WIDTH * 297 / 210); // ≈ 1123
-
-      // For multi-page documents: push footer entirely onto the last page if it
-      // would otherwise be split across a page boundary.
-      const footerEl = document.getElementById("document-footer");
-      let prevMarginTop = "";
-      if (footerEl && el.scrollHeight > A4_H_PX) {
-        const footerTopInDoc = footerEl.offsetTop;
-        const footerHeightPx = footerEl.offsetHeight;
-        const posOnPage = footerTopInDoc % A4_H_PX;
-        const remainingOnPage = A4_H_PX - posOnPage;
-
-        if (posOnPage > 0 && footerHeightPx > remainingOnPage) {
-          prevMarginTop = footerEl.style.marginTop;
-          footerEl.style.marginTop = `${Math.ceil(remainingOnPage) + 8}px`;
-          void el.scrollHeight; // force synchronous reflow before reading scrollHeight below
-        }
-      }
-
-      const canvas = await html2canvas(el, {
-        scale: captureScale,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: "#ffffff",
-        logging: false,
-        width: el.scrollWidth,
-        height: el.scrollHeight,
-        // Lock viewport to natural document dimensions so CSS mm/pt units
-        // render identically on any screen size (prevents mobile distortion).
-        windowWidth: DOC_NATURAL_WIDTH,
-        windowHeight: A4_H_PX,
-        scrollX: 0,
-        scrollY: 0,
-      });
-
-      // Restore footer margin immediately after capture
-      if (prevMarginTop !== "" && footerEl) {
-        footerEl.style.marginTop = prevMarginTop;
-      }
-
-      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-      const pdfW = pdf.internal.pageSize.getWidth();
-      const pdfH = pdf.internal.pageSize.getHeight();
-
-      const pxPerMm = canvas.width / pdfW;
-      const pageHPx = Math.round(pdfH * pxPerMm);
-      const totalPages = Math.ceil(canvas.height / pageHPx);
-
-      for (let i = 0; i < totalPages; i++) {
-        if (i > 0) pdf.addPage();
-        const srcY = i * pageHPx;
-        const srcH = Math.min(pageHPx, canvas.height - srcY);
-
-        const pc = document.createElement("canvas");
-        pc.width = canvas.width;
-        pc.height = pageHPx;
-        const ctx = pc.getContext("2d")!;
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(0, 0, canvas.width, pageHPx);
-        ctx.drawImage(canvas, 0, srcY, canvas.width, srcH, 0, 0, canvas.width, srcH);
-        pdf.addImage(pc.toDataURL("image/png"), "PNG", 0, 0, pdfW, pdfH);
-      }
-
-      // SAVE BEFORE triggering download.
-      // On iOS Safari, pdf.save() can interrupt the JS async chain,
-      // so the Supabase save must complete before the download fires.
+      // ── 1. Sauvegarder dans Supabase AVANT le téléchargement
+      // (iOS Safari peut interrompre la chaîne async après pdf.save())
       if (!saved) {
         const record: DevisRecord = {
           id: generateId(),
@@ -188,16 +117,58 @@ export function DocumentPreview({ form, calc, onClose, onFormChange }: Props) {
         }
       }
 
-      const activityLabel =
-        form.activity === "paddle" ? "Paddle" :
-        form.activity === "kayak" ? "Kayak" :
-        form.activity === "hybride" ? "Paddle-Kayak" : "";
-      const safeClient = form.clientName.replace(/[/\\:*?"<>|]/g, " ").trim();
-      const fileName = [documentType === "facture" ? "Facture" : "Devis", activityLabel, safeClient]
-        .filter(Boolean)
-        .join(" ") + ".pdf";
-      pdf.save(fileName);
+      // ── 2. Générer le PDF côté serveur (fonctionne identiquement sur tous les appareils)
+      const response = await fetch("/api/generate-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          form,
+          calc: calcWithAcompte,
+          numero,
+          documentType,
+          acompteVerse: acompteNum > 0 ? acompteNum : undefined,
+          documentDate: todayStr,
+          fileName,
+        }),
+      });
 
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({})) as { error?: string };
+        throw new Error(err.error || `Erreur serveur ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+
+      // ── 3. Déclencher le téléchargement
+      // iOS Safari : ouvrir dans un nouvel onglet (l'utilisateur peut ensuite partager)
+      // Desktop / Android : téléchargement direct
+      const isIOS = /iPhone|iPad/i.test(navigator.userAgent);
+      if (isIOS) {
+        const win = window.open(url, "_blank");
+        if (!win) {
+          // Popup bloqué — fallback via ancre
+          const a = document.createElement("a");
+          a.href = url;
+          a.target = "_blank";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        }
+      } else {
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Erreur inconnue";
+      console.error("[PDF] Génération échouée:", msg);
+      setPdfError(msg);
     } finally {
       setGenerating(false);
     }
@@ -402,7 +373,15 @@ export function DocumentPreview({ form, calc, onClose, onFormChange }: Props) {
         {/* ── FOOTER ────────────────────────────────────────────── */}
         <div className="px-4 sm:px-5 py-3 border-t border-surface-border bg-white shrink-0 flex items-center justify-between">
           <div className="text-xs text-ink-muted">
-            {saved && !saveLocal && (
+            {pdfError && (
+              <span className="flex items-center gap-1.5 text-red-500">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+                Erreur PDF — {pdfError}
+              </span>
+            )}
+            {!pdfError && saved && !saveLocal && (
               <span className="flex items-center gap-1.5 text-green-600">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="20 6 9 17 4 12" />
@@ -410,7 +389,7 @@ export function DocumentPreview({ form, calc, onClose, onFormChange }: Props) {
                 Sauvegardé
               </span>
             )}
-            {saved && saveLocal && (
+            {!pdfError && saved && saveLocal && (
               <span className="flex items-center gap-1.5 text-amber-600">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />

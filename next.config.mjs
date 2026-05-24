@@ -3,13 +3,8 @@ const nextConfig = {
   images: {
     remotePatterns: [],
   },
-  // Suppress html2canvas/jsPDF warnings in edge runtime
-  webpack: (config, { isServer }) => {
-    if (isServer) {
-      config.externals = [...(config.externals || []), "canvas", "jsdom"];
-    }
-    return config;
-  },
+  // @react-pdf/renderer must run as a native Node module (not bundled)
+  serverExternalPackages: ["@react-pdf/renderer"],
 };
 
 export default nextConfig;
