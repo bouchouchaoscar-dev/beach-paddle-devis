@@ -45,15 +45,23 @@ export async function getDevisList(): Promise<DevisRecord[]> {
     .order("created_at", { ascending: false });
 
   if (error || !data) {
-    console.warn("[storage] Supabase read failed, falling back to localStorage", error?.message);
+    console.warn("[storage] Supabase read failed, falling back to localStorage:", error?.message);
     return lsGetAll();
   }
 
-  return data.map(rowToRecord);
+  const remote = data.map(rowToRecord);
+  // Merge records saved to localStorage when Supabase was unavailable
+  const remoteIds = new Set(remote.map((r) => r.id));
+  const localOnly = lsGetAll().filter((r) => !remoteIds.has(r.id));
+  if (localOnly.length > 0) {
+    console.log("[storage] Merging", localOnly.length, "local-only record(s) into archive");
+  }
+  return [...remote, ...localOnly].sort((a, b) => b.createdAt - a.createdAt);
 }
 
-export async function saveDevis(record: DevisRecord): Promise<void> {
+export async function saveDevis(record: DevisRecord): Promise<{ source: "supabase" | "localStorage" }> {
   const session = getSession();
+  console.log("[storage] saveDevis →", record.numero);
 
   const { error } = await supabase.from("documents").upsert(
     {
@@ -76,9 +84,13 @@ export async function saveDevis(record: DevisRecord): Promise<void> {
   );
 
   if (error) {
-    console.warn("[storage] Supabase write failed, falling back to localStorage", error.message);
+    console.warn("[storage] Supabase write failed, falling back to localStorage:", error.message);
     lsSave(record);
+    return { source: "localStorage" };
   }
+
+  console.log("[storage] Saved to Supabase:", record.numero);
+  return { source: "supabase" };
 }
 
 export async function deleteDevis(id: string): Promise<void> {

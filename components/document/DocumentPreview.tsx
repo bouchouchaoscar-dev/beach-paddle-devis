@@ -23,6 +23,7 @@ export function DocumentPreview({ form, calc, onClose, onFormChange }: Props) {
   const [acompteVerse, setAcompteVerse] = useState<string>("");
   const [generating, setGenerating] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveLocal, setSaveLocal] = useState(false); // true = Supabase unavailable, saved to localStorage
   const [todayStr] = useState(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -86,35 +87,51 @@ export function DocumentPreview({ form, calc, onClose, onFormChange }: Props) {
       const el = document.getElementById("document-template");
       if (!el) return;
 
-      // A4 height in natural CSS pixels (DOC_NATURAL_WIDTH = 210mm at 96dpi = 794px)
+      // Ensure all fonts are loaded before capture (critical on mobile)
+      await document.fonts.ready;
+
+      // iOS Safari silently fails or corrupts canvas when > ~16M pixels.
+      // Scale 2.5 → 1985×2807 ≈ 22MB per A4 page → crashes on mobile.
+      // Scale 2.0 → 1588×2246 ≈ 14MB → within safe limits.
+      const isMobile =
+        /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) ||
+        window.innerWidth < 768;
+      const captureScale = isMobile ? 2 : 2.5;
+
+      // A4 height in natural CSS pixels (DOC_NATURAL_WIDTH = 210mm = 794px at 96dpi)
       const A4_H_PX = Math.round(DOC_NATURAL_WIDTH * 297 / 210); // ≈ 1123
 
       // For multi-page documents: push footer entirely onto the last page if it
-      // would otherwise be split by a page boundary.
+      // would otherwise be split across a page boundary.
       const footerEl = document.getElementById("document-footer");
       let prevMarginTop = "";
       if (footerEl && el.scrollHeight > A4_H_PX) {
-        const footerTopInDoc = footerEl.offsetTop;   // natural CSS px from doc top
-        const footerHeightPx = footerEl.offsetHeight; // natural CSS px
-
+        const footerTopInDoc = footerEl.offsetTop;
+        const footerHeightPx = footerEl.offsetHeight;
         const posOnPage = footerTopInDoc % A4_H_PX;
         const remainingOnPage = A4_H_PX - posOnPage;
 
         if (posOnPage > 0 && footerHeightPx > remainingOnPage) {
-          // Footer spans a page boundary → add margin to push it to the next page
           prevMarginTop = footerEl.style.marginTop;
           footerEl.style.marginTop = `${Math.ceil(remainingOnPage) + 8}px`;
+          void el.scrollHeight; // force synchronous reflow before reading scrollHeight below
         }
       }
 
       const canvas = await html2canvas(el, {
-        scale: 2.5,
+        scale: captureScale,
         useCORS: true,
         allowTaint: true,
         backgroundColor: "#ffffff",
         logging: false,
         width: el.scrollWidth,
-        height: el.scrollHeight, // re-read after potential margin change
+        height: el.scrollHeight,
+        // Lock viewport to natural document dimensions so CSS mm/pt units
+        // render identically on any screen size (prevents mobile distortion).
+        windowWidth: DOC_NATURAL_WIDTH,
+        windowHeight: A4_H_PX,
+        scrollX: 0,
+        scrollY: 0,
       });
 
       // Restore footer margin immediately after capture
@@ -123,10 +140,9 @@ export function DocumentPreview({ form, calc, onClose, onFormChange }: Props) {
       }
 
       const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-      const pdfW = pdf.internal.pageSize.getWidth();   // 210mm
-      const pdfH = pdf.internal.pageSize.getHeight();  // 297mm
+      const pdfW = pdf.internal.pageSize.getWidth();
+      const pdfH = pdf.internal.pageSize.getHeight();
 
-      // Split canvas into A4-sized slices, one per page
       const pxPerMm = canvas.width / pdfW;
       const pageHPx = Math.round(pdfH * pxPerMm);
       const totalPages = Math.ceil(canvas.height / pageHPx);
@@ -146,16 +162,9 @@ export function DocumentPreview({ form, calc, onClose, onFormChange }: Props) {
         pdf.addImage(pc.toDataURL("image/png"), "PNG", 0, 0, pdfW, pdfH);
       }
 
-      const activityLabel =
-        form.activity === "paddle" ? "Paddle" :
-        form.activity === "kayak" ? "Kayak" :
-        form.activity === "hybride" ? "Paddle-Kayak" : "";
-      const safeClient = form.clientName.replace(/[/\\:*?"<>|]/g, " ").trim();
-      const fileName = [documentType === "facture" ? "Facture" : "Devis", activityLabel, safeClient]
-        .filter(Boolean)
-        .join(" ") + ".pdf";
-      pdf.save(fileName);
-
+      // SAVE BEFORE triggering download.
+      // On iOS Safari, pdf.save() can interrupt the JS async chain,
+      // so the Supabase save must complete before the download fires.
       if (!saved) {
         const record: DevisRecord = {
           id: generateId(),
@@ -171,9 +180,24 @@ export function DocumentPreview({ form, calc, onClose, onFormChange }: Props) {
           documentType,
           formData: { ...form, documentType },
         };
-        await saveDevis(record);
+        const { source } = await saveDevis(record);
         setSaved(true);
+        if (source === "localStorage") {
+          setSaveLocal(true);
+          console.warn("[PDF] Supabase indisponible — sauvegardé en local:", record.numero);
+        }
       }
+
+      const activityLabel =
+        form.activity === "paddle" ? "Paddle" :
+        form.activity === "kayak" ? "Kayak" :
+        form.activity === "hybride" ? "Paddle-Kayak" : "";
+      const safeClient = form.clientName.replace(/[/\\:*?"<>|]/g, " ").trim();
+      const fileName = [documentType === "facture" ? "Facture" : "Devis", activityLabel, safeClient]
+        .filter(Boolean)
+        .join(" ") + ".pdf";
+      pdf.save(fileName);
+
     } finally {
       setGenerating(false);
     }
@@ -378,12 +402,21 @@ export function DocumentPreview({ form, calc, onClose, onFormChange }: Props) {
         {/* ── FOOTER ────────────────────────────────────────────── */}
         <div className="px-4 sm:px-5 py-3 border-t border-surface-border bg-white shrink-0 flex items-center justify-between">
           <div className="text-xs text-ink-muted">
-            {saved && (
+            {saved && !saveLocal && (
               <span className="flex items-center gap-1.5 text-green-600">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
                 Sauvegardé
+              </span>
+            )}
+            {saved && saveLocal && (
+              <span className="flex items-center gap-1.5 text-amber-600">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                  <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+                Sauvegardé (hors-ligne)
               </span>
             )}
           </div>
