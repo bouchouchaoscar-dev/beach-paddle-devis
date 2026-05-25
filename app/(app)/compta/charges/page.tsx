@@ -54,6 +54,10 @@ export default function ChargesPage() {
   const [importImagesError, setImportImagesError] = useState<string | null>(null);
   const [importImagesDiag, setImportImagesDiag] = useState<Record<string, unknown> | null>(null);
 
+  const [importingExcel, setImportingExcel] = useState(false);
+  const [importExcelResult, setImportExcelResult] = useState<string | null>(null);
+  const [importExcelError, setImportExcelError] = useState<string | null>(null);
+
   // Upload + AI
   const fileRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -264,6 +268,35 @@ export default function ChargesPage() {
     }
   }
 
+  async function handleImportExcel(reset = false) {
+    setImportingExcel(true);
+    setImportExcelError(null);
+    setImportExcelResult(null);
+    try {
+      const res = await fetch(`/api/import-compta-excel${reset ? "?reset=true" : ""}`, { method: "POST" });
+      const data = await res.json() as {
+        inserted?: { charges: number; sessions: number };
+        skipped?: number;
+        sheets?: Record<string, { charges: number; sessions: number; skipped: number }>;
+        warnings?: string[];
+        error?: string;
+      };
+      if (res.ok) {
+        const { charges: c = 0, sessions: s = 0 } = data.inserted ?? {};
+        const sk = data.skipped ?? 0;
+        setImportExcelResult(`${c} charges + ${s} sessions importées${sk > 0 ? ` (${sk} doublons ignorés)` : ""}`);
+        if (data.warnings?.length) setImportExcelError(`Avertissements : ${data.warnings.slice(0, 5).join(" | ")}`);
+        await load();
+      } else {
+        setImportExcelError(data.error ?? `Erreur serveur ${res.status}`);
+      }
+    } catch (err) {
+      setImportExcelError(err instanceof Error ? err.message : "Erreur réseau");
+    } finally {
+      setImportingExcel(false);
+    }
+  }
+
   // ── Derived ────────────────────────────────────────────────────────────────
 
   const filteredCharges = charges.filter((c) => {
@@ -326,6 +359,21 @@ export default function ChargesPage() {
           {importImagesResult && !importImagesError && (
             <span className="text-xs text-green-600 font-medium max-w-xs">{importImagesResult}</span>
           )}
+          <button
+            onClick={() => handleImportExcel()}
+            disabled={importingExcel}
+            className="btn-secondary gap-2 text-xs"
+          >
+            {importingExcel ? (
+              <svg className="animate-spin" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+            ) : (
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            )}
+            Import Excel 2025
+          </button>
+          {importExcelResult && !importExcelError && (
+            <span className="text-xs text-green-600 font-medium max-w-xs">{importExcelResult}</span>
+          )}
         </div>
       </div>
 
@@ -349,6 +397,28 @@ export default function ChargesPage() {
               <p className="text-xs text-ink-secondary">Clé API Anthropic : <span className={importImagesDiag.hasApiKey ? "text-green-600" : "text-red-600"}>{importImagesDiag.hasApiKey ? "Configurée" : "MANQUANTE — ajouter ANTHROPIC_API_KEY sur Vercel"}</span></p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Excel import error/result ── */}
+      {(importExcelError || (importExcelResult && !importImagesError)) && (
+        <div
+          className={`rounded-xl border p-4 space-y-1 ${importExcelError && !importExcelResult ? "border-red-200 bg-red-50" : "border-green-200 bg-green-50"}`}
+          style={{ opacity: 0, animation: "slideUp 0.3s cubic-bezier(0.16,1,0.3,1) forwards" }}
+        >
+          {importExcelResult && (
+            <p className="text-sm font-semibold text-green-700">{importExcelResult}</p>
+          )}
+          {importExcelError && (
+            <p className="text-xs text-red-600">{importExcelError}</p>
+          )}
+          <button
+            onClick={() => handleImportExcel(true)}
+            disabled={importingExcel}
+            className="text-xs text-ink-muted underline hover:text-ink mt-1"
+          >
+            Réimporter (reset complet)
+          </button>
         </div>
       )}
 
