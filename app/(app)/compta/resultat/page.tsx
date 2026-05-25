@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useCallback } from "react";
 import {
-  ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend,
+  ResponsiveContainer, PieChart, Pie, Cell, Tooltip,
 } from "recharts";
 import { getCaEntries, getCharges } from "@/lib/compta";
 import { formatPrice } from "@/lib/calculations";
 import {
-  CURRENT_SAISON, MOIS_FULL, MOIS_LABELS, SAISONS,
+  CURRENT_SAISON, MOIS_LABELS, SAISONS,
   CHARGE_LABELS, CHARGE_COLORS,
   type CaEntry, type Charge, type ChargeCategory,
 } from "@/lib/compta-types";

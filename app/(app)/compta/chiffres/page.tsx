@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   ResponsiveContainer, LineChart, Line, BarChart, Bar,
-  CartesianGrid, XAxis, YAxis, Tooltip, Legend, ReferenceLine,
+  CartesianGrid, XAxis, YAxis, Tooltip,
 } from "recharts";
 import { getCaEntries, saveCaEntry, deleteCaEntry } from "@/lib/compta";
 import { formatPrice } from "@/lib/calculations";
@@ -15,7 +15,6 @@ const today = () => {
 };
 
 const CHART_COLOR = "#0071E3";
-const CHART_GREEN = "#16A34A";
 
 export default function ChiffresPage() {
   const [saison, setSaison] = useState(CURRENT_SAISON);
@@ -27,8 +26,6 @@ export default function ChiffresPage() {
   const [importDone, setImportDone] = useState(false);
   const [importResult, setImportResult] = useState<{ inserted: number; total: number } | null>(null);
   const [form, setForm] = useState({ date: today(), montant: "", notes: "" });
-  const [editingId, setEditingId] = useState<string | null>(null);
-
   useEffect(() => {
     setImportDone(localStorage.getItem("bp_excel_imported") === "1");
   }, []);
@@ -89,7 +86,6 @@ export default function ChiffresPage() {
         created_by: "",
       });
       setForm({ date: today(), montant: "", notes: "" });
-      setEditingId(null);
       await load();
     } finally {
       setSaving(false);

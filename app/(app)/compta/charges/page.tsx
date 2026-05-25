@@ -8,7 +8,7 @@ import {
 } from "@/lib/compta";
 import { formatPrice } from "@/lib/calculations";
 import {
-  CURRENT_SAISON, MOIS_FULL, MOIS_LABELS,
+  CURRENT_SAISON, MOIS_FULL,
   CHARGE_LABELS, SAISONS,
   type Charge, type Employee, type WorkSession, type ChargeCategory,
 } from "@/lib/compta-types";

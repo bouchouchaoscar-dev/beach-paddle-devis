@@ -3,8 +3,10 @@ const nextConfig = {
   images: {
     remotePatterns: [],
   },
-  // @react-pdf/renderer must run as a native Node module (not bundled)
-  serverExternalPackages: ["@react-pdf/renderer"],
+  experimental: {
+    // @react-pdf/renderer must run as a native Node module (not bundled)
+    serverComponentsExternalPackages: ["@react-pdf/renderer"],
+  },
 };
 
 export default nextConfig;

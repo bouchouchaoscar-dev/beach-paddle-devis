@@ -7,7 +7,7 @@ import {
   PieChart, Pie, Cell,
   CartesianGrid, XAxis, YAxis, Tooltip, Legend,
 } from "recharts";
-import { getCaEntries, getCharges, getWorkSessions } from "@/lib/compta";
+import { getCaEntries, getCharges } from "@/lib/compta";
 import { formatPrice } from "@/lib/calculations";
 import {
   CURRENT_SAISON, MOIS_LABELS, SAISONS,

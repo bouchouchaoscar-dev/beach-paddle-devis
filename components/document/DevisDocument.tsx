@@ -367,6 +367,7 @@ export function DevisDocument({
             <Text style={s.siret}>SIRET : 84118702400010</Text>
           </View>
           <View style={s.headerRight}>
+            {/* eslint-disable-next-line jsx-a11y/alt-text */}
             {logoBase64 ? <Image src={logoBase64} style={s.logo} /> : null}
             <Text style={s.docType}>{isFacture ? "FACTURE" : "DEVIS"}</Text>
             <Text style={s.docDate}>{dateFormatted}</Text>
