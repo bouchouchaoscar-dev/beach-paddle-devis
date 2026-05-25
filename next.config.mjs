@@ -4,8 +4,8 @@ const nextConfig = {
     remotePatterns: [],
   },
   experimental: {
-    // @react-pdf/renderer must run as a native Node module (not bundled)
-    serverComponentsExternalPackages: ["@react-pdf/renderer"],
+    // Ces packages doivent tourner en Node natif, pas bundlés par webpack
+    serverComponentsExternalPackages: ["@react-pdf/renderer", "xlsx"],
   },
 };
 

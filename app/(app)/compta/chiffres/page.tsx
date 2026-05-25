@@ -24,7 +24,8 @@ export default function ChiffresPage() {
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importDone, setImportDone] = useState(false);
-  const [importResult, setImportResult] = useState<{ inserted: number; total: number } | null>(null);
+  const [importResult, setImportResult] = useState<{ inserted: number; total: number; message?: string } | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
   const [form, setForm] = useState({ date: today(), montant: "", notes: "" });
   useEffect(() => {
     setImportDone(localStorage.getItem("bp_excel_imported") === "1");
@@ -99,15 +100,23 @@ export default function ChiffresPage() {
 
   async function handleImportExcel() {
     setImporting(true);
+    setImportError(null);
+    setImportResult(null);
     try {
       const res = await fetch("/api/import-excel", { method: "POST" });
-      const data = await res.json();
-      if (res.ok) {
-        setImportResult({ inserted: data.inserted, total: data.total });
+      const json = await res.json() as { inserted?: number; total?: number; message?: string; error?: string; errorDetail?: string };
+      if (!res.ok) {
+        setImportError(json.error ?? `Erreur serveur ${res.status}`);
+        return;
+      }
+      setImportResult({ inserted: json.inserted ?? 0, total: json.total ?? 0, message: json.message });
+      if ((json.inserted ?? 0) > 0) {
         localStorage.setItem("bp_excel_imported", "1");
         setImportDone(true);
         await load();
       }
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : "Erreur réseau");
     } finally {
       setImporting(false);
     }
@@ -159,9 +168,16 @@ export default function ChiffresPage() {
               Importer historique Excel
             </button>
           )}
-          {importResult && (
-            <span className="text-xs text-green-600 font-medium">
-              {importResult.inserted} entrées importées
+          {importError && (
+            <span className="text-xs text-red-500 font-medium max-w-xs truncate" title={importError}>
+              Erreur : {importError}
+            </span>
+          )}
+          {importResult && !importError && (
+            <span className={`text-xs font-medium ${importResult.inserted > 0 ? "text-green-600" : "text-ink-secondary"}`}>
+              {importResult.message === "Déjà importé"
+                ? `Déjà importé (${importResult.total} entrées)`
+                : `${importResult.inserted} / ${importResult.total} entrées importées`}
             </span>
           )}
         </div>
