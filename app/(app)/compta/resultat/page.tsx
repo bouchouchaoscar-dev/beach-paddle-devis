@@ -20,13 +20,18 @@ export default function ResultatPage() {
   const [charges, setCharges] = useState<Charge[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const isAll = saison === "all";
+
   const load = useCallback(async () => {
     setLoading(true);
-    const [ca, ch] = await Promise.all([getCaEntries(saison), getCharges(saison)]);
+    const [ca, ch] = await Promise.all([
+      getCaEntries(isAll ? undefined : saison),
+      getCharges(isAll ? undefined : saison),
+    ]);
     setCaEntries(ca);
     setCharges(ch);
     setLoading(false);
-  }, [saison]);
+  }, [saison, isAll]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -52,6 +57,15 @@ export default function ResultatPage() {
     const mg = ca > 0 ? (res / ca) * 100 : null;
     return { label, ca, charges: ch, resultat: res, marge: mg };
   }).filter((m) => m.ca > 0 || m.charges > 0);
+
+  // For "all" mode: per-season table
+  const perSeasonData = SAISONS.map((yr) => {
+    const ca = caEntries.filter((e) => e.saison === yr).reduce((s, e) => s + e.montant, 0);
+    const ch = charges.filter((c) => c.saison === yr).reduce((s, c) => s + c.montant, 0);
+    const res = ca - ch;
+    const mg = ca > 0 ? (res / ca) * 100 : null;
+    return { yr, ca, charges: ch, resultat: res, marge: mg };
+  }).filter((r) => r.ca > 0 || r.charges > 0).reverse();
 
   const margeColor = (m: number | null) => {
     if (m === null) return "text-ink-muted";
@@ -88,6 +102,7 @@ export default function ResultatPage() {
           onChange={(e) => setSaison(e.target.value)}
           className="input-field !w-auto !py-1.5 !px-3 text-sm font-medium"
         >
+          <option value="all">Toutes les saisons</option>
           {[...SAISONS].reverse().map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
       </div>
@@ -159,36 +174,53 @@ export default function ResultatPage() {
           )}
         </div>
 
-        {/* Monthly table */}
+        {/* Monthly table / Per-season table */}
         <div className="card p-5 lg:col-span-3 overflow-x-auto">
-          <h2 className="text-sm font-semibold text-ink mb-4">Tableau mensuel — Saison {saison}</h2>
-          {monthlyData.length === 0 ? (
+          <h2 className="text-sm font-semibold text-ink mb-4">
+            {isAll ? "Tableau par saison — toutes les années" : `Tableau mensuel — Saison ${saison}`}
+          </h2>
+          {(isAll ? perSeasonData : monthlyData).length === 0 ? (
             <div className="flex items-center justify-center h-32 text-sm text-ink-muted">
-              Aucune donnée pour cette saison
+              Aucune donnée
             </div>
           ) : (
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-surface-border">
-                  {["Mois", "CA", "Charges", "Résultat", "Marge"].map((h) => (
+                  {[isAll ? "Saison" : "Mois", "CA", "Charges", "Résultat", "Marge"].map((h) => (
                     <th key={h} className="text-left text-xs font-semibold text-ink-muted pb-2 pr-4 last:pr-0">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-border">
-                {monthlyData.map((row) => (
-                  <tr key={row.label} className="hover:bg-surface-muted transition-colors">
-                    <td className="py-2 pr-4 text-ink font-medium text-xs">{row.label}</td>
-                    <td className="py-2 pr-4 font-mono font-semibold text-xs" style={{ color: "#0071E3" }}>{formatPrice(row.ca)}</td>
-                    <td className="py-2 pr-4 font-mono font-semibold text-xs" style={{ color: "#E03131" }}>{formatPrice(row.charges)}</td>
-                    <td className="py-2 pr-4 font-mono font-semibold text-xs" style={{ color: row.resultat >= 0 ? "#16A34A" : "#E03131" }}>
-                      {row.resultat >= 0 ? "+" : ""}{formatPrice(row.resultat)}
-                    </td>
-                    <td className={`py-2 font-mono text-xs font-semibold ${margeColor(row.marge)}`}>
-                      {row.marge !== null ? `${row.marge.toFixed(1)}%` : "—"}
-                    </td>
-                  </tr>
-                ))}
+                {isAll
+                  ? perSeasonData.map((row) => (
+                      <tr key={row.yr} className="hover:bg-surface-muted transition-colors">
+                        <td className="py-2 pr-4 text-ink font-semibold text-xs">{row.yr}</td>
+                        <td className="py-2 pr-4 font-mono font-semibold text-xs" style={{ color: "#0071E3" }}>{formatPrice(row.ca)}</td>
+                        <td className="py-2 pr-4 font-mono font-semibold text-xs" style={{ color: "#E03131" }}>{formatPrice(row.charges)}</td>
+                        <td className="py-2 pr-4 font-mono font-semibold text-xs" style={{ color: row.resultat >= 0 ? "#16A34A" : "#E03131" }}>
+                          {row.resultat >= 0 ? "+" : ""}{formatPrice(row.resultat)}
+                        </td>
+                        <td className={`py-2 font-mono text-xs font-semibold ${margeColor(row.marge)}`}>
+                          {row.marge !== null ? `${row.marge.toFixed(1)}%` : "—"}
+                        </td>
+                      </tr>
+                    ))
+                  : monthlyData.map((row) => (
+                      <tr key={row.label} className="hover:bg-surface-muted transition-colors">
+                        <td className="py-2 pr-4 text-ink font-medium text-xs">{row.label}</td>
+                        <td className="py-2 pr-4 font-mono font-semibold text-xs" style={{ color: "#0071E3" }}>{formatPrice(row.ca)}</td>
+                        <td className="py-2 pr-4 font-mono font-semibold text-xs" style={{ color: "#E03131" }}>{formatPrice(row.charges)}</td>
+                        <td className="py-2 pr-4 font-mono font-semibold text-xs" style={{ color: row.resultat >= 0 ? "#16A34A" : "#E03131" }}>
+                          {row.resultat >= 0 ? "+" : ""}{formatPrice(row.resultat)}
+                        </td>
+                        <td className={`py-2 font-mono text-xs font-semibold ${margeColor(row.marge)}`}>
+                          {row.marge !== null ? `${row.marge.toFixed(1)}%` : "—"}
+                        </td>
+                      </tr>
+                    ))
+                }
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-surface-border">
@@ -217,7 +249,7 @@ export default function ResultatPage() {
       >
         <div className="flex items-center gap-4 flex-wrap">
           <div className="flex-1">
-            <p className="text-xs text-ink-muted font-medium">Résumé saison {saison}</p>
+            <p className="text-xs text-ink-muted font-medium">{isAll ? "Résumé toutes saisons" : `Résumé saison ${saison}`}</p>
             <p className="text-lg font-bold text-ink mt-0.5">
               CA {formatPrice(totalCA)} — Charges {formatPrice(totalCharges)}
             </p>

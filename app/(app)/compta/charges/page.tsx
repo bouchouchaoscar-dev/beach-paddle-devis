@@ -50,6 +50,7 @@ export default function ChargesPage() {
   const [importImagesDone, setImportImagesDone] = useState(false);
   const [importingImages, setImportingImages] = useState(false);
   const [importImagesResult, setImportImagesResult] = useState<string | null>(null);
+  const [importImagesError, setImportImagesError] = useState<string | null>(null);
 
   // Upload + AI
   const fileRef = useRef<HTMLInputElement>(null);
@@ -77,18 +78,20 @@ export default function ChargesPage() {
     setImportImagesDone(localStorage.getItem("bp_compta_images_imported") === "1");
   }, []);
 
+  const isAll = saison === "all";
+
   const load = useCallback(async () => {
     setLoading(true);
     const [c, e, s] = await Promise.all([
-      getCharges(saison),
+      getCharges(isAll ? undefined : saison),
       getEmployees(),
-      getWorkSessions(saison),
+      getWorkSessions(isAll ? undefined : saison),
     ]);
     setCharges(c);
     setEmployees(e);
     setSessions(s);
     setLoading(false);
-  }, [saison]);
+  }, [saison, isAll]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -229,18 +232,25 @@ export default function ChargesPage() {
 
   async function handleImportImages() {
     setImportingImages(true);
+    setImportImagesError(null);
+    setImportImagesResult(null);
     try {
       const res = await fetch("/api/import-compta-images", { method: "POST" });
-      const data = await res.json();
+      const data = await res.json() as { charges?: number; sessions?: number; files?: number; errors?: string[]; error?: string };
       if (res.ok) {
-        const msg = `${data.charges ?? 0} charges + ${data.sessions ?? 0} sessions importées`;
+        const msg = `${data.charges ?? 0} charges + ${data.sessions ?? 0} sessions importées (${data.files ?? 0} images analysées)`;
         setImportImagesResult(msg);
+        if ((data.errors ?? []).length > 0) {
+          setImportImagesError(`Avertissements : ${data.errors!.slice(0, 2).join(" / ")}`);
+        }
         localStorage.setItem("bp_compta_images_imported", "1");
         setImportImagesDone(true);
         await load();
       } else {
-        setImportImagesResult(data.error ?? "Erreur import");
+        setImportImagesError(data.error ?? `Erreur serveur ${res.status}`);
       }
+    } catch (err) {
+      setImportImagesError(err instanceof Error ? err.message : "Erreur réseau");
     } finally {
       setImportingImages(false);
     }
@@ -290,6 +300,7 @@ export default function ChargesPage() {
             onChange={(e) => setSaison(e.target.value)}
             className="input-field !w-auto !py-1.5 !px-3 text-sm font-medium"
           >
+            <option value="all">Toutes les saisons</option>
             {[...SAISONS].reverse().map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
           {!importImagesDone && (
@@ -307,6 +318,7 @@ export default function ChargesPage() {
             </button>
           )}
           {importImagesResult && <span className="text-xs text-green-600 font-medium">{importImagesResult}</span>}
+          {importImagesError && <span className="text-xs text-red-500 font-medium max-w-xs truncate" title={importImagesError}>{importImagesError}</span>}
         </div>
       </div>
 
@@ -696,17 +708,19 @@ export default function ChargesPage() {
               <option value="all">Toutes catégories</option>
               {CATEGORIES.map((c) => <option key={c} value={c}>{CHARGE_LABELS[c]}</option>)}
             </select>
-            <select
-              value={filterMois}
-              onChange={(e) => setFilterMois(e.target.value)}
-              className="input-field !w-auto !py-1.5 !px-3 text-xs"
-            >
-              <option value="all">Tous les mois</option>
-              {MOIS_FULL.map((m, i) => {
-                const key = `${saison}-${String(i + 1).padStart(2, "0")}`;
-                return <option key={key} value={key}>{m} {saison}</option>;
-              })}
-            </select>
+            {!isAll && (
+              <select
+                value={filterMois}
+                onChange={(e) => setFilterMois(e.target.value)}
+                className="input-field !w-auto !py-1.5 !px-3 text-xs"
+              >
+                <option value="all">Tous les mois</option>
+                {MOIS_FULL.map((m, i) => {
+                  const key = `${saison}-${String(i + 1).padStart(2, "0")}`;
+                  return <option key={key} value={key}>{m} {saison}</option>;
+                })}
+              </select>
+            )}
           </div>
         </div>
 

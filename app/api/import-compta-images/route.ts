@@ -55,14 +55,14 @@ export async function POST() {
     return NextResponse.json({ error: "ANTHROPIC_API_KEY non configurée" }, { status: 500 });
   }
 
-  const dir = path.join(process.cwd(), "data", "compta_2025");
+  const dir = path.join(process.cwd(), "public", "data", "compta_2025");
   if (!fs.existsSync(dir)) {
-    return NextResponse.json({ error: "Dossier data/compta_2025/ introuvable" }, { status: 404 });
+    return NextResponse.json({ error: "Dossier public/data/compta_2025/ introuvable" }, { status: 404 });
   }
 
   const files = fs.readdirSync(dir).filter((f) => /\.(png|jpg|jpeg)$/i.test(f));
   if (files.length === 0) {
-    return NextResponse.json({ error: "Aucune image PNG/JPG dans data/compta_2025/" }, { status: 404 });
+    return NextResponse.json({ error: "Aucune image PNG/JPG dans public/data/compta_2025/" }, { status: 404 });
   }
 
   const supabase = createClient(

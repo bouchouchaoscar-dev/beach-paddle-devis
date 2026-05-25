@@ -26,14 +26,19 @@ export default function AnalysePage() {
   const [insightsLoading, setInsightsLoading] = useState(false);
   const [insightsFetched, setInsightsFetched] = useState(false);
 
+  const isAll = saison === "all";
+
   const load = useCallback(async () => {
     setLoading(true);
     setInsightsFetched(false);
-    const [ca, ch] = await Promise.all([getCaEntries(saison), getCharges(saison)]);
+    const [ca, ch] = await Promise.all([
+      getCaEntries(isAll ? undefined : saison),
+      getCharges(isAll ? undefined : saison),
+    ]);
     setCaEntries(ca);
     setCharges(ch);
     setLoading(false);
-  }, [saison]);
+  }, [saison, isAll]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -47,17 +52,24 @@ export default function AnalysePage() {
   const joursOuverts = caEntries.filter((e) => e.montant > 0).length;
   const caMoyen = joursOuverts > 0 ? totalCA / joursOuverts : 0;
 
-  // Monthly CA vs Charges
-  const monthlyCAvsCharges = MOIS_LABELS.map((label, i) => {
-    const m = String(i + 1).padStart(2, "0");
-    const prefix = `${saison}-${m}`;
-    const ca = caEntries.filter((e) => e.date.startsWith(prefix)).reduce((s, e) => s + e.montant, 0);
-    const ch = charges.filter((c) => c.date.startsWith(prefix)).reduce((s, c) => s + c.montant, 0);
-    const res = ca - ch;
-    return { label, ca, charges: ch, resultat: res };
-  }).filter((m) => m.ca > 0 || m.charges > 0);
+  // Monthly CA vs Charges (single season) / Yearly (all seasons)
+  const monthlyCAvsCharges = isAll
+    ? SAISONS.map((yr) => {
+        const ca = caEntries.filter((e) => e.saison === yr).reduce((s, e) => s + e.montant, 0);
+        const ch = charges.filter((c) => c.saison === yr).reduce((s, c) => s + c.montant, 0);
+        const res = ca - ch;
+        return { label: yr, ca, charges: ch, resultat: res };
+      }).filter((r) => r.ca > 0 || r.charges > 0)
+    : MOIS_LABELS.map((label, i) => {
+        const m = String(i + 1).padStart(2, "0");
+        const prefix = `${saison}-${m}`;
+        const ca = caEntries.filter((e) => e.date.startsWith(prefix)).reduce((s, e) => s + e.montant, 0);
+        const ch = charges.filter((c) => c.date.startsWith(prefix)).reduce((s, c) => s + c.montant, 0);
+        const res = ca - ch;
+        return { label, ca, charges: ch, resultat: res };
+      }).filter((m) => m.ca > 0 || m.charges > 0);
 
-  // Multi-season CA comparison (last 3 seasons)
+  // Multi-season CA comparison (always show last 4 for the monthly chart)
   const recentSaisons = SAISONS.slice(-4);
   const multiSeasonData = MOIS_LABELS.map((label, i) => {
     const m = String(i + 1).padStart(2, "0");
@@ -157,6 +169,7 @@ export default function AnalysePage() {
           onChange={(e) => setSaison(e.target.value)}
           className="input-field !w-auto !py-1.5 !px-3 text-sm font-medium"
         >
+          <option value="all">Toutes les saisons</option>
           {[...SAISONS].reverse().map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
       </div>
@@ -167,12 +180,12 @@ export default function AnalysePage() {
         style={{ opacity: 0, animation: "slideUp 0.4s cubic-bezier(0.16,1,0.3,1) 0.1s forwards" }}
       >
         {[
-          { label: "CA saison", value: formatPrice(totalCA), color: "#0071E3" },
+          { label: isAll ? "CA total depuis 2016" : "CA saison", value: formatPrice(totalCA), color: "#0071E3" },
           { label: "Charges", value: formatPrice(totalCharges), color: "#E03131" },
           { label: "Résultat net", value: formatPrice(resultat), color: resultat >= 0 ? "#16A34A" : "#E03131" },
           { label: "Marge", value: `${marge.toFixed(1)}%`, color: marge >= 20 ? "#16A34A" : marge >= 5 ? "#F59E0B" : "#E03131" },
-          { label: "Jours ouverts", value: String(joursOuverts), color: "#8B5CF6" },
-          { label: "CA / jour ouvert", value: formatPrice(caMoyen), color: "#0071E3" },
+          { label: isAll ? "Saisons actives" : "Jours ouverts", value: isAll ? String(monthlyCAvsCharges.length) : String(joursOuverts), color: "#8B5CF6" },
+          { label: isAll ? "CA moyen / saison" : "CA / jour ouvert", value: formatPrice(isAll && monthlyCAvsCharges.length > 0 ? totalCA / monthlyCAvsCharges.length : caMoyen), color: "#0071E3" },
         ].map((kpi) => (
           <div key={kpi.label} className="card p-4">
             <p className="text-[11px] text-ink-muted font-medium mb-1 leading-tight">{kpi.label}</p>
@@ -190,7 +203,7 @@ export default function AnalysePage() {
       >
         {/* CA vs Charges */}
         <div className="card p-5">
-          <h2 className="text-sm font-semibold text-ink mb-4">CA vs Charges — {saison}</h2>
+          <h2 className="text-sm font-semibold text-ink mb-4">{isAll ? "CA vs Charges — par saison" : `CA vs Charges — ${saison}`}</h2>
           {monthlyCAvsCharges.length === 0 ? (
             <div className="h-48 flex items-center justify-center text-sm text-ink-muted">Pas de données</div>
           ) : (
