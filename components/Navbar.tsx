@@ -98,7 +98,7 @@ export function Navbar() {
             <span className="text-sm font-bold tracking-tight" style={{ color: "#1D1D1F" }}>
               Beach Paddle
             </span>
-            <span className="text-[9px] font-semibold tracking-[0.12em] uppercase" style={{ color: "#0071E3" }}>
+            <span className="text-[10px] font-semibold" style={{ color: "#0071E3" }}>
               Admin
             </span>
           </div>

@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Beach Paddle — Outil de devis",
-  description: "Outil interne de génération de devis et factures pour Beach Paddle",
+  title: "Beach Paddle Admin",
+  description: "Outil de gestion Beach Paddle",
 };
 
 export default function RootLayout({

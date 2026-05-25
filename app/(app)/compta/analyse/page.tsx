@@ -10,15 +10,16 @@ import {
 import { getCaEntries, getCharges } from "@/lib/compta";
 import { formatPrice } from "@/lib/calculations";
 import {
-  CURRENT_SAISON, MOIS_LABELS, SAISONS,
+  MOIS_LABELS, SAISONS,
   CHARGE_LABELS, CHARGE_COLORS,
   type CaEntry, type Charge, type ChargeCategory,
 } from "@/lib/compta-types";
+import { useComptaSaison } from "../ComptaSaisonProvider";
 
 const CATEGORIES = Object.keys(CHARGE_LABELS) as ChargeCategory[];
 
 export default function AnalysePage() {
-  const [saison, setSaison] = useState(CURRENT_SAISON);
+  const { saison, setSaison } = useComptaSaison();
   const [caEntries, setCaEntries] = useState<CaEntry[]>([]);
   const [charges, setCharges] = useState<Charge[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,7 +39,7 @@ export default function AnalysePage() {
     setCaEntries(ca);
     setCharges(ch);
     setLoading(false);
-  }, [saison, isAll]);
+  }, [saison]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -93,7 +94,7 @@ export default function AnalysePage() {
     .sort((a, b) => b.montant - a.montant)
     .slice(0, 5)
     .map((e) => ({
-      label: new Date(e.date + "T12:00:00").toLocaleDateString("fr-FR", { day: "2-digit", month: "short" }),
+      label: new Date(e.date + "T12:00:00").toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" }),
       ca: e.montant,
     }));
 
@@ -208,7 +209,7 @@ export default function AnalysePage() {
             <div className="h-48 flex items-center justify-center text-sm text-ink-muted">Pas de données</div>
           ) : (
             <ResponsiveContainer width="100%" height={200}>
-              <ComposedChart data={monthlyCAvsCharges} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
+              <ComposedChart data={monthlyCAvsCharges} margin={{ top: 4, right: 16, bottom: 24, left: -10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E5EA" vertical={false} />
                 <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#8E8E93" }} />
                 <YAxis tick={{ fontSize: 11, fill: "#8E8E93" }} tickFormatter={(v) => `${v}€`} />
@@ -232,7 +233,7 @@ export default function AnalysePage() {
             <div className="h-48 flex items-center justify-center text-sm text-ink-muted">Pas de données historiques</div>
           ) : (
             <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={multiSeasonData} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
+              <BarChart data={multiSeasonData} margin={{ top: 4, right: 16, bottom: 24, left: -10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E5EA" vertical={false} />
                 <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#8E8E93" }} />
                 <YAxis tick={{ fontSize: 11, fill: "#8E8E93" }} tickFormatter={(v) => `${v}€`} />
@@ -291,11 +292,11 @@ export default function AnalysePage() {
           {top5Days.length === 0 ? (
             <div className="h-48 flex items-center justify-center text-sm text-ink-muted">Pas de données</div>
           ) : (
-            <ResponsiveContainer width="100%" height={180}>
+            <ResponsiveContainer width="100%" height={200}>
               <BarChart data={top5Days} layout="vertical" margin={{ top: 0, right: 16, bottom: 0, left: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E5EA" horizontal={false} />
                 <XAxis type="number" tick={{ fontSize: 11, fill: "#8E8E93" }} tickFormatter={(v) => `${v}€`} />
-                <YAxis type="category" dataKey="label" tick={{ fontSize: 11, fill: "#8E8E93" }} width={50} />
+                <YAxis type="category" dataKey="label" tick={{ fontSize: 11, fill: "#8E8E93" }} width={92} />
                 <Tooltip
                   formatter={(v) => [formatPrice(v as number), "CA"]}
                   contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #D2D2D7" }}

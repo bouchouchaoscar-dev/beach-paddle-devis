@@ -7,8 +7,9 @@ import {
 } from "recharts";
 import { getCaEntries, saveCaEntry, deleteCaEntry } from "@/lib/compta";
 import { formatPrice } from "@/lib/calculations";
-import { MOIS_FULL, MOIS_LABELS, CURRENT_SAISON, SAISONS, type CaEntry } from "@/lib/compta-types";
+import { MOIS_FULL, MOIS_LABELS, SAISONS, type CaEntry } from "@/lib/compta-types";
 import { DatePicker } from "@/components/ui/DatePicker";
+import { useComptaSaison } from "../ComptaSaisonProvider";
 
 const today = () => {
   const d = new Date();
@@ -18,7 +19,7 @@ const today = () => {
 const CHART_COLOR = "#0071E3";
 
 export default function ChiffresPage() {
-  const [saison, setSaison] = useState(CURRENT_SAISON);
+  const { saison, setSaison } = useComptaSaison();
   const [selectedMois, setSelectedMois] = useState(new Date().getMonth());
   const [entries, setEntries] = useState<CaEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,7 +40,7 @@ export default function ChiffresPage() {
     const data = await getCaEntries(isAll ? undefined : saison);
     setEntries(data);
     setLoading(false);
-  }, [saison, isAll]);
+  }, [saison]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -408,7 +409,7 @@ export default function ChiffresPage() {
               <div className="h-48 flex items-center justify-center text-sm text-ink-muted">Pas de données</div>
             ) : (
               <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={yearlyData} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
+                <BarChart data={yearlyData} margin={{ top: 4, right: 16, bottom: 24, left: -10 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#E5E5EA" vertical={false} />
                   <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#8E8E93" }} />
                   <YAxis tick={{ fontSize: 11, fill: "#8E8E93" }} tickFormatter={(v) => `${v}€`} />
@@ -432,7 +433,7 @@ export default function ChiffresPage() {
                 <div className="h-48 flex items-center justify-center text-sm text-ink-muted">Pas de données pour ce mois</div>
               ) : (
                 <ResponsiveContainer width="100%" height={200}>
-                  <LineChart data={dailyData} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
+                  <LineChart data={dailyData} margin={{ top: 4, right: 16, bottom: 24, left: -10 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#E5E5EA" />
                     <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#8E8E93" }} />
                     <YAxis tick={{ fontSize: 11, fill: "#8E8E93" }} tickFormatter={(v) => `${v}€`} />
@@ -453,7 +454,7 @@ export default function ChiffresPage() {
                 <div className="h-48 flex items-center justify-center text-sm text-ink-muted">Pas de données pour cette saison</div>
               ) : (
                 <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={monthlyData} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
+                  <BarChart data={monthlyData} margin={{ top: 4, right: 16, bottom: 24, left: -10 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#E5E5EA" vertical={false} />
                     <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#8E8E93" }} />
                     <YAxis tick={{ fontSize: 11, fill: "#8E8E93" }} tickFormatter={(v) => `${v}€`} />

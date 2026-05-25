@@ -51,18 +51,39 @@ function parseFrDate(dateStr: string, year = 2025): string | null {
 
 export async function POST() {
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json({ error: "ANTHROPIC_API_KEY non configurée" }, { status: 500 });
-  }
-
   const dir = path.join(process.cwd(), "public", "data", "compta_2025");
-  if (!fs.existsSync(dir)) {
-    return NextResponse.json({ error: "Dossier public/data/compta_2025/ introuvable" }, { status: 404 });
+  const dirExists = fs.existsSync(dir);
+  const files = dirExists ? fs.readdirSync(dir).filter((f) => /\.(png|jpg|jpeg)$/i.test(f)) : [];
+
+  const diag = {
+    dirPath: dir,
+    dirExists,
+    filesFound: files.length,
+    fileNames: files,
+    hasApiKey: !!(apiKey),
+  };
+
+  console.log("[import-compta-images] Diagnostic:", JSON.stringify(diag));
+
+  if (!apiKey) {
+    return NextResponse.json({
+      error: "ANTHROPIC_API_KEY non configurée dans les variables d'environnement. Ajouter la clé sur Vercel : Settings → Environment Variables.",
+      diag,
+    }, { status: 500 });
   }
 
-  const files = fs.readdirSync(dir).filter((f) => /\.(png|jpg|jpeg)$/i.test(f));
+  if (!dirExists) {
+    return NextResponse.json({
+      error: "Dossier public/data/compta_2025/ introuvable. Créer le dossier et y placer les images PNG.",
+      diag,
+    }, { status: 404 });
+  }
+
   if (files.length === 0) {
-    return NextResponse.json({ error: "Aucune image PNG/JPG dans public/data/compta_2025/" }, { status: 404 });
+    return NextResponse.json({
+      error: `Aucune image PNG/JPG dans public/data/compta_2025/. Placer les captures compta (ex: compta_2025_avril.png) dans ce dossier et redéployer.`,
+      diag,
+    }, { status: 404 });
   }
 
   const supabase = createClient(
@@ -186,6 +207,8 @@ export async function POST() {
     charges: totalCharges,
     sessions: totalSessions,
     files: files.length,
+    fileNames: files,
     errors: errors.length > 0 ? errors : undefined,
+    diag,
   });
 }

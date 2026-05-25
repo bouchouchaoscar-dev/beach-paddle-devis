@@ -8,10 +8,11 @@ import {
 } from "@/lib/compta";
 import { formatPrice } from "@/lib/calculations";
 import {
-  CURRENT_SAISON, MOIS_FULL,
+  MOIS_FULL,
   CHARGE_LABELS, SAISONS,
   type Charge, type Employee, type WorkSession, type ChargeCategory,
 } from "@/lib/compta-types";
+import { useComptaSaison } from "../ComptaSaisonProvider";
 
 const CATEGORIES: ChargeCategory[] = ["restauration_metro", "restauration_autre", "equipement", "salaire", "autre"];
 const MODES_PAIEMENT = ["CB", "Espèces", "Virement", "Chèque"];
@@ -38,7 +39,7 @@ const emptyChargeForm = () => ({
 });
 
 export default function ChargesPage() {
-  const [saison, setSaison] = useState(CURRENT_SAISON);
+  const { saison, setSaison } = useComptaSaison();
   const [activeTab, setActiveTab] = useState<Tab>("upload");
   const [charges, setCharges] = useState<Charge[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -51,6 +52,7 @@ export default function ChargesPage() {
   const [importingImages, setImportingImages] = useState(false);
   const [importImagesResult, setImportImagesResult] = useState<string | null>(null);
   const [importImagesError, setImportImagesError] = useState<string | null>(null);
+  const [importImagesDiag, setImportImagesDiag] = useState<Record<string, unknown> | null>(null);
 
   // Upload + AI
   const fileRef = useRef<HTMLInputElement>(null);
@@ -91,7 +93,7 @@ export default function ChargesPage() {
     setEmployees(e);
     setSessions(s);
     setLoading(false);
-  }, [saison, isAll]);
+  }, [saison]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -234,14 +236,20 @@ export default function ChargesPage() {
     setImportingImages(true);
     setImportImagesError(null);
     setImportImagesResult(null);
+    setImportImagesDiag(null);
     try {
       const res = await fetch("/api/import-compta-images", { method: "POST" });
-      const data = await res.json() as { charges?: number; sessions?: number; files?: number; errors?: string[]; error?: string };
+      const data = await res.json() as {
+        charges?: number; sessions?: number; files?: number; fileNames?: string[];
+        errors?: string[]; error?: string;
+        diag?: Record<string, unknown>;
+      };
+      if (data.diag) setImportImagesDiag(data.diag);
       if (res.ok) {
-        const msg = `${data.charges ?? 0} charges + ${data.sessions ?? 0} sessions importées (${data.files ?? 0} images analysées)`;
+        const msg = `${data.charges ?? 0} charges + ${data.sessions ?? 0} sessions importées depuis ${data.files ?? 0} image(s) : ${(data.fileNames ?? []).join(", ") || "—"}`;
         setImportImagesResult(msg);
         if ((data.errors ?? []).length > 0) {
-          setImportImagesError(`Avertissements : ${data.errors!.slice(0, 2).join(" / ")}`);
+          setImportImagesError(`Avertissements : ${data.errors!.join(" | ")}`);
         }
         localStorage.setItem("bp_compta_images_imported", "1");
         setImportImagesDone(true);
@@ -303,24 +311,46 @@ export default function ChargesPage() {
             <option value="all">Toutes les saisons</option>
             {[...SAISONS].reverse().map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
-          {!importImagesDone && (
-            <button
-              onClick={handleImportImages}
-              disabled={importingImages}
-              className="btn-secondary gap-2 text-xs"
-            >
-              {importingImages ? (
-                <svg className="animate-spin" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-              ) : (
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-              )}
-              Importer compta 2025
-            </button>
+          <button
+            onClick={handleImportImages}
+            disabled={importingImages}
+            className={`btn-secondary gap-2 text-xs ${importImagesDone && !importImagesError ? "opacity-60" : ""}`}
+          >
+            {importingImages ? (
+              <svg className="animate-spin" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+            ) : (
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            )}
+            {importImagesDone && !importImagesError ? "Réimporter compta 2025" : "Importer compta 2025"}
+          </button>
+          {importImagesResult && !importImagesError && (
+            <span className="text-xs text-green-600 font-medium max-w-xs">{importImagesResult}</span>
           )}
-          {importImagesResult && <span className="text-xs text-green-600 font-medium">{importImagesResult}</span>}
-          {importImagesError && <span className="text-xs text-red-500 font-medium max-w-xs truncate" title={importImagesError}>{importImagesError}</span>}
         </div>
       </div>
+
+      {/* ── Import error card ── */}
+      {importImagesError && (
+        <div
+          className="rounded-xl border border-red-200 bg-red-50 p-4 space-y-2"
+          style={{ opacity: 0, animation: "slideUp 0.3s cubic-bezier(0.16,1,0.3,1) forwards" }}
+        >
+          <div className="flex items-start gap-2">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#E03131" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 mt-0.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <p className="text-sm font-semibold text-red-700">Erreur import compta 2025</p>
+          </div>
+          <p className="text-xs text-red-600 ml-5">{importImagesError}</p>
+          {importImagesDiag && (
+            <div className="ml-5 mt-2 rounded-lg bg-white border border-red-100 px-3 py-2 space-y-1">
+              <p className="text-[11px] font-semibold text-red-500 uppercase tracking-wide">Diagnostic</p>
+              <p className="text-xs text-ink-secondary font-mono">Dossier : <span className="text-ink">{String(importImagesDiag.dirPath)}</span></p>
+              <p className="text-xs text-ink-secondary">Dossier trouvé : <span className={importImagesDiag.dirExists ? "text-green-600" : "text-red-600"}>{importImagesDiag.dirExists ? "Oui" : "Non"}</span></p>
+              <p className="text-xs text-ink-secondary">Images trouvées : <span className="font-mono text-ink">{String(importImagesDiag.filesFound)}</span>{(importImagesDiag.filesFound as number) === 0 ? " — placer les PNG dans ce dossier et redéployer" : ""}</p>
+              <p className="text-xs text-ink-secondary">Clé API Anthropic : <span className={importImagesDiag.hasApiKey ? "text-green-600" : "text-red-600"}>{importImagesDiag.hasApiKey ? "Configurée" : "MANQUANTE — ajouter ANTHROPIC_API_KEY sur Vercel"}</span></p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Tabs ── */}
       <div

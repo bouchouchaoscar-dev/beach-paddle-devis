@@ -7,15 +7,16 @@ import {
 import { getCaEntries, getCharges } from "@/lib/compta";
 import { formatPrice } from "@/lib/calculations";
 import {
-  CURRENT_SAISON, MOIS_LABELS, SAISONS,
+  MOIS_LABELS, SAISONS,
   CHARGE_LABELS, CHARGE_COLORS,
   type CaEntry, type Charge, type ChargeCategory,
 } from "@/lib/compta-types";
+import { useComptaSaison } from "../ComptaSaisonProvider";
 
 const CATEGORIES = Object.keys(CHARGE_LABELS) as ChargeCategory[];
 
 export default function ResultatPage() {
-  const [saison, setSaison] = useState(CURRENT_SAISON);
+  const { saison, setSaison } = useComptaSaison();
   const [caEntries, setCaEntries] = useState<CaEntry[]>([]);
   const [charges, setCharges] = useState<Charge[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,7 +32,7 @@ export default function ResultatPage() {
     setCaEntries(ca);
     setCharges(ch);
     setLoading(false);
-  }, [saison, isAll]);
+  }, [saison]);
 
   useEffect(() => { load(); }, [load]);
 
