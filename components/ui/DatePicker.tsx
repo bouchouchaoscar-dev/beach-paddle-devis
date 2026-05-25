@@ -5,6 +5,8 @@ import { useState, useRef, useEffect } from "react";
 interface Props {
   value: string; // YYYY-MM-DD
   onChange: (value: string) => void;
+  /** Autoriser la sélection de dates passées (ex : saisie CA rétroactive) */
+  allowPast?: boolean;
 }
 
 const MONTHS = [
@@ -46,7 +48,7 @@ function getFirstDayOfWeek(year: number, month: number): number {
   return (new Date(year, month, 1).getDay() + 6) % 7;
 }
 
-export function DatePicker({ value, onChange }: Props) {
+export function DatePicker({ value, onChange, allowPast = false }: Props) {
   const today = new Date();
   const selected = parseDate(value);
   const [open, setOpen] = useState(false);
@@ -87,7 +89,7 @@ export function DatePicker({ value, onChange }: Props) {
   }
 
   function handleDayClick(day: number) {
-    if (isPast(day)) return;
+    if (!allowPast && isPast(day)) return;
     onChange(toDateStr(new Date(viewYear, viewMonth, day)));
     setOpen(false);
   }
@@ -224,25 +226,25 @@ export function DatePicker({ value, onChange }: Props) {
                   onClick={() => handleDayClick(day)}
                   style={{
                     height: "36px", borderRadius: "9px", border: "none",
-                    cursor: past ? "not-allowed" : "pointer", fontSize: "13px",
+                    cursor: (!allowPast && past) ? "not-allowed" : "pointer", fontSize: "13px",
                     fontWeight: sel ? 700 : tod ? 600 : 400,
-                    backgroundColor: past
+                    backgroundColor: (!allowPast && past)
                       ? "transparent"
                       : sel
                         ? "#0071E3"
                         : tod
                           ? "rgba(0,113,227,0.1)"
                           : "transparent",
-                    color: past ? "#D2D2D7" : sel ? "white" : tod ? "#0071E3" : "#1D1D1F",
+                    color: (!allowPast && past) ? "#D2D2D7" : sel ? "white" : tod ? "#0071E3" : "#1D1D1F",
                     transition: "background-color 0.1s",
                   }}
                   onMouseEnter={(e) => {
-                    if (past || sel) return;
+                    if ((!allowPast && past) || sel) return;
                     (e.currentTarget as HTMLElement).style.backgroundColor =
                       tod ? "rgba(0,113,227,0.18)" : "rgba(0,0,0,0.05)";
                   }}
                   onMouseLeave={(e) => {
-                    if (past || sel) return;
+                    if ((!allowPast && past) || sel) return;
                     (e.currentTarget as HTMLElement).style.backgroundColor =
                       tod ? "rgba(0,113,227,0.1)" : "transparent";
                   }}

@@ -8,6 +8,7 @@ import {
 import { getCaEntries, saveCaEntry, deleteCaEntry } from "@/lib/compta";
 import { formatPrice } from "@/lib/calculations";
 import { MOIS_FULL, MOIS_LABELS, CURRENT_SAISON, SAISONS, type CaEntry } from "@/lib/compta-types";
+import { DatePicker } from "@/components/ui/DatePicker";
 
 const today = () => {
   const d = new Date();
@@ -223,11 +224,10 @@ export default function ChiffresPage() {
           <div className="space-y-3">
             <div>
               <label className="label">Date</label>
-              <input
-                type="date"
+              <DatePicker
                 value={form.date}
-                onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
-                className="input-field"
+                onChange={(d) => setForm((f) => ({ ...f, date: d }))}
+                allowPast
               />
             </div>
             <div>
