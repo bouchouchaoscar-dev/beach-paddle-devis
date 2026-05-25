@@ -422,9 +422,12 @@ export function DevisDocument({
             </View>
             {form.coach.enabled && calc.coachSubtotal > 0 && (
               <View style={s.row}>
-                <Text style={[s.rowLbl, { flex: 1 }]}>
-                  {form.coach.description || "Coach Beach Paddle"} — pour encadrer les participants
-                </Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.rowLbl}>{form.coach.description || "Coach Beach Paddle"}</Text>
+                  <Text style={s.rowDsc}>
+                    Un moniteur Beach Paddle est présent afin d&apos;initier et d&apos;accompagner les participants.
+                  </Text>
+                </View>
                 <Text style={[s.rowVal, { width: "30mm", textAlign: "right" }]}>
                   {formatPrice(calc.coachSubtotal)}
                 </Text>
