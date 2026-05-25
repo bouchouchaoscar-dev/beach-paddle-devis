@@ -16,20 +16,27 @@ interface Props {
   calc: CalculationResult;
   onClose: () => void;
   onFormChange: (patch: Partial<DevisFormData>) => void;
+  /** Rouvrir un document existant depuis l'historique — pas de nouvelle sauvegarde */
+  readOnly?: boolean;
+  /** Numéro existant (historique) — évite de regénérer un nouveau numéro */
+  existingNumero?: string;
 }
 
-export function DocumentPreview({ form, calc, onClose, onFormChange }: Props) {
+export function DocumentPreview({ form, calc, onClose, onFormChange, readOnly, existingNumero }: Props) {
   const [documentType, setDocumentType] = useState<DocumentType>(form.documentType);
   const [acompteVerse, setAcompteVerse] = useState<string>("");
   const [generating, setGenerating] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [saveLocal, setSaveLocal] = useState(false); // true = Supabase unavailable, saved to localStorage
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "local" | "error">("idle");
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [todayStr] = useState(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   });
-  const [numero, setNumero] = useState<string>("");
+  const [numero, setNumero] = useState<string>(existingNumero ?? "");
+
+  // Stable record ID — generated once, never changes
+  const recordId = useRef(generateId());
 
   // Document scaling for mobile
   const [docScale, setDocScale] = useState(() =>
@@ -40,8 +47,50 @@ export function DocumentPreview({ form, calc, onClose, onFormChange }: Props) {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const docInnerRef = useRef<HTMLDivElement>(null);
 
+  // ── Sauvegarde au montage ────────────────────────────────────────────────────
+  // La sauvegarde se déclenche dès l'ouverture de la preview (pas au téléchargement).
+  // Sur mobile, le téléchargement peut être interrompu → séparer les deux actions.
   useEffect(() => {
-    generateNumero(todayStr).then(setNumero);
+    if (readOnly) return; // historique : ne pas re-sauvegarder
+
+    let cancelled = false;
+    setSaveStatus("saving");
+
+    const run = async () => {
+      try {
+        const n = existingNumero ?? (await generateNumero(todayStr));
+        if (cancelled) return;
+        setNumero(n);
+
+        const record: DevisRecord = {
+          id: recordId.current,
+          numero: n,
+          date: form.date,
+          createdAt: Date.now(),
+          clientType: form.clientType,
+          clientName: form.clientName,
+          prestationDescription: form.prestationDescription,
+          participantsCount: form.participantsCount,
+          totalBrut: calc.totalBrut,
+          totalNet: calc.totalNet,
+          documentType,
+          formData: { ...form, documentType },
+        };
+
+        const { source } = await saveDevis(record);
+        if (cancelled) return;
+        setSaveStatus(source === "localStorage" ? "local" : "saved");
+      } catch (err) {
+        if (cancelled) return;
+        const msg = err instanceof Error ? err.message : "Erreur inconnue";
+        console.error("[DocumentPreview] Sauvegarde échouée:", msg);
+        setSaveStatus("error");
+        setSaveError(msg);
+      }
+    };
+
+    run();
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -79,6 +128,7 @@ export function DocumentPreview({ form, calc, onClose, onFormChange }: Props) {
   const acompteNum = parseFloat(acompteVerse) || 0;
   const calcWithAcompte = calculateDevis(form, acompteNum > 0 ? acompteNum : undefined);
 
+  // ── Téléchargement PDF ───────────────────────────────────────────────────────
   async function handleDownloadPDF() {
     setGenerating(true);
     setPdfError(null);
@@ -92,32 +142,6 @@ export function DocumentPreview({ form, calc, onClose, onFormChange }: Props) {
         .filter(Boolean)
         .join(" ") + ".pdf";
 
-      // ── 1. Sauvegarder dans Supabase AVANT le téléchargement
-      // (iOS Safari peut interrompre la chaîne async après pdf.save())
-      if (!saved) {
-        const record: DevisRecord = {
-          id: generateId(),
-          numero,
-          date: form.date,
-          createdAt: Date.now(),
-          clientType: form.clientType,
-          clientName: form.clientName,
-          prestationDescription: form.prestationDescription,
-          participantsCount: form.participantsCount,
-          totalBrut: calc.totalBrut,
-          totalNet: calc.totalNet,
-          documentType,
-          formData: { ...form, documentType },
-        };
-        const { source } = await saveDevis(record);
-        setSaved(true);
-        if (source === "localStorage") {
-          setSaveLocal(true);
-          console.warn("[PDF] Supabase indisponible — sauvegardé en local:", record.numero);
-        }
-      }
-
-      // ── 2. Générer le PDF côté serveur (fonctionne identiquement sur tous les appareils)
       const response = await fetch("/api/generate-pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -140,30 +164,16 @@ export function DocumentPreview({ form, calc, onClose, onFormChange }: Props) {
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
 
-      // ── 3. Déclencher le téléchargement
-      // iOS Safari : ouvrir dans un nouvel onglet (l'utilisateur peut ensuite partager)
-      // Desktop / Android : téléchargement direct
-      const isIOS = /iPhone|iPad/i.test(navigator.userAgent);
-      if (isIOS) {
-        const win = window.open(url, "_blank");
-        if (!win) {
-          // Popup bloqué — fallback via ancre
-          const a = document.createElement("a");
-          a.href = url;
-          a.target = "_blank";
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-        }
-      } else {
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-      }
-      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      // Approche universelle : a.download déclenche le téléchargement sur desktop/Android.
+      // Sur iOS Safari, a.download est ignoré et le PDF s'ouvre dans le lecteur natif
+      // (partageable via la feuille de partage iOS).
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
 
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Erreur inconnue";
@@ -267,7 +277,7 @@ export function DocumentPreview({ form, calc, onClose, onFormChange }: Props) {
             </button>
             <div>
               <p className="text-sm font-semibold text-ink">Aperçu du document</p>
-              <p className="text-xs text-ink-muted">{numero}</p>
+              <p className="text-xs text-ink-muted">{numero || "Chargement…"}</p>
             </div>
           </div>
 
@@ -381,7 +391,15 @@ export function DocumentPreview({ form, calc, onClose, onFormChange }: Props) {
                 Erreur PDF — {pdfError}
               </span>
             )}
-            {!pdfError && saved && !saveLocal && (
+            {!pdfError && saveStatus === "saving" && (
+              <span className="flex items-center gap-1.5 text-ink-muted">
+                <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                </svg>
+                Sauvegarde…
+              </span>
+            )}
+            {!pdfError && saveStatus === "saved" && (
               <span className="flex items-center gap-1.5 text-green-600">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="20 6 9 17 4 12" />
@@ -389,13 +407,21 @@ export function DocumentPreview({ form, calc, onClose, onFormChange }: Props) {
                 Sauvegardé
               </span>
             )}
-            {!pdfError && saved && saveLocal && (
+            {!pdfError && saveStatus === "local" && (
               <span className="flex items-center gap-1.5 text-amber-600">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
                   <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
                 </svg>
                 Sauvegardé (hors-ligne)
+              </span>
+            )}
+            {!pdfError && saveStatus === "error" && (
+              <span className="flex items-center gap-1.5 text-red-500">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+                Erreur sauvegarde — {saveError}
               </span>
             )}
           </div>

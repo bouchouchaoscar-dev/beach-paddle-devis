@@ -320,6 +320,8 @@ export default function HistoriquePage() {
           calc={calculateDevis(selectedRecord.formData)}
           onClose={() => setSelectedRecord(null)}
           onFormChange={() => {}}
+          readOnly
+          existingNumero={selectedRecord.numero}
         />
       )}
     </>
