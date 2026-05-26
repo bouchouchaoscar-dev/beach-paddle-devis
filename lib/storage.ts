@@ -49,14 +49,9 @@ export async function getDevisList(): Promise<DevisRecord[]> {
     return lsGetAll();
   }
 
-  const remote = data.map(rowToRecord);
-  // Merge records saved to localStorage when Supabase was unavailable
-  const remoteIds = new Set(remote.map((r) => r.id));
-  const localOnly = lsGetAll().filter((r) => !remoteIds.has(r.id));
-  if (localOnly.length > 0) {
-    console.log("[storage] Merging", localOnly.length, "local-only record(s) into archive");
-  }
-  return [...remote, ...localOnly].sort((a, b) => b.createdAt - a.createdAt);
+  // Supabase is the single source of truth — localStorage is NOT merged.
+  // Old localStorage records can be cleared with clearLocalCache().
+  return data.map(rowToRecord);
 }
 
 export async function saveDevis(record: DevisRecord): Promise<{ source: "supabase" | "localStorage" }> {
@@ -94,12 +89,24 @@ export async function saveDevis(record: DevisRecord): Promise<{ source: "supabas
 }
 
 export async function deleteDevis(id: string): Promise<void> {
-  const { error } = await supabase.from("documents").delete().eq("id", id);
+  // Always clean localStorage first (removes "ghost" records that only live locally).
+  lsDelete(id);
 
+  const { error } = await supabase.from("documents").delete().eq("id", id);
   if (error) {
-    console.warn("[storage] Supabase delete failed, falling back to localStorage", error.message);
-    lsDelete(id);
+    console.warn("[storage] Supabase delete failed:", error.message);
+    throw new Error(error.message);
   }
+}
+
+export function clearLocalCache(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(LS_KEY);
+  console.log("[storage] localStorage cache cleared");
+}
+
+export function localCacheCount(): number {
+  return lsGetAll().length;
 }
 
 export async function getDevisById(id: string): Promise<DevisRecord | null> {

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import type { DevisRecord } from "@/lib/types";
-import { getDevisList, deleteDevis, saveDevis, generateId, generateNumero } from "@/lib/storage";
+import { getDevisList, deleteDevis, saveDevis, generateId, generateNumero, clearLocalCache, localCacheCount } from "@/lib/storage";
 import { formatPrice, calculateDevis } from "@/lib/calculations";
 import { CLIENT_TYPE_LABELS } from "@/lib/pricing";
 import { DocumentPreview } from "@/components/document/DocumentPreview";
@@ -23,9 +23,11 @@ export default function HistoriquePage() {
   const [filter, setFilter] = useState<FilterType>("all");
   const [selectedRecord, setSelectedRecord] = useState<DevisRecord | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [cacheCount, setCacheCount] = useState(0);
 
   useEffect(() => {
     getDevisList().then(setRecords);
+    setCacheCount(localCacheCount());
   }, []);
 
   async function refresh() {
@@ -103,12 +105,30 @@ export default function HistoriquePage() {
               {records.length !== 1 ? "s" : ""}
             </p>
           </div>
-          <button onClick={() => router.push("/dashboard")} className="btn-primary">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-            Nouveau devis
-          </button>
+          <div className="flex items-center gap-2">
+            {cacheCount > 0 && (
+              <button
+                onClick={() => {
+                  clearLocalCache();
+                  setCacheCount(0);
+                  getDevisList().then(setRecords);
+                }}
+                className="btn-secondary gap-1.5 text-xs text-amber-700 border-amber-300 bg-amber-50 hover:bg-amber-100"
+                title="Supprimer les anciens devis stockés localement sur cet appareil"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                </svg>
+                Vider cache local ({cacheCount})
+              </button>
+            )}
+            <button onClick={() => router.push("/dashboard")} className="btn-primary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              Nouveau devis
+            </button>
+          </div>
         </div>
 
         {/* Filters */}
