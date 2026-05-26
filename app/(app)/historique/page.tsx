@@ -233,11 +233,11 @@ export default function HistoriquePage() {
                     )}
                   </div>
 
-                  {/* Actions */}
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                  {/* Actions — always visible on mobile, hover-only on desktop */}
+                  <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200">
                     <button
                       onClick={() => setSelectedRecord(record)}
-                      className="p-2 rounded-lg text-ink-muted hover:text-brand-teal hover:bg-brand-teal-light transition-colors"
+                      className="p-2.5 min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg text-ink-muted hover:text-brand-teal hover:bg-brand-teal-light transition-colors"
                       title="Voir / Télécharger"
                     >
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -248,7 +248,7 @@ export default function HistoriquePage() {
                     {record.documentType === "devis" && (
                       <button
                         onClick={() => handleConvertToFacture(record)}
-                        className="p-2 rounded-lg text-ink-muted hover:text-brand-teal hover:bg-brand-teal-light transition-colors"
+                        className="p-2.5 min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg text-ink-muted hover:text-brand-teal hover:bg-brand-teal-light transition-colors"
                         title="Convertir en facture"
                       >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -260,7 +260,7 @@ export default function HistoriquePage() {
 
                     <button
                       onClick={() => handleDuplicate(record)}
-                      className="p-2 rounded-lg text-ink-muted hover:text-brand-orange hover:bg-brand-orange-light transition-colors"
+                      className="p-2.5 min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg text-ink-muted hover:text-brand-orange hover:bg-brand-orange-light transition-colors"
                       title="Dupliquer"
                     >
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -271,7 +271,7 @@ export default function HistoriquePage() {
 
                     <button
                       onClick={() => setConfirmDelete(record.id)}
-                      className="p-2 rounded-lg text-ink-muted hover:text-brand-red hover:bg-brand-red-light transition-colors"
+                      className="p-2.5 min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg text-ink-muted hover:text-brand-red hover:bg-brand-red-light transition-colors"
                       title="Supprimer"
                     >
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

@@ -81,10 +81,11 @@ export default function ChiffresPage() {
     .map((e) => ({ day: parseInt(e.date.split("-")[2]), ca: e.montant, id: e.id }))
     .sort((a, b) => a.day - b.day);
 
-  const monthlyData = MOIS_LABELS.map((label, i) => {
+  // Always render Mar–Nov (indices 2–10) so all season months appear even with 0€
+  const monthlyData = [2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => {
     const m = String(i + 1).padStart(2, "0");
     const sum = entries.filter((e) => e.date.startsWith(`${saison}-${m}`)).reduce((s, e) => s + e.montant, 0);
-    return { label, ca: sum };
+    return { label: MOIS_LABELS[i], ca: sum };
   });
 
   // ── Handlers ──────────────────────────────────────────────────────────────
@@ -450,22 +451,18 @@ export default function ChiffresPage() {
             {/* Monthly bars */}
             <div className="card p-5">
               <h2 className="text-sm font-semibold text-ink mb-4">CA mensuel — Saison {saison}</h2>
-              {saisonTotal === 0 ? (
-                <div className="h-48 flex items-center justify-center text-sm text-ink-muted">Pas de données pour cette saison</div>
-              ) : (
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={monthlyData} margin={{ top: 4, right: 16, bottom: 24, left: -10 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#E5E5EA" vertical={false} />
-                    <XAxis dataKey="label" tick={{ fontSize: 11, fill: "#8E8E93" }} />
-                    <YAxis tick={{ fontSize: 11, fill: "#8E8E93" }} tickFormatter={(v) => `${v}€`} />
-                    <Tooltip
-                      formatter={(v) => [formatPrice(v as number), "CA"]}
-                      contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #D2D2D7", boxShadow: "0 4px 16px -4px rgba(0,0,0,0.08)" }}
-                    />
-                    <Bar dataKey="ca" fill={CHART_COLOR} radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={monthlyData} margin={{ top: 4, right: 16, bottom: 36, left: -10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E5EA" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#8E8E93" }} interval={0} />
+                  <YAxis tick={{ fontSize: 11, fill: "#8E8E93" }} tickFormatter={(v) => `${v}€`} />
+                  <Tooltip
+                    formatter={(v) => [formatPrice(v as number), "CA"]}
+                    contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #D2D2D7", boxShadow: "0 4px 16px -4px rgba(0,0,0,0.08)" }}
+                  />
+                  <Bar dataKey="ca" fill={CHART_COLOR} radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           </>
         )}
