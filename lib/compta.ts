@@ -9,11 +9,31 @@ function createdBy() {
 // ── CA Entries ───────────────────────────────────────────────────────────────
 
 export async function getCaEntries(saison?: string): Promise<CaEntry[]> {
-  let q = supabase.from("ca_entries").select("*").order("date", { ascending: false });
-  if (saison) q = q.eq("saison", saison);
-  const { data, error } = await q;
-  if (error) { console.warn("[compta] getCaEntries error", error.message); return []; }
-  return (data ?? []) as CaEntry[];
+  if (saison) {
+    const { data, error } = await supabase
+      .from("ca_entries").select("*").order("date", { ascending: false }).eq("saison", saison);
+    if (error) { console.warn("[compta] getCaEntries error", error.message); return []; }
+    return (data ?? []) as CaEntry[];
+  }
+
+  // No saison filter: paginate to bypass Supabase's 1000-row default cap.
+  // Root cause: 1011 rows total, oldest 2016 entries fall beyond row 1000
+  // and were silently excluded from the "all seasons" view.
+  const PAGE = 1000;
+  const all: CaEntry[] = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await supabase
+      .from("ca_entries").select("*").order("date", { ascending: false })
+      .range(from, from + PAGE - 1);
+    if (error) { console.warn("[compta] getCaEntries paginate error", error.message); break; }
+    if (!data?.length) break;
+    all.push(...(data as CaEntry[]));
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+  console.log(`[compta] getCaEntries(all): ${all.length} entrées chargées`);
+  return all;
 }
 
 export async function saveCaEntry(entry: Omit<CaEntry, "id" | "created_at">): Promise<void> {
