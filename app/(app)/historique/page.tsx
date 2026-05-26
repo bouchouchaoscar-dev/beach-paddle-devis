@@ -226,7 +226,11 @@ export default function HistoriquePage() {
                     <div className="flex items-center gap-3 mt-0.5 flex-wrap">
                       <span className="text-xs text-ink-muted font-mono">{record.numero}</span>
                       <span className="text-xs text-ink-muted">·</span>
-                      <span className="text-xs text-ink-muted">{formatDate(record.date)}</span>
+                      <span className="text-xs text-ink-muted">
+                        {record.formData?.dateADefinir || !record.date
+                          ? <span className="italic">Date à définir</span>
+                          : formatDate(record.date)}
+                      </span>
                       {record.participantsCount > 0 && (
                         <>
                           <span className="text-xs text-ink-muted">·</span>

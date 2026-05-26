@@ -42,8 +42,8 @@ function buildGroupPhrase(form: DevisFormData): string {
 function buildAutoDescription(form: DevisFormData): string {
   const group = buildGroupPhrase(form);
   const durationLabel = DURATION_LABELS[form.duration];
-  const datePart = form.date ? ` ${formatDateCourt(form.date)}` : "";
-  const timePart = form.heureDebut ? ` à ${formatHeure(form.heureDebut)}` : "";
+  const datePart = (!form.dateADefinir && form.date) ? ` ${formatDateCourt(form.date)}` : "";
+  const timePart = (!form.dateADefinir && form.heureDebut) ? ` à ${formatHeure(form.heureDebut)}` : "";
   const dateTime = datePart || timePart ? `,${datePart}${timePart}` : "";
 
   const parts: string[] = [];
@@ -98,7 +98,7 @@ export default function DashboardPage() {
 
     const isAutoTrigger =
       isActivityOrDuration ||
-      ["heureDebut", "participantsCount", "snackingItems", "coach", "clientType", "discount", "date"].some(
+      ["heureDebut", "participantsCount", "snackingItems", "coach", "clientType", "discount", "date", "dateADefinir"].some(
         (f) => f in patch
       );
 

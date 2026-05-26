@@ -7,6 +7,7 @@ export function getTodayString(): string {
 export function getDefaultForm(): DevisFormData {
   return {
     date: getTodayString(),
+    dateADefinir: false,
     heureDebut: "14:00",
     clientType: "entreprise",
     clientName: "",

@@ -409,7 +409,7 @@ export function DevisDocument({
                   {ACTIVITY_LABELS[form.activity]} — {DURATION_LABELS[form.duration]}
                 </Text>
                 <Text style={s.rowDsc}>
-                  {activityDesc(form.activity, n, DURATION_LABELS[form.duration], form.heureDebut)}
+                  {activityDesc(form.activity, n, DURATION_LABELS[form.duration], form.dateADefinir ? "" : form.heureDebut)}
                 </Text>
               </View>
               <Text style={[s.rowVal, { width: "28mm", textAlign: "center" }]}>

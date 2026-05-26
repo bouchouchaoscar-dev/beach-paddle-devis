@@ -50,6 +50,7 @@ export interface DiscountConfig {
 export interface DevisFormData {
   // Bloc 1 — Client
   date: string;
+  dateADefinir?: boolean;
   heureDebut: string;
   clientType: ClientType;
   clientName: string;
