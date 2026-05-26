@@ -69,12 +69,29 @@ function parseSheet(rows: unknown[][], sheetName: string): ParsedSheet {
   const employes: ParsedSheet["employes"] = [];
   const warnings: string[] = [];
 
-  // Data starts at row index 8 (0-based), ends just before the first "TOTAL" row
+  // Data starts at row 8 (0-based).
+  // Stop at the first row where col[0] starts with "TOTAL CHARGES" (not just "TOTAL",
+  // to avoid false stops on data rows like "Total : Essence polo").
   const DATA_START = 8;
   let endIdx = rows.length;
   for (let i = DATA_START; i < rows.length; i++) {
-    const cell = String(rows[i]?.[COL.DIV_OBJET] ?? "");
-    if (cell.toUpperCase().startsWith("TOTAL")) { endIdx = i; break; }
+    const cell = String(rows[i]?.[COL.DIV_OBJET] ?? "").toUpperCase();
+    if (cell.startsWith("TOTAL CHARGES")) { endIdx = i; break; }
+  }
+
+  // Detect all EMPLOYÉS blocks: scan header row (index 7) for every column labelled "Employé".
+  // Each block follows the pattern: nom+0, heures+2, date+3, montant+4
+  const headerRow = (rows[7] ?? []) as unknown[];
+  type EmpBlock = { nomCol: number; heuresCol: number; dateCol: number; montantCol: number };
+  const empBlocks: EmpBlock[] = [];
+  headerRow.forEach((cell, colIdx) => {
+    if (typeof cell === "string" && normalise(cell).startsWith("employe")) {
+      empBlocks.push({ nomCol: colIdx, heuresCol: colIdx + 2, dateCol: colIdx + 3, montantCol: colIdx + 4 });
+    }
+  });
+  // Fallback to fixed columns if detection fails
+  if (empBlocks.length === 0) {
+    empBlocks.push({ nomCol: COL.EMP_NOM, heuresCol: COL.EMP_HEURES, dateCol: COL.EMP_DATE, montantCol: COL.EMP_MONTANT });
   }
 
   for (let i = DATA_START; i < endIdx; i++) {
@@ -87,8 +104,7 @@ function parseSheet(rows: unknown[][], sheetName: string): ParsedSheet {
     if (divDate && divMt !== null && divMt > 0) {
       diverses.push({ date: divDate, montant: divMt, objet: divObjet });
     } else if (divObjet && row[COL.DIV_DATE] != null && !divDate) {
-      // Warn only if a date cell exists but couldn't be parsed (not when simply empty)
-      warnings.push(`[${sheetName}] Diverses ignorée ligne ${i + 1}: objet="${divObjet}" date invalide=${JSON.stringify(row[COL.DIV_DATE])} mt=${JSON.stringify(row[COL.DIV_MONTANT])}`);
+      warnings.push(`[${sheetName}] Diverses ignorée ligne ${i + 1}: objet="${divObjet}" date invalide=${JSON.stringify(row[COL.DIV_DATE])}`);
     }
 
     // ── CHARGES METRO ─────────────────────────────────────────────────────────
@@ -98,18 +114,20 @@ function parseSheet(rows: unknown[][], sheetName: string): ParsedSheet {
     if (metDate && metMt !== null && metMt > 0) {
       metro.push({ date: metDate, montant: metMt, objet: metObjet });
     } else if (metObjet && row[COL.METRO_DATE] != null && !metDate) {
-      warnings.push(`[${sheetName}] Métro ignorée ligne ${i + 1}: objet="${metObjet}" date invalide=${JSON.stringify(row[COL.METRO_DATE])} mt=${JSON.stringify(row[COL.METRO_MONTANT])}`);
+      warnings.push(`[${sheetName}] Métro ignorée ligne ${i + 1}: objet="${metObjet}" date invalide=${JSON.stringify(row[COL.METRO_DATE])}`);
     }
 
-    // ── CHARGES EMPLOYÉS ──────────────────────────────────────────────────────
-    const empNom = String(row[COL.EMP_NOM] ?? "").trim();
-    const empDate = serialToISO(row[COL.EMP_DATE]);
-    const empHeures = parseMontant(row[COL.EMP_HEURES]);
-    const empMt = parseMontant(row[COL.EMP_MONTANT]);
-    if (empNom && empDate && empHeures !== null && empHeures > 0 && empMt !== null && empMt > 0) {
-      employes.push({ nom: empNom, heures: empHeures, date: empDate, montant: empMt });
-    } else if (empNom && row[COL.EMP_DATE] != null && !empDate) {
-      warnings.push(`[${sheetName}] Employé ignoré ligne ${i + 1}: nom="${empNom}" date invalide=${JSON.stringify(row[COL.EMP_DATE])} h=${JSON.stringify(row[COL.EMP_HEURES])} mt=${JSON.stringify(row[COL.EMP_MONTANT])}`);
+    // ── CHARGES EMPLOYÉS (tous les blocs détectés) ────────────────────────────
+    for (const blk of empBlocks) {
+      const empNom = String(row[blk.nomCol] ?? "").trim();
+      const empDate = serialToISO(row[blk.dateCol]);
+      const empHeures = parseMontant(row[blk.heuresCol]);
+      const empMt = parseMontant(row[blk.montantCol]);
+      if (empNom && empDate && empHeures !== null && empHeures > 0 && empMt !== null && empMt > 0) {
+        employes.push({ nom: empNom, heures: empHeures, date: empDate, montant: empMt });
+      } else if (empNom && row[blk.dateCol] != null && !empDate) {
+        warnings.push(`[${sheetName}] Employé ignoré ligne ${i + 1}: nom="${empNom}" date invalide=${JSON.stringify(row[blk.dateCol])}`);
+      }
     }
   }
 
