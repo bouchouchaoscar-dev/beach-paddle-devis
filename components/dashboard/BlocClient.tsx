@@ -24,65 +24,67 @@ export function BlocClient({ form, onChange }: Props) {
       </div>
 
       {/* Date + Heure */}
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <label className="label mb-0">Date de la prestation</label>
-            <label className="flex items-center gap-1.5 cursor-pointer select-none">
-              <span className="text-[11px] text-ink-muted leading-none">À définir</span>
-              <div className="relative">
-                <input
-                  type="checkbox"
-                  checked={!!form.dateADefinir}
-                  onChange={(e) => {
-                    onChange({
-                      dateADefinir: e.target.checked,
-                      ...(e.target.checked ? { date: "", heureDebut: "" } : {}),
-                    });
-                  }}
-                  className="sr-only"
-                />
+      <div>
+        {/* Toggle positionné en haut à droite du bloc, hors grille pour ne pas casser l'alignement */}
+        <div className="flex justify-end mb-2">
+          <label className="flex items-center gap-2 cursor-pointer select-none min-h-[36px]">
+            <span className="text-xs text-ink-muted">Date à définir</span>
+            <div className="relative">
+              <input
+                type="checkbox"
+                checked={!!form.dateADefinir}
+                onChange={(e) => {
+                  onChange({
+                    dateADefinir: e.target.checked,
+                    ...(e.target.checked ? { date: "", heureDebut: "" } : {}),
+                  });
+                }}
+                className="sr-only"
+              />
+              <div
+                className="w-9 h-5 rounded-full transition-colors duration-200"
+                style={{ backgroundColor: form.dateADefinir ? "#E8820C" : "#D1D0CC" }}
+              >
                 <div
-                  className="w-8 h-[18px] rounded-full transition-colors duration-200"
-                  style={{ backgroundColor: form.dateADefinir ? "#E8820C" : "#D1D0CC" }}
-                >
-                  <div
-                    className="absolute top-[2px] w-[14px] h-[14px] bg-white rounded-full shadow-sm transition-all duration-200"
-                    style={{ left: form.dateADefinir ? "16px" : "2px" }}
-                  />
-                </div>
+                  className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-all duration-200"
+                  style={{ left: form.dateADefinir ? "18px" : "2px" }}
+                />
               </div>
-            </label>
-          </div>
-          {form.dateADefinir ? (
-            <div className="flex items-center h-10 px-3 rounded-xl border border-dashed border-surface-border bg-surface-muted/50 text-sm text-ink-muted italic">
-              À définir
             </div>
-          ) : (
-            <DatePicker
-              value={form.date}
-              onChange={(v) => onChange({ date: v })}
-            />
-          )}
+          </label>
         </div>
-        {!form.dateADefinir && (
-          <div>
-            <label className="label">Heure de début <span className="text-ink-muted font-normal">(optionnel)</span></label>
-            <select
-              value={form.heureDebut}
-              onChange={(e) => onChange({ heureDebut: e.target.value })}
-              className="input-field appearance-none cursor-pointer"
-              style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239C9890' stroke-width='2.5' stroke-linecap='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center", paddingRight: "32px" }}
-            >
-              <option value="">— Non définie</option>
-              {Array.from({ length: 29 }, (_, i) => {
-                const totalMinutes = 8 * 60 + i * 30;
-                const h = Math.floor(totalMinutes / 60);
-                const m = totalMinutes % 60;
-                const val = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-                return <option key={val} value={val}>{val}</option>;
-              })}
-            </select>
+
+        {form.dateADefinir ? (
+          <div className="flex items-center h-10 px-3.5 rounded-xl border border-dashed border-surface-border bg-surface-muted/50 text-sm text-ink-muted italic">
+            Date et heure à définir ultérieurement
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="label">Date de la prestation</label>
+              <DatePicker
+                value={form.date}
+                onChange={(v) => onChange({ date: v })}
+              />
+            </div>
+            <div>
+              <label className="label">Heure de début <span className="text-ink-muted font-normal">(optionnel)</span></label>
+              <select
+                value={form.heureDebut}
+                onChange={(e) => onChange({ heureDebut: e.target.value })}
+                className="input-field appearance-none cursor-pointer"
+                style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239C9890' stroke-width='2.5' stroke-linecap='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center", paddingRight: "32px" }}
+              >
+                <option value="">— Non définie</option>
+                {Array.from({ length: 29 }, (_, i) => {
+                  const totalMinutes = 8 * 60 + i * 30;
+                  const h = Math.floor(totalMinutes / 60);
+                  const m = totalMinutes % 60;
+                  const val = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+                  return <option key={val} value={val}>{val}</option>;
+                })}
+              </select>
+            </div>
           </div>
         )}
       </div>
