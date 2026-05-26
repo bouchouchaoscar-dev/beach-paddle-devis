@@ -181,10 +181,10 @@ export default function HistoriquePage() {
                 className="card p-4 hover:shadow-elevated transition-all duration-200 group"
                 style={{ opacity: 0, animation: `slideUp 0.35s cubic-bezier(0.16,1,0.3,1) ${idx * 40 + 200}ms forwards` }}
               >
-                <div className="flex items-center gap-4">
-                  {/* Icon */}
+                <div className="flex items-center gap-3">
+                  {/* Icon — caché sur mobile pour gagner de la place */}
                   <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                    className="w-10 h-10 rounded-xl hidden sm:flex items-center justify-center shrink-0"
                     style={{ backgroundColor: "rgba(0,113,227,0.1)" }}
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0071E3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -233,11 +233,23 @@ export default function HistoriquePage() {
                     )}
                   </div>
 
-                  {/* Actions — always visible on mobile, hover-only on desktop */}
-                  <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200">
+                  {/* Bouton supprimer — toujours visible sur mobile */}
+                  <button
+                    onClick={() => setConfirmDelete(record.id)}
+                    className="sm:hidden w-11 h-11 flex items-center justify-center rounded-xl text-ink-muted active:text-brand-red active:bg-brand-red-light bg-surface-muted shrink-0"
+                    title="Supprimer"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="3 6 5 6 21 6" />
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                    </svg>
+                  </button>
+
+                  {/* Actions complètes — desktop uniquement, apparaît au hover */}
+                  <div className="hidden sm:flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                     <button
                       onClick={() => setSelectedRecord(record)}
-                      className="p-2.5 min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg text-ink-muted hover:text-brand-teal hover:bg-brand-teal-light transition-colors"
+                      className="p-2 rounded-lg text-ink-muted hover:text-brand-teal hover:bg-brand-teal-light transition-colors"
                       title="Voir / Télécharger"
                     >
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -248,7 +260,7 @@ export default function HistoriquePage() {
                     {record.documentType === "devis" && (
                       <button
                         onClick={() => handleConvertToFacture(record)}
-                        className="p-2.5 min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg text-ink-muted hover:text-brand-teal hover:bg-brand-teal-light transition-colors"
+                        className="p-2 rounded-lg text-ink-muted hover:text-brand-teal hover:bg-brand-teal-light transition-colors"
                         title="Convertir en facture"
                       >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -260,7 +272,7 @@ export default function HistoriquePage() {
 
                     <button
                       onClick={() => handleDuplicate(record)}
-                      className="p-2.5 min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg text-ink-muted hover:text-brand-orange hover:bg-brand-orange-light transition-colors"
+                      className="p-2 rounded-lg text-ink-muted hover:text-brand-orange hover:bg-brand-orange-light transition-colors"
                       title="Dupliquer"
                     >
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -271,7 +283,7 @@ export default function HistoriquePage() {
 
                     <button
                       onClick={() => setConfirmDelete(record.id)}
-                      className="p-2.5 min-w-[40px] min-h-[40px] flex items-center justify-center rounded-lg text-ink-muted hover:text-brand-red hover:bg-brand-red-light transition-colors"
+                      className="p-2 rounded-lg text-ink-muted hover:text-brand-red hover:bg-brand-red-light transition-colors"
                       title="Supprimer"
                     >
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
