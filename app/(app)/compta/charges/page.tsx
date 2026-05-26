@@ -397,22 +397,39 @@ export default function ChargesPage() {
           {importExcelResult && !importExcelError && (
             <span className="text-xs text-green-600 font-medium max-w-xs">{importExcelResult}</span>
           )}
-          <button
-            onClick={handleReset2025}
-            disabled={resetting}
-            className="btn-secondary gap-2 text-xs text-brand-red border-brand-red/30 hover:bg-brand-red-light"
-          >
-            {resetting ? (
-              <svg className="animate-spin" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-            ) : (
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/></svg>
-            )}
-            Reset 2025
-          </button>
-          {resetResult && (
-            <span className="text-xs text-ink-secondary font-medium max-w-xs">{resetResult}</span>
-          )}
         </div>
+      </div>
+
+      {/* ── Bande Reset 2025 — toujours visible ── */}
+      <div
+        className="flex items-center gap-3 flex-wrap rounded-xl border px-4 py-3"
+        style={{ borderColor: "rgba(224,49,49,0.25)", backgroundColor: "rgba(224,49,49,0.04)" }}
+      >
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#E03131" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+          <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/>
+        </svg>
+        <p className="text-xs text-ink-secondary flex-1">
+          <span className="font-semibold" style={{ color: "#E03131" }}>Reset données 2025</span>
+          {" "}— Supprime toutes les charges/sessions importées avant de relancer l&apos;import Excel.
+        </p>
+        <button
+          onClick={handleReset2025}
+          disabled={resetting}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all active:scale-[0.98] shrink-0"
+          style={{ backgroundColor: "#E03131", color: "#fff" }}
+        >
+          {resetting ? (
+            <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+          ) : (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/></svg>
+          )}
+          {resetting ? "Suppression…" : "Reset données 2025"}
+        </button>
+        {resetResult && (
+          <span className="text-xs font-medium w-full" style={{ color: resetResult.startsWith("Erreur") ? "#E03131" : "#16A34A" }}>
+            {resetResult}
+          </span>
+        )}
       </div>
 
       {/* ── Import error card ── */}
