@@ -57,6 +57,8 @@ export default function ChargesPage() {
   const [importingExcel, setImportingExcel] = useState(false);
   const [importExcelResult, setImportExcelResult] = useState<string | null>(null);
   const [importExcelError, setImportExcelError] = useState<string | null>(null);
+  const [resetting, setResetting] = useState(false);
+  const [resetResult, setResetResult] = useState<string | null>(null);
 
   // Upload + AI
   const fileRef = useRef<HTMLInputElement>(null);
@@ -268,32 +270,53 @@ export default function ChargesPage() {
     }
   }
 
-  async function handleImportExcel(reset = false) {
+  async function handleImportExcel(withReset = false) {
     setImportingExcel(true);
     setImportExcelError(null);
     setImportExcelResult(null);
     try {
-      const res = await fetch(`/api/import-compta-excel${reset ? "?reset=true" : ""}`, { method: "POST" });
+      const res = await fetch(`/api/import-compta-excel${withReset ? "?reset=true" : ""}`, { method: "POST" });
       const data = await res.json() as {
-        inserted?: { charges: number; sessions: number };
-        skipped?: number;
-        sheets?: Record<string, { charges: number; sessions: number; skipped: number }>;
+        inserted?: { charges_diverses: number; charges_metro: number; sessions_employes: number; total_charges: number };
+        sheets?: Record<string, { diverses: number; metro: number; sessions: number }>;
         warnings?: string[];
-        error?: string;
+        error?: string; diag?: unknown;
       };
       if (res.ok) {
-        const { charges: c = 0, sessions: s = 0 } = data.inserted ?? {};
-        const sk = data.skipped ?? 0;
-        setImportExcelResult(`${c} charges + ${s} sessions importées${sk > 0 ? ` (${sk} doublons ignorés)` : ""}`);
-        if (data.warnings?.length) setImportExcelError(`Avertissements : ${data.warnings.slice(0, 5).join(" | ")}`);
+        const i = data.inserted ?? { charges_diverses: 0, charges_metro: 0, sessions_employes: 0, total_charges: 0 };
+        setImportExcelResult(
+          `${i.charges_diverses} div. + ${i.charges_metro} Métro + ${i.sessions_employes} sessions = ${i.total_charges} total`
+        );
+        if (data.warnings?.length) setImportExcelError(`${data.warnings.length} avertissements : ${data.warnings.slice(0, 3).join(" | ")}`);
         await load();
       } else {
-        setImportExcelError(data.error ?? `Erreur serveur ${res.status}`);
+        setImportExcelError(data.error ?? `Erreur ${res.status}`);
       }
     } catch (err) {
       setImportExcelError(err instanceof Error ? err.message : "Erreur réseau");
     } finally {
       setImportingExcel(false);
+    }
+  }
+
+  async function handleReset2025() {
+    if (!confirm("Supprimer TOUTES les charges/sessions importées (saison 2025) ? Cette action est irréversible.")) return;
+    setResetting(true);
+    setResetResult(null);
+    try {
+      const res = await fetch("/api/reset-compta-2025", { method: "POST" });
+      const data = await res.json() as { deleted?: { charges_deleted?: number; sessions_deleted?: number; employees_deleted?: number }; error?: string };
+      if (res.ok) {
+        const d = data.deleted ?? {};
+        setResetResult(`Reset OK — ${d.charges_deleted ?? 0} charges, ${d.sessions_deleted ?? 0} sessions, ${d.employees_deleted ?? 0} employés supprimés`);
+        await load();
+      } else {
+        setResetResult(`Erreur reset : ${data.error}`);
+      }
+    } catch (err) {
+      setResetResult(err instanceof Error ? err.message : "Erreur réseau");
+    } finally {
+      setResetting(false);
     }
   }
 
@@ -373,6 +396,21 @@ export default function ChargesPage() {
           </button>
           {importExcelResult && !importExcelError && (
             <span className="text-xs text-green-600 font-medium max-w-xs">{importExcelResult}</span>
+          )}
+          <button
+            onClick={handleReset2025}
+            disabled={resetting}
+            className="btn-secondary gap-2 text-xs text-brand-red border-brand-red/30 hover:bg-brand-red-light"
+          >
+            {resetting ? (
+              <svg className="animate-spin" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+            ) : (
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/></svg>
+            )}
+            Reset 2025
+          </button>
+          {resetResult && (
+            <span className="text-xs text-ink-secondary font-medium max-w-xs">{resetResult}</span>
           )}
         </div>
       </div>

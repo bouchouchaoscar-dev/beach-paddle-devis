@@ -8,202 +8,147 @@ export const dynamic = "force-dynamic";
 
 const SOURCE = "import_excel_compta_2025";
 
-const SHEET_MONTH: Record<string, number> = {
-  avril: 4, mai: 5, juin: 6, juillet: 7,
-  aout: 8, août: 8, septembre: 9,
+// Fixed column indices (confirmed by inspecting the actual file)
+const COL = {
+  DIV_OBJET: 0, DIV_DATE: 3, DIV_MONTANT: 4,
+  METRO_OBJET: 7, METRO_DATE: 10, METRO_MONTANT: 11,
+  EMP_NOM: 14, EMP_HEURES: 16, EMP_DATE: 17, EMP_MONTANT: 18,
 };
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+const SHEET_MONTH: Record<string, number> = {
+  avril: 4, mai: 5, juin: 6, juillet: 7,
+  aout: 8, août: 8, septembre: 9, octobre: 10,
+};
 
 function normalise(v: unknown): string {
   return String(v ?? "").toLowerCase().trim()
     .normalize("NFD").replace(/[̀-ͯ]/g, "");
 }
 
-function parseDate(raw: unknown, sheetMonth: number): string | null {
-  if (raw === null || raw === undefined || raw === "") return null;
-  // Excel serial date
-  if (typeof raw === "number" && raw > 40000) {
-    const d = new Date((raw - 25569) * 86400 * 1000);
-    return d.toISOString().split("T")[0];
-  }
-  // Just a day number (1–31)
-  if (typeof raw === "number" && raw >= 1 && raw <= 31) {
-    return `2025-${String(sheetMonth).padStart(2, "0")}-${String(raw).padStart(2, "0")}`;
-  }
-  const s = String(raw).trim();
-  if (!s) return null;
-  // DD/MM or DD/MM/YYYY
-  const slash = s.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);
-  if (slash) {
-    const d = parseInt(slash[1]), m = parseInt(slash[2]);
-    const y = slash[3] ? (parseInt(slash[3]) < 100 ? 2000 + parseInt(slash[3]) : parseInt(slash[3])) : 2025;
-    if (d >= 1 && d <= 31 && m >= 1 && m <= 12)
-      return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-  }
-  // French text "5 avril 2025" or "5 avr."
-  const moisFr: Record<string, number> = {
-    janvier: 1, fevrier: 2, mars: 3, avril: 4, mai: 5, juin: 6,
-    juillet: 7, aout: 8, septembre: 9, octobre: 10, novembre: 11, decembre: 12,
-  };
-  const fr = normalise(s).match(/(\d{1,2})[\s\-]?([a-z]+)/);
-  if (fr) {
-    const day = parseInt(fr[1]);
-    const mKey = fr[2].replace(/\./g, "").substring(0, 4);
-    const mNum = Object.entries(moisFr).find(([k]) => k.startsWith(mKey))?.[1] ?? 0;
-    if (day >= 1 && day <= 31 && mNum > 0)
-      return `2025-${String(mNum).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-  }
-  // Plain integer string "5"
-  const num = parseInt(s);
-  if (!isNaN(num) && num >= 1 && num <= 31)
-    return `2025-${String(sheetMonth).padStart(2, "0")}-${String(num).padStart(2, "0")}`;
-  return null;
+// Excel serial date → "YYYY-MM-DD"
+function serialToISO(serial: unknown): string | null {
+  if (typeof serial !== "number" || serial < 40000) return null;
+  const d = new Date(Math.round((serial - 25569) * 86400 * 1000));
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 function parseMontant(raw: unknown): number | null {
-  if (raw === null || raw === undefined || raw === "") return null;
   if (typeof raw === "number") return isNaN(raw) ? null : raw;
+  if (raw == null || raw === "") return null;
   const n = parseFloat(String(raw).replace(/[^0-9.,\-]/g, "").replace(",", "."));
   return isNaN(n) ? null : n;
 }
 
-// Find a column index whose header matches any of the given keywords
-function findCol(headers: string[], keywords: string[]): number {
-  return headers.findIndex((h) =>
-    keywords.some((k) => normalise(h).includes(normalise(k)))
-  );
-}
+type ChargeCategory = "restauration_metro" | "restauration_autre" | "equipement" | "salaire" | "autre";
 
-type SectionKind = "diverses" | "metro" | "employes";
-
-function detectSectionKind(row: unknown[]): SectionKind | null {
-  const merged = row.map((c) => normalise(c)).join(" ");
-  if (merged.includes("employe")) return "employes";
-  if (merged.includes("metro") || merged.includes("metrop")) return "metro";
-  if (merged.includes("divers")) return "diverses";
-  return null;
-}
-
-function guessCategorie(objet: string): string {
+function guessCategorie(objet: string): ChargeCategory {
   const s = normalise(objet);
-  if (s.includes("metro") || s.includes("metrop")) return "restauration_metro";
-  if (["carrefour","lidl","intermarch","aldi","monoprix","casino","super u"].some((k) => s.includes(k))) return "restauration_autre";
-  if (["leroy","bricoman","decathlon","bricorama","castorama"].some((k) => s.includes(k))) return "equipement";
+  const resto = ["carrefour", "g20", "boulangerie", "boulang", "leclerc", "franprix",
+    "intermarche", "lidl", "casino", "aldi", "monoprix", "pizza", "dejeuner",
+    "coocki", "coocky", "cookie", "vins", "biere", "essence", "influenceur"];
+  const equip = ["leroy merlin", "leroy", "bricoman", "decathlon", "bricorama", "castorama",
+    "karcher", "enrouleur", "pompe", "passerelle"];
+  if (equip.some((k) => s.includes(k))) return "equipement";
+  if (resto.some((k) => s.includes(k))) return "restauration_autre";
   return "autre";
 }
 
-// ── Parse one sheet ───────────────────────────────────────────────────────────
+interface ParsedSheet {
+  diverses: { date: string; montant: number; objet: string }[];
+  metro: { date: string; montant: number; objet: string }[];
+  employes: { nom: string; heures: number; date: string; montant: number }[];
+  warnings: string[];
+}
 
-type RawEntry =
-  | { kind: "charge"; date: string; montant: number; categorie: string; fournisseur: string; description: string }
-  | { kind: "employe"; nom: string; date: string; heures: number; montant: number };
-
-function parseSheet(rows: unknown[][], sheetMonth: number): { entries: RawEntry[]; warnings: string[] } {
-  const entries: RawEntry[] = [];
+function parseSheet(rows: unknown[][], sheetName: string): ParsedSheet {
+  const diverses: ParsedSheet["diverses"] = [];
+  const metro: ParsedSheet["metro"] = [];
+  const employes: ParsedSheet["employes"] = [];
   const warnings: string[] = [];
 
-  let i = 0;
-  while (i < rows.length) {
-    const row = rows[i] ?? [];
-    const kind = detectSectionKind(row);
-
-    if (!kind) { i++; continue; }
-
-    // Next non-empty row = column headers
-    let headerIdx = i + 1;
-    while (headerIdx < rows.length && (rows[headerIdx] ?? []).every((c) => c === "" || c === null || c === undefined)) {
-      headerIdx++;
-    }
-    if (headerIdx >= rows.length) break;
-
-    const headers = (rows[headerIdx] ?? []).map((c) => String(c ?? ""));
-    let dataIdx = headerIdx + 1;
-
-    if (kind === "employes") {
-      const colNom = findCol(headers, ["nom", "employe", "prenom", "prénom", "agent"]);
-      const colDate = findCol(headers, ["date", "jour"]);
-      const colH = findCol(headers, ["heure", "nb h", "nbh", "h travail"]);
-      const colMt = findCol(headers, ["montant", "total", "salaire", "remun", "€"]);
-
-      while (dataIdx < rows.length) {
-        const r = rows[dataIdx] ?? [];
-        // Stop on empty row or new section
-        if (r.every((c) => c === "" || c === null || c === undefined)) { dataIdx++; break; }
-        if (detectSectionKind(r)) break;
-
-        const nom = colNom >= 0 ? String(r[colNom] ?? "").trim() : "";
-        const rawDate = colDate >= 0 ? r[colDate] : null;
-        const rawH = colH >= 0 ? r[colH] : null;
-        const rawMt = colMt >= 0 ? r[colMt] : null;
-
-        const date = parseDate(rawDate, sheetMonth);
-        const heures = parseMontant(rawH);
-        const montant = parseMontant(rawMt);
-
-        if (nom && date && heures !== null && montant !== null && heures > 0 && montant > 0) {
-          entries.push({ kind: "employe", nom, date, heures, montant });
-        } else if (nom || rawDate || rawMt) {
-          warnings.push(`Employé ignoré ligne ${dataIdx + 1}: nom="${nom}" date="${rawDate}" h="${rawH}" mt="${rawMt}"`);
-        }
-        dataIdx++;
-      }
-    } else {
-      // Charges Diverses or Charges Métro
-      const colDate = findCol(headers, ["date", "jour"]);
-      const colObj = findCol(headers, ["objet", "description", "libelle", "article", "designation"]);
-      const colMt = findCol(headers, ["montant", "total", "prix", "€", "ht"]);
-      const colFou = findCol(headers, ["fournisseur", "magasin", "enseigne"]);
-
-      while (dataIdx < rows.length) {
-        const r = rows[dataIdx] ?? [];
-        if (r.every((c) => c === "" || c === null || c === undefined)) { dataIdx++; break; }
-        if (detectSectionKind(r)) break;
-
-        const rawDate = colDate >= 0 ? r[colDate] : null;
-        const objet = colObj >= 0 ? String(r[colObj] ?? "").trim() : "";
-        const rawMt = colMt >= 0 ? r[colMt] : null;
-        const fournisseur = colFou >= 0 ? String(r[colFou] ?? "").trim() : objet;
-
-        const date = parseDate(rawDate, sheetMonth);
-        const montant = parseMontant(rawMt);
-
-        if (date && montant !== null && montant > 0) {
-          const categorie = kind === "metro" ? "restauration_metro" : guessCategorie(fournisseur || objet);
-          const fou = kind === "metro" ? (fournisseur || "Métro") : (fournisseur || objet);
-          entries.push({ kind: "charge", date, montant, categorie, fournisseur: fou, description: objet });
-        } else if (rawDate || rawMt || objet) {
-          warnings.push(`Charge ignorée ligne ${dataIdx + 1}: date="${rawDate}" objet="${objet}" mt="${rawMt}"`);
-        }
-        dataIdx++;
-      }
-    }
-    i = dataIdx;
+  // Data starts at row index 8 (0-based), ends just before the first "TOTAL" row
+  const DATA_START = 8;
+  let endIdx = rows.length;
+  for (let i = DATA_START; i < rows.length; i++) {
+    const cell = String(rows[i]?.[COL.DIV_OBJET] ?? "");
+    if (cell.toUpperCase().startsWith("TOTAL")) { endIdx = i; break; }
   }
 
-  return { entries, warnings };
+  for (let i = DATA_START; i < endIdx; i++) {
+    const row = rows[i] ?? [];
+
+    // ── CHARGES DIVERSES ──────────────────────────────────────────────────────
+    const divObjet = String(row[COL.DIV_OBJET] ?? "").trim();
+    const divDate = serialToISO(row[COL.DIV_DATE]);
+    const divMt = parseMontant(row[COL.DIV_MONTANT]);
+    if (divDate && divMt !== null && divMt > 0) {
+      diverses.push({ date: divDate, montant: divMt, objet: divObjet });
+    } else if (divObjet && (row[COL.DIV_DATE] != null || row[COL.DIV_MONTANT] != null)) {
+      warnings.push(`[${sheetName}] Diverses ignorée ligne ${i + 1}: objet="${divObjet}" date=${JSON.stringify(row[COL.DIV_DATE])} mt=${JSON.stringify(row[COL.DIV_MONTANT])}`);
+    }
+
+    // ── CHARGES METRO ─────────────────────────────────────────────────────────
+    const metObjet = String(row[COL.METRO_OBJET] ?? "").trim();
+    const metDate = serialToISO(row[COL.METRO_DATE]);
+    const metMt = parseMontant(row[COL.METRO_MONTANT]);
+    if (metDate && metMt !== null && metMt > 0) {
+      metro.push({ date: metDate, montant: metMt, objet: metObjet });
+    } else if (metObjet && (row[COL.METRO_DATE] != null || row[COL.METRO_MONTANT] != null)) {
+      warnings.push(`[${sheetName}] Métro ignorée ligne ${i + 1}: objet="${metObjet}" date=${JSON.stringify(row[COL.METRO_DATE])} mt=${JSON.stringify(row[COL.METRO_MONTANT])}`);
+    }
+
+    // ── CHARGES EMPLOYÉS ──────────────────────────────────────────────────────
+    const empNom = String(row[COL.EMP_NOM] ?? "").trim();
+    const empDate = serialToISO(row[COL.EMP_DATE]);
+    const empHeures = parseMontant(row[COL.EMP_HEURES]);
+    const empMt = parseMontant(row[COL.EMP_MONTANT]);
+    if (empNom && empDate && empHeures !== null && empHeures > 0 && empMt !== null && empMt > 0) {
+      employes.push({ nom: empNom, heures: empHeures, date: empDate, montant: empMt });
+    } else if (empNom && (row[COL.EMP_DATE] != null || row[COL.EMP_MONTANT] != null)) {
+      warnings.push(`[${sheetName}] Employé ignoré ligne ${i + 1}: nom="${empNom}" date=${JSON.stringify(row[COL.EMP_DATE])} h=${JSON.stringify(row[COL.EMP_HEURES])} mt=${JSON.stringify(row[COL.EMP_MONTANT])}`);
+    }
+  }
+
+  return { diverses, metro, employes, warnings };
 }
 
 // ── GET — debug ───────────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
   const filePath = path.join(process.cwd(), "public", "data", "compta-2025", "Compta Beach Paddle-2025.xlsx");
-  if (!fs.existsSync(filePath)) {
-    return NextResponse.json({ error: "Fichier public/data/compta-2025/Compta Beach Paddle-2025.xlsx introuvable" }, { status: 404 });
+  const diag = {
+    cwd: process.cwd(),
+    filePath,
+    exists: fs.existsSync(filePath),
+    dirContents: fs.existsSync(path.dirname(filePath)) ? fs.readdirSync(path.dirname(filePath)) : [],
+  };
+
+  if (!diag.exists) {
+    return NextResponse.json({ error: "Fichier introuvable", diag }, { status: 404 });
   }
+
   const wb = XLSX.readFile(filePath);
   const sheetParam = new URL(req.url).searchParams.get("sheet");
 
   if (sheetParam) {
     const ws = wb.Sheets[sheetParam];
     if (!ws) return NextResponse.json({ error: `Onglet "${sheetParam}" introuvable`, sheets: wb.SheetNames }, { status: 404 });
-    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: true }) as unknown[][];
-    const month = SHEET_MONTH[normalise(sheetParam)] ?? 0;
-    const { entries, warnings } = parseSheet(rows, month);
-    return NextResponse.json({ sheet: sheetParam, totalRows: rows.length, firstRows: rows.slice(0, 20), parsed: entries.length, warnings, sample: entries.slice(0, 10) });
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: true }) as unknown[][];
+    const parsed = parseSheet(rows, sheetParam);
+    return NextResponse.json({
+      sheet: sheetParam, totalRows: rows.length,
+      diverses: parsed.diverses.length, metro: parsed.metro.length, employes: parsed.employes.length,
+      warnings: parsed.warnings,
+      sampleDiverses: parsed.diverses.slice(0, 5),
+      sampleMetro: parsed.metro.slice(0, 5),
+      sampleEmployes: parsed.employes.slice(0, 5),
+    });
   }
 
-  return NextResponse.json({ sheets: wb.SheetNames, hint: "Ajouter ?sheet=Avril pour inspecter un onglet" });
+  return NextResponse.json({ sheets: wb.SheetNames, diag, hint: "Ajouter ?sheet=Avril pour inspecter" });
 }
 
 // ── POST — import ─────────────────────────────────────────────────────────────
@@ -212,7 +157,16 @@ export async function POST(req: NextRequest) {
   const filePath = path.join(process.cwd(), "public", "data", "compta-2025", "Compta Beach Paddle-2025.xlsx");
 
   if (!fs.existsSync(filePath)) {
-    return NextResponse.json({ error: "Fichier public/data/compta-2025/Compta Beach Paddle-2025.xlsx introuvable. Placer le fichier dans public/data/compta-2025/ et redéployer." }, { status: 404 });
+    const dirPath = path.dirname(filePath);
+    return NextResponse.json({
+      error: "Fichier introuvable",
+      diag: {
+        cwd: process.cwd(),
+        filePath,
+        dirExists: fs.existsSync(dirPath),
+        dirContents: fs.existsSync(dirPath) ? fs.readdirSync(dirPath) : [],
+      },
+    }, { status: 404 });
   }
 
   const url = new URL(req.url);
@@ -223,111 +177,103 @@ export async function POST(req: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  // Optional reset: delete previous import
   if (reset) {
     await supabase.from("charges").delete().eq("created_by", SOURCE);
     await supabase.from("work_sessions").delete().eq("created_by", SOURCE);
-    console.log("[import-compta-excel] Reset: anciennes entrées supprimées");
+    console.log("[import-compta-excel] Reset effectué");
   }
-
-  // Check existing dates to avoid duplicates (soft dedup)
-  const { data: existingCharges } = await supabase
-    .from("charges").select("date, montant, fournisseur").eq("created_by", SOURCE);
-  const existingChargesSet = new Set(
-    (existingCharges ?? []).map((c: { date: string; montant: number; fournisseur: string }) => `${c.date}|${c.montant}|${c.fournisseur}`)
-  );
 
   const wb = XLSX.readFile(filePath);
   const targetSheets = wb.SheetNames.filter((n) => SHEET_MONTH[normalise(n)] !== undefined);
+  console.log("[import-compta-excel] Onglets à traiter:", targetSheets);
 
-  console.log("[import-compta-excel] Onglets trouvés:", wb.SheetNames, "→ traitement:", targetSheets);
+  // Employee cache to avoid duplicate lookups
+  const empCache: Record<string, string> = {};
 
-  let totalCharges = 0, totalSessions = 0, totalSkipped = 0;
+  let totalDiverses = 0, totalMetro = 0, totalSessions = 0;
   const allWarnings: string[] = [];
-  const sheetStats: Record<string, { charges: number; sessions: number; skipped: number }> = {};
+  const sheetStats: Record<string, { diverses: number; metro: number; sessions: number }> = {};
 
   for (const sheetName of targetSheets) {
-    const month = SHEET_MONTH[normalise(sheetName)];
     const ws = wb.Sheets[sheetName];
-    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: true }) as unknown[][];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: true }) as unknown[][];
+    const { diverses, metro, employes, warnings } = parseSheet(rows, sheetName);
+    allWarnings.push(...warnings);
 
-    const { entries, warnings } = parseSheet(rows, month);
-    allWarnings.push(...warnings.map((w) => `[${sheetName}] ${w}`));
+    let sd = 0, sm = 0, se = 0;
 
-    let sheetCharges = 0, sheetSessions = 0, sheetSkipped = 0;
-
-    for (const entry of entries) {
-      if (entry.kind === "charge") {
-        const key = `${entry.date}|${entry.montant}|${entry.fournisseur}`;
-        if (existingChargesSet.has(key)) { sheetSkipped++; totalSkipped++; continue; }
-        existingChargesSet.add(key);
-
-        const { error } = await supabase.from("charges").insert({
-          date: entry.date,
-          montant: entry.montant,
-          categorie: entry.categorie,
-          fournisseur: entry.fournisseur,
-          description: entry.description || undefined,
-          saison: "2025",
-          statut_paiement: "paye",
-          created_by: SOURCE,
-        });
-        if (!error) { totalCharges++; sheetCharges++; }
-        else allWarnings.push(`[${sheetName}] Erreur insert charge: ${error.message}`);
-
-      } else {
-        // Upsert employee
-        const nom = entry.nom;
-        let empId: string | null = null;
-        const { data: existingEmp } = await supabase
-          .from("employees").select("id").ilike("nom", nom).single();
-        if (existingEmp) {
-          empId = existingEmp.id;
-        } else {
-          const { data: newEmp, error: empErr } = await supabase
-            .from("employees")
-            .insert({ nom, tarif_horaire: entry.heures > 0 ? entry.montant / entry.heures : 10, actif: true, saison_debut: "2025" })
-            .select("id").single();
-          if (empErr) { allWarnings.push(`[${sheetName}] Erreur création employé ${nom}: ${empErr.message}`); continue; }
-          empId = newEmp?.id ?? null;
-        }
-
-        if (!empId) continue;
-
-        const { error: wsErr } = await supabase.from("work_sessions").insert({
-          employee_id: empId,
-          date: entry.date,
-          heures: entry.heures,
-          montant: entry.montant,
-          saison: "2025",
-          created_by: SOURCE,
-        });
-        if (!wsErr) { totalSessions++; sheetSessions++; }
-        else allWarnings.push(`[${sheetName}] Erreur insert session: ${wsErr.message}`);
-
-        // Charge salariale liée
-        await supabase.from("charges").insert({
-          date: entry.date,
-          montant: entry.montant,
-          categorie: "salaire",
-          fournisseur: nom,
-          description: `${entry.heures}h — ${nom}`,
-          saison: "2025",
-          statut_paiement: "paye",
-          created_by: SOURCE,
-        });
-        sheetCharges++;
-      }
+    // ── Insert charges diverses ───────────────────────────────────────────────
+    for (const e of diverses) {
+      const categorie = guessCategorie(e.objet);
+      const { error } = await supabase.from("charges").insert({
+        date: e.date, montant: e.montant, categorie,
+        fournisseur: e.objet.split(":")[0].trim() || e.objet,
+        description: e.objet,
+        saison: "2025", statut_paiement: "paye", created_by: SOURCE,
+      });
+      if (!error) { sd++; }
+      else allWarnings.push(`[${sheetName}] Erreur charge diverse: ${error.message}`);
     }
 
-    sheetStats[sheetName] = { charges: sheetCharges, sessions: sheetSessions, skipped: sheetSkipped };
-    console.log(`[import-compta-excel] ${sheetName}: ${sheetCharges} charges, ${sheetSessions} sessions, ${sheetSkipped} doublons`);
+    // ── Insert charges Métro ──────────────────────────────────────────────────
+    for (const e of metro) {
+      const { error } = await supabase.from("charges").insert({
+        date: e.date, montant: e.montant, categorie: "restauration_metro" as ChargeCategory,
+        fournisseur: "Métro",
+        description: e.objet,
+        saison: "2025", statut_paiement: "paye", created_by: SOURCE,
+      });
+      if (!error) { sm++; }
+      else allWarnings.push(`[${sheetName}] Erreur charge Métro: ${error.message}`);
+    }
+
+    // ── Insert sessions employés ──────────────────────────────────────────────
+    for (const e of employes) {
+      // Upsert employee
+      if (!empCache[e.nom]) {
+        const { data: existing } = await supabase.from("employees").select("id").ilike("nom", e.nom).maybeSingle();
+        if (existing) {
+          empCache[e.nom] = existing.id;
+        } else {
+          const tarifHoraire = e.heures > 0 ? Math.round((e.montant / e.heures) * 100) / 100 : 10;
+          const { data: newEmp, error: empErr } = await supabase
+            .from("employees")
+            .insert({ nom: e.nom, tarif_horaire: tarifHoraire, actif: true, saison_debut: "2025", created_by: SOURCE })
+            .select("id").single();
+          if (empErr) { allWarnings.push(`[${sheetName}] Erreur création employé ${e.nom}: ${empErr.message}`); continue; }
+          empCache[e.nom] = newEmp!.id;
+        }
+      }
+
+      const empId = empCache[e.nom];
+      const { error: wsErr } = await supabase.from("work_sessions").insert({
+        employee_id: empId, date: e.date, heures: e.heures, montant: e.montant,
+        saison: "2025", created_by: SOURCE,
+      });
+      if (wsErr) { allWarnings.push(`[${sheetName}] Erreur session ${e.nom}: ${wsErr.message}`); continue; }
+
+      // Charge salariale liée
+      await supabase.from("charges").insert({
+        date: e.date, montant: e.montant, categorie: "salaire" as ChargeCategory,
+        fournisseur: e.nom, description: `${e.heures}h — ${e.nom}`,
+        saison: "2025", statut_paiement: "paye", created_by: SOURCE,
+      });
+      se++;
+    }
+
+    sheetStats[sheetName] = { diverses: sd, metro: sm, sessions: se };
+    totalDiverses += sd; totalMetro += sm; totalSessions += se;
+    console.log(`[import-compta-excel] ${sheetName}: ${sd} diverses, ${sm} Métro, ${se} sessions`);
   }
 
   return NextResponse.json({
-    inserted: { charges: totalCharges, sessions: totalSessions },
-    skipped: totalSkipped,
+    inserted: {
+      charges_diverses: totalDiverses,
+      charges_metro: totalMetro,
+      sessions_employes: totalSessions,
+      total_charges: totalDiverses + totalMetro + totalSessions,
+    },
     sheets: sheetStats,
-    warnings: allWarnings.length > 0 ? allWarnings.slice(0, 20) : undefined,
+    warnings: allWarnings.length > 0 ? allWarnings.slice(0, 30) : undefined,
   });
 }
