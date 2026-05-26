@@ -86,8 +86,9 @@ function parseSheet(rows: unknown[][], sheetName: string): ParsedSheet {
     const divMt = parseMontant(row[COL.DIV_MONTANT]);
     if (divDate && divMt !== null && divMt > 0) {
       diverses.push({ date: divDate, montant: divMt, objet: divObjet });
-    } else if (divObjet && (row[COL.DIV_DATE] != null || row[COL.DIV_MONTANT] != null)) {
-      warnings.push(`[${sheetName}] Diverses ignorée ligne ${i + 1}: objet="${divObjet}" date=${JSON.stringify(row[COL.DIV_DATE])} mt=${JSON.stringify(row[COL.DIV_MONTANT])}`);
+    } else if (divObjet && row[COL.DIV_DATE] != null && !divDate) {
+      // Warn only if a date cell exists but couldn't be parsed (not when simply empty)
+      warnings.push(`[${sheetName}] Diverses ignorée ligne ${i + 1}: objet="${divObjet}" date invalide=${JSON.stringify(row[COL.DIV_DATE])} mt=${JSON.stringify(row[COL.DIV_MONTANT])}`);
     }
 
     // ── CHARGES METRO ─────────────────────────────────────────────────────────
@@ -96,8 +97,8 @@ function parseSheet(rows: unknown[][], sheetName: string): ParsedSheet {
     const metMt = parseMontant(row[COL.METRO_MONTANT]);
     if (metDate && metMt !== null && metMt > 0) {
       metro.push({ date: metDate, montant: metMt, objet: metObjet });
-    } else if (metObjet && (row[COL.METRO_DATE] != null || row[COL.METRO_MONTANT] != null)) {
-      warnings.push(`[${sheetName}] Métro ignorée ligne ${i + 1}: objet="${metObjet}" date=${JSON.stringify(row[COL.METRO_DATE])} mt=${JSON.stringify(row[COL.METRO_MONTANT])}`);
+    } else if (metObjet && row[COL.METRO_DATE] != null && !metDate) {
+      warnings.push(`[${sheetName}] Métro ignorée ligne ${i + 1}: objet="${metObjet}" date invalide=${JSON.stringify(row[COL.METRO_DATE])} mt=${JSON.stringify(row[COL.METRO_MONTANT])}`);
     }
 
     // ── CHARGES EMPLOYÉS ──────────────────────────────────────────────────────
@@ -107,8 +108,8 @@ function parseSheet(rows: unknown[][], sheetName: string): ParsedSheet {
     const empMt = parseMontant(row[COL.EMP_MONTANT]);
     if (empNom && empDate && empHeures !== null && empHeures > 0 && empMt !== null && empMt > 0) {
       employes.push({ nom: empNom, heures: empHeures, date: empDate, montant: empMt });
-    } else if (empNom && (row[COL.EMP_DATE] != null || row[COL.EMP_MONTANT] != null)) {
-      warnings.push(`[${sheetName}] Employé ignoré ligne ${i + 1}: nom="${empNom}" date=${JSON.stringify(row[COL.EMP_DATE])} h=${JSON.stringify(row[COL.EMP_HEURES])} mt=${JSON.stringify(row[COL.EMP_MONTANT])}`);
+    } else if (empNom && row[COL.EMP_DATE] != null && !empDate) {
+      warnings.push(`[${sheetName}] Employé ignoré ligne ${i + 1}: nom="${empNom}" date invalide=${JSON.stringify(row[COL.EMP_DATE])} h=${JSON.stringify(row[COL.EMP_HEURES])} mt=${JSON.stringify(row[COL.EMP_MONTANT])}`);
     }
   }
 
@@ -238,7 +239,7 @@ export async function POST(req: NextRequest) {
           const tarifHoraire = e.heures > 0 ? Math.round((e.montant / e.heures) * 100) / 100 : 10;
           const { data: newEmp, error: empErr } = await supabase
             .from("employees")
-            .insert({ nom: e.nom, tarif_horaire: tarifHoraire, actif: true, saison_debut: "2025", created_by: SOURCE })
+            .insert({ nom: e.nom, tarif_horaire: tarifHoraire, actif: true, saison_debut: "2025" })
             .select("id").single();
           if (empErr) { allWarnings.push(`[${sheetName}] Erreur création employé ${e.nom}: ${empErr.message}`); continue; }
           empCache[e.nom] = newEmp!.id;
