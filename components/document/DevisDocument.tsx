@@ -11,6 +11,13 @@ import {
 } from "@react-pdf/renderer";
 import type { DevisFormData, CalculationResult, DocumentType } from "@/lib/types";
 import { formatPrice } from "@/lib/calculations";
+
+// Helvetica (Type1/WinAnsi) ne supporte pas U+202F (espace fine insécable produite par
+// Intl.NumberFormat fr-FR sous Node 18+) ni U+00A0. Ces caractères inconnus corrompent
+// visuellement les glyphes adjacents dans le flux PDF. On normalise vers une espace simple.
+function pricePdf(amount: number): string {
+  return formatPrice(amount).replace(/[  ]/g, " ");
+}
 import { ACTIVITY_LABELS, DURATION_LABELS } from "@/lib/pricing";
 
 const TEAL = "#0071E3";
@@ -413,11 +420,11 @@ export function DevisDocument({
                 </Text>
               </View>
               <Text style={[s.rowVal, { width: "28mm", textAlign: "center" }]}>
-                {formatPrice(calc.activityPricePerPerson)}
+                {pricePdf(calc.activityPricePerPerson)}
               </Text>
               <Text style={[s.rowVal, { width: "28mm", textAlign: "center" }]}>{n}</Text>
               <Text style={[s.rowVal, { width: "30mm", textAlign: "right" }]}>
-                {formatPrice(calc.activitySubtotal)}
+                {pricePdf(calc.activitySubtotal)}
               </Text>
             </View>
             {form.coach.enabled && calc.coachSubtotal > 0 && (
@@ -429,7 +436,7 @@ export function DevisDocument({
                   </Text>
                 </View>
                 <Text style={[s.rowVal, { width: "30mm", textAlign: "right" }]}>
-                  {formatPrice(calc.coachSubtotal)}
+                  {pricePdf(calc.coachSubtotal)}
                 </Text>
               </View>
             )}
@@ -455,11 +462,11 @@ export function DevisDocument({
                   {item.description ? <Text style={s.rowDsc}>{item.description}</Text> : null}
                 </View>
                 <Text style={[s.rowVal, { width: "28mm", textAlign: "center" }]}>
-                  {formatPrice(price)}
+                  {pricePdf(price)}
                 </Text>
                 <Text style={[s.rowVal, { width: "28mm", textAlign: "center" }]}>{n}</Text>
                 <Text style={[s.rowVal, { width: "30mm", textAlign: "right" }]}>
-                  {formatPrice(subtotal)}
+                  {pricePdf(subtotal)}
                 </Text>
               </View>
             </View>
@@ -470,7 +477,7 @@ export function DevisDocument({
         <View style={s.totals} wrap={false}>
           <View style={s.totalLine}>
             <Text style={s.totalLbl}>TOTAL :</Text>
-            <Text style={s.totalVal}>{formatPrice(calc.totalBrut)}</Text>
+            <Text style={s.totalVal}>{pricePdf(calc.totalBrut)}</Text>
           </View>
 
           {hasDiscount && (
@@ -482,7 +489,7 @@ export function DevisDocument({
                     Offert pour {form.discount.accompagnatorsCount} accompagnateur
                     {form.discount.accompagnatorsCount > 1 ? "s" : ""}
                   </Text>
-                  <Text style={s.remiseTxt}>-{formatPrice(calc.accompagnatorsCost)}</Text>
+                  <Text style={s.remiseTxt}>-{pricePdf(calc.accompagnatorsCost)}</Text>
                 </View>
               )}
               {calc.extraDiscountAmount > 0 && (
@@ -490,21 +497,21 @@ export function DevisDocument({
                   <Text style={s.remiseTxt}>
                     {form.discount.extraDiscountRate}% de remise supplémentaire
                   </Text>
-                  <Text style={s.remiseTxt}>-{formatPrice(calc.extraDiscountAmount)}</Text>
+                  <Text style={s.remiseTxt}>-{pricePdf(calc.extraDiscountAmount)}</Text>
                 </View>
               )}
               {calc.discountAmount > 0 && (
                 <View style={s.remiseLine}>
                   <Text style={s.remiseTxt}>Remise groupe {form.discount.discountRate}%</Text>
-                  <Text style={s.remiseTxt}>-{formatPrice(calc.discountAmount)}</Text>
+                  <Text style={s.remiseTxt}>-{pricePdf(calc.discountAmount)}</Text>
                 </View>
               )}
               <View style={s.remiseTotalRow}>
                 <Text style={[s.remiseTxt, { fontFamily: "Helvetica-Bold" }]}>
-                  Remise totale {calc.totalDiscountRateIsExact ? "=" : "≈"} {calc.totalDiscountRate}%
+                  Remise totale {calc.totalDiscountRateIsExact ? "=" : "~"} {calc.totalDiscountRate}%
                 </Text>
                 <Text style={[s.remiseTxt, { fontFamily: "Helvetica-Bold" }]}>
-                  -{formatPrice(calc.totalDiscount)}
+                  -{pricePdf(calc.totalDiscount)}
                 </Text>
               </View>
             </View>
@@ -512,18 +519,18 @@ export function DevisDocument({
 
           <View style={s.totalNetBox}>
             <Text style={s.totalNetLbl}>{hasDiscount ? "TOTAL AVEC REMISE :" : "TOTAL :"}</Text>
-            <Text style={s.totalNetVal}>{formatPrice(calc.totalNet)}</Text>
+            <Text style={s.totalNetVal}>{pricePdf(calc.totalNet)}</Text>
           </View>
 
           {isFacture && acompteVerse !== undefined && acompteVerse > 0 && (
             <>
               <View style={s.acompteRow}>
                 <Text style={s.acompteLbl}>Acompte déjà versé :</Text>
-                <Text style={s.acompteVal}>-{formatPrice(acompteVerse)}</Text>
+                <Text style={s.acompteVal}>-{pricePdf(acompteVerse)}</Text>
               </View>
               <View style={[s.totalNetBox, { marginTop: 4, marginBottom: 8 }]}>
                 <Text style={s.totalNetLbl}>RESTANT DÛ :</Text>
-                <Text style={s.totalNetVal}>{formatPrice(calc.totalNet - acompteVerse)}</Text>
+                <Text style={s.totalNetVal}>{pricePdf(calc.totalNet - acompteVerse)}</Text>
               </View>
             </>
           )}
