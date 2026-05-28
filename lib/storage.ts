@@ -56,7 +56,6 @@ export async function getDevisList(): Promise<DevisRecord[]> {
 
 export async function saveDevis(record: DevisRecord): Promise<{ source: "supabase" | "localStorage" }> {
   const session = getSession();
-  console.log("[storage] saveDevis →", record.numero);
 
   const { error } = await supabase.from("documents").upsert(
     {
@@ -84,7 +83,6 @@ export async function saveDevis(record: DevisRecord): Promise<{ source: "supabas
     return { source: "localStorage" };
   }
 
-  console.log("[storage] Saved to Supabase:", record.numero);
   return { source: "supabase" };
 }
 
@@ -102,7 +100,6 @@ export async function deleteDevis(id: string): Promise<void> {
 export function clearLocalCache(): void {
   if (typeof window === "undefined") return;
   localStorage.removeItem(LS_KEY);
-  console.log("[storage] localStorage cache cleared");
 }
 
 export function localCacheCount(): number {

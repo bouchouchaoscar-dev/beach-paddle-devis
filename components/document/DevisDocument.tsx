@@ -11,6 +11,7 @@ import {
 } from "@react-pdf/renderer";
 import type { DevisFormData, CalculationResult, DocumentType } from "@/lib/types";
 import { formatPrice } from "@/lib/calculations";
+import { ACTIVITY_LABELS, DURATION_LABELS } from "@/lib/pricing";
 
 // Helvetica (Type1/WinAnsi) ne supporte pas U+202F (espace fine insécable produite par
 // Intl.NumberFormat fr-FR sous Node 18+) ni U+00A0. Ces caractères inconnus corrompent
@@ -18,7 +19,6 @@ import { formatPrice } from "@/lib/calculations";
 function pricePdf(amount: number): string {
   return formatPrice(amount).replace(/[  ]/g, " ");
 }
-import { ACTIVITY_LABELS, DURATION_LABELS } from "@/lib/pricing";
 
 const TEAL = "#0071E3";
 const RED = "#E03131";

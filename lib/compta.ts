@@ -32,7 +32,6 @@ export async function getCaEntries(saison?: string): Promise<CaEntry[]> {
     if (data.length < PAGE) break;
     from += PAGE;
   }
-  console.log(`[compta] getCaEntries(all): ${all.length} entrées chargées`);
   return all;
 }
 
@@ -98,21 +97,6 @@ export async function updateEmployee(id: string, patch: Partial<Employee>): Prom
   if (error) throw new Error(error.message);
 }
 
-export async function upsertEmployeeByName(nom: string, saison: string): Promise<string> {
-  const { data: existing } = await supabase
-    .from("employees")
-    .select("id")
-    .ilike("nom", nom)
-    .single();
-  if (existing) return existing.id;
-  const { data: created, error } = await supabase
-    .from("employees")
-    .insert({ nom, tarif_horaire: 10, actif: true, saison_debut: saison })
-    .select("id")
-    .single();
-  if (error) throw new Error(error.message);
-  return created.id;
-}
 
 // ── Work Sessions ────────────────────────────────────────────────────────────
 

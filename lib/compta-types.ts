@@ -54,15 +54,6 @@ export interface WorkSession {
   created_by: string;
 }
 
-export interface MonthlyStats {
-  month: string;
-  label: string;
-  ca: number;
-  charges: number;
-  resultat: number;
-  marge: number;
-}
-
 export const MOIS_LABELS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Jun", "Jul", "Aoû", "Sep", "Oct", "Nov", "Déc"];
 export const MOIS_FULL = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
 
