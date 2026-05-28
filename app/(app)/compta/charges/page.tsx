@@ -53,6 +53,8 @@ export default function ChargesPage() {
   const [importImagesResult, setImportImagesResult] = useState<string | null>(null);
   const [importImagesError, setImportImagesError] = useState<string | null>(null);
   const [importImagesDiag, setImportImagesDiag] = useState<Record<string, unknown> | null>(null);
+  const [resetting, setResetting] = useState(false);
+  const [resetMsg, setResetMsg] = useState<string | null>(null);
 
   // Upload + AI
   const fileRef = useRef<HTMLInputElement>(null);
@@ -264,6 +266,28 @@ export default function ChargesPage() {
     }
   }
 
+  async function handleReset() {
+    if (!confirm("Supprimer TOUTES les charges/sessions/employés 2025 ? Irréversible.")) return;
+    setResetting(true);
+    setResetMsg(null);
+    try {
+      const res = await fetch("/api/reset-charges-2025", { method: "POST" });
+      const data = await res.json() as { charges?: number; sessions?: number; employees?: number; error?: string };
+      if (res.ok) {
+        setResetMsg(`Reset OK — ${data.charges ?? 0} charges, ${data.sessions ?? 0} sessions, ${data.employees ?? 0} employés supprimés`);
+        localStorage.removeItem("bp_compta_images_imported");
+        setImportImagesDone(false);
+        await load();
+      } else {
+        setResetMsg(`Erreur : ${data.error}`);
+      }
+    } catch (err) {
+      setResetMsg(err instanceof Error ? err.message : "Erreur réseau");
+    } finally {
+      setResetting(false);
+    }
+  }
+
   // ── Derived ────────────────────────────────────────────────────────────────
 
   const filteredCharges = charges.filter((c) => {
@@ -325,6 +349,24 @@ export default function ChargesPage() {
           </button>
           {importImagesResult && !importImagesError && (
             <span className="text-xs text-green-600 font-medium max-w-xs">{importImagesResult}</span>
+          )}
+          <button
+            onClick={handleReset}
+            disabled={resetting}
+            className="btn-secondary gap-2 text-xs"
+            style={{ color: "#E03131", borderColor: "rgba(224,49,49,0.3)" }}
+          >
+            {resetting ? (
+              <svg className="animate-spin" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+            ) : (
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/></svg>
+            )}
+            Reset 2025
+          </button>
+          {resetMsg && (
+            <span className="text-xs font-medium" style={{ color: resetMsg.startsWith("Erreur") ? "#E03131" : "#16A34A" }}>
+              {resetMsg}
+            </span>
           )}
         </div>
       </div>
