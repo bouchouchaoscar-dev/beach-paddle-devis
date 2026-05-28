@@ -4,15 +4,30 @@ import fs from "fs";
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@supabase/supabase-js";
 
-// Allow up to 5 minutes on Vercel (Pro: 300 s, Hobby: 60 s)
 export const maxDuration = 300;
 
-const PROMPT = `Analyse cette feuille de comptabilité et extrais toutes les données en JSON structuré avec trois tableaux :
-charges_diverses (objet, date, montant),
-charges_metro (objet, date, montant),
-charges_employes (employe, nb_heures, date, montant).
-Les dates sont au format 'JJ-mois' (ex: 1-juin). L'année est 2025.
-Retourne uniquement le JSON, sans texte.`;
+const PROMPT = `Tu es un extracteur de données comptables.
+Analyse cette image d'une feuille Excel de comptabilité Beach Paddle et extrais TOUTES les lignes de données en JSON.
+
+La feuille contient 3 tableaux côte à côte :
+
+1. CHARGES DIVERSES (gauche) : colonnes Objet, Date, Montant. Extraire toutes les lignes jusqu'à TOTAL CHARGES DIVERSES.
+
+2. CHARGES METRO (milieu) : colonnes Objet, Date, Montant. Extraire toutes les lignes jusqu'à TOTAL CHARGES METRO.
+
+3. CHARGES EMPLOYÉS (droite) : colonnes Employé, Nombre d'heures, Date, Montant. Extraire toutes les lignes jusqu'à TOTAL CHARGES EMPLOYÉS.
+   Attention : en juillet il peut y avoir plusieurs blocs CHARGES EMPLOYÉS côte à côte.
+
+Format JSON attendu :
+{
+  "charges_diverses": [{"objet": "...", "date": "...", "montant": 0}],
+  "charges_metro": [{"objet": "...", "date": "...", "montant": 0}],
+  "charges_employes": [{"employe": "...", "nb_heures": 0, "date": "...", "montant": 0}]
+}
+
+Les dates sont au format JJ-mois (ex: 1-juin).
+Les montants sont des nombres sans symbole €.
+Retourne UNIQUEMENT le JSON, sans texte.`;
 
 const FOURNISSEUR_CATEGORIE: Record<string, string> = {
   metro: "restauration_metro",
@@ -52,19 +67,32 @@ function parseFrDate(dateStr: string, year = 2025): string | null {
   return `${year}-${String(mois).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
+interface ParsedSheet {
+  charges_diverses?: { objet: string; date: string; montant: number }[];
+  charges_metro?: { objet: string; date: string; montant: number }[];
+  charges_employes?: { employe: string; nb_heures: number; date: string; montant: number }[];
+}
+
+interface FileReport {
+  file: string;
+  extractedDiverses: number;
+  extractedMetro: number;
+  extractedEmployes: number;
+  insertedCharges: number;
+  insertedSessions: number;
+  rawJson: string;
+  error: string | null;
+}
+
 export async function POST() {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   const dir = path.join(process.cwd(), "public", "data", "compta-2025");
   const dirExists = fs.existsSync(dir);
-  const files = dirExists ? fs.readdirSync(dir).filter((f) => /\.(png|jpg|jpeg)$/i.test(f)).sort() : [];
+  const files = dirExists
+    ? fs.readdirSync(dir).filter((f) => /\.(png|jpg|jpeg)$/i.test(f)).sort()
+    : [];
 
-  const diag = {
-    dirPath: dir,
-    dirExists,
-    filesFound: files.length,
-    fileNames: files,
-    hasApiKey: !!(apiKey),
-  };
+  const diag = { dirPath: dir, dirExists, filesFound: files.length, fileNames: files, hasApiKey: !!apiKey };
 
   if (!apiKey) {
     return NextResponse.json({
@@ -72,71 +100,85 @@ export async function POST() {
       diag,
     }, { status: 500 });
   }
-
   if (!dirExists) {
-    return NextResponse.json({
-      error: "Dossier public/data/compta-2025/ introuvable.",
-      diag,
-    }, { status: 404 });
+    return NextResponse.json({ error: "Dossier public/data/compta-2025/ introuvable.", diag }, { status: 404 });
   }
-
   if (files.length === 0) {
-    return NextResponse.json({
-      error: "Aucune image PNG/JPG dans public/data/compta-2025/.",
-      diag,
-    }, { status: 404 });
+    return NextResponse.json({ error: "Aucune image PNG/JPG dans public/data/compta-2025/.", diag }, { status: 404 });
   }
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
-
   const anthropic = new Anthropic({ apiKey });
 
   let totalCharges = 0;
   let totalSessions = 0;
-  const errors: string[] = [];
-  const report: { file: string; charges: number; sessions: number }[] = [];
+  const fileReports: FileReport[] = [];
+  const globalErrors: string[] = [];
 
   for (const file of files) {
-    let fileCharges = 0;
-    let fileSessions = 0;
+    const report: FileReport = {
+      file,
+      extractedDiverses: 0,
+      extractedMetro: 0,
+      extractedEmployes: 0,
+      insertedCharges: 0,
+      insertedSessions: 0,
+      rawJson: "",
+      error: null,
+    };
 
     const filePath = path.join(dir, file);
     const imgBuffer = fs.readFileSync(filePath);
     const base64 = imgBuffer.toString("base64");
     const mimeType = file.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg";
 
-    let parsed: {
-      charges_diverses?: { objet: string; date: string; montant: number }[];
-      charges_metro?: { objet: string; date: string; montant: number }[];
-      charges_employes?: { employe: string; nb_heures: number; date: string; montant: number }[];
-    };
+    let parsed: ParsedSheet;
 
     try {
       const response = await anthropic.messages.create({
         model: "claude-sonnet-4-6",
         max_tokens: 4096,
-        messages: [
-          {
-            role: "user",
-            content: [
-              { type: "image", source: { type: "base64", media_type: mimeType as "image/png" | "image/jpeg", data: base64 } },
-              { type: "text", text: PROMPT },
-            ],
-          },
-        ],
+        messages: [{
+          role: "user",
+          content: [
+            { type: "image", source: { type: "base64", media_type: mimeType as "image/png" | "image/jpeg", data: base64 } },
+            { type: "text", text: PROMPT },
+          ],
+        }],
       });
 
       const text = response.content[0]?.type === "text" ? response.content[0].text.trim() : "";
+      report.rawJson = text;
+
       const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) { errors.push(`${file}: pas de JSON dans la réponse`); continue; }
-      parsed = JSON.parse(jsonMatch[0]);
+      if (!jsonMatch) {
+        report.error = `Pas de JSON trouvé dans la réponse. Réponse brute : ${text.slice(0, 200)}`;
+        globalErrors.push(`${file}: pas de JSON`);
+        fileReports.push(report);
+        continue;
+      }
+
+      try {
+        parsed = JSON.parse(jsonMatch[0]);
+      } catch (parseErr) {
+        report.error = `JSON invalide : ${parseErr instanceof Error ? parseErr.message : "erreur parse"}`;
+        globalErrors.push(`${file}: JSON invalide`);
+        fileReports.push(report);
+        continue;
+      }
     } catch (err) {
-      errors.push(`${file}: ${err instanceof Error ? err.message : "erreur Anthropic"}`);
+      report.error = err instanceof Error ? err.message : "Erreur Anthropic";
+      globalErrors.push(`${file}: ${report.error}`);
+      fileReports.push(report);
       continue;
     }
+
+    report.extractedDiverses = parsed.charges_diverses?.length ?? 0;
+    report.extractedMetro = parsed.charges_metro?.length ?? 0;
+    report.extractedEmployes = parsed.charges_employes?.length ?? 0;
 
     // Insert charges_metro
     for (const item of parsed.charges_metro ?? []) {
@@ -148,7 +190,7 @@ export async function POST() {
         fournisseur: "Métro", description: item.objet,
         saison: "2025", statut_paiement: "paye", created_by: "import",
       });
-      if (!error) { totalCharges++; fileCharges++; }
+      if (!error) { totalCharges++; report.insertedCharges++; }
     }
 
     // Insert charges_diverses
@@ -161,7 +203,7 @@ export async function POST() {
         date, montant, categorie, fournisseur: item.objet,
         description: item.objet, saison: "2025", statut_paiement: "paye", created_by: "import",
       });
-      if (!error) { totalCharges++; fileCharges++; }
+      if (!error) { totalCharges++; report.insertedCharges++; }
     }
 
     // Insert work sessions + salary charges
@@ -173,13 +215,9 @@ export async function POST() {
 
       const nom = String(item.employe).trim();
 
-      // Find or create employee
       let empId: string | null = null;
       const { data: existingEmp } = await supabase
-        .from("employees")
-        .select("id")
-        .ilike("nom", nom)
-        .maybeSingle();
+        .from("employees").select("id").ilike("nom", nom).maybeSingle();
 
       if (existingEmp) {
         empId = existingEmp.id;
@@ -187,8 +225,7 @@ export async function POST() {
         const { data: newEmp } = await supabase
           .from("employees")
           .insert({ nom, tarif_horaire: heures > 0 ? Math.round((montant / heures) * 100) / 100 : 10, actif: true, saison_debut: "2025" })
-          .select("id")
-          .single();
+          .select("id").single();
         empId = newEmp?.id ?? null;
       }
 
@@ -197,20 +234,19 @@ export async function POST() {
           employee_id: empId, date, heures, montant,
           saison: "2025", created_by: "import",
         });
-        fileSessions++;
         totalSessions++;
+        report.insertedSessions++;
       }
 
-      // Salary charge entry
       const { error: eSalaire } = await supabase.from("charges").insert({
         date, montant, categorie: "salaire", fournisseur: nom,
         description: `${heures}h — ${nom}`, saison: "2025",
         statut_paiement: "paye", created_by: "import",
       });
-      if (!eSalaire) { totalCharges++; fileCharges++; }
+      if (!eSalaire) { totalCharges++; report.insertedCharges++; }
     }
 
-    report.push({ file, charges: fileCharges, sessions: fileSessions });
+    fileReports.push(report);
   }
 
   return NextResponse.json({
@@ -218,8 +254,8 @@ export async function POST() {
     sessions: totalSessions,
     files: files.length,
     fileNames: files,
-    report,
-    errors: errors.length > 0 ? errors : undefined,
+    report: fileReports,
+    errors: globalErrors.length > 0 ? globalErrors : undefined,
     diag,
   });
 }

@@ -19,6 +19,17 @@ const MODES_PAIEMENT = ["CB", "Espèces", "Virement", "Chèque"];
 
 type Tab = "upload" | "manuel" | "employes";
 
+interface FileReport {
+  file: string;
+  extractedDiverses: number;
+  extractedMetro: number;
+  extractedEmployes: number;
+  insertedCharges: number;
+  insertedSessions: number;
+  rawJson: string;
+  error: string | null;
+}
+
 interface ExtractedData {
   date?: string;
   montant_total?: number;
@@ -53,6 +64,8 @@ export default function ChargesPage() {
   const [importImagesResult, setImportImagesResult] = useState<string | null>(null);
   const [importImagesError, setImportImagesError] = useState<string | null>(null);
   const [importImagesDiag, setImportImagesDiag] = useState<Record<string, unknown> | null>(null);
+  const [importReport, setImportReport] = useState<FileReport[] | null>(null);
+  const [expandedRaw, setExpandedRaw] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
   const [resetMsg, setResetMsg] = useState<string | null>(null);
 
@@ -239,17 +252,19 @@ export default function ChargesPage() {
     setImportImagesError(null);
     setImportImagesResult(null);
     setImportImagesDiag(null);
+    setImportReport(null);
+    setExpandedRaw(null);
     try {
       const res = await fetch("/api/import-compta-images", { method: "POST" });
       const data = await res.json() as {
         charges?: number; sessions?: number; files?: number; fileNames?: string[];
-        errors?: string[]; error?: string;
+        report?: FileReport[]; errors?: string[]; error?: string;
         diag?: Record<string, unknown>;
       };
       if (data.diag) setImportImagesDiag(data.diag);
+      if (data.report) setImportReport(data.report);
       if (res.ok) {
-        const msg = `${data.charges ?? 0} charges + ${data.sessions ?? 0} sessions importées depuis ${data.files ?? 0} image(s) : ${(data.fileNames ?? []).join(", ") || "—"}`;
-        setImportImagesResult(msg);
+        setImportImagesResult(`${data.charges ?? 0} charges + ${data.sessions ?? 0} sessions — ${data.files ?? 0} fichier(s)`);
         if ((data.errors ?? []).length > 0) {
           setImportImagesError(`Avertissements : ${data.errors!.join(" | ")}`);
         }
@@ -371,8 +386,62 @@ export default function ChargesPage() {
         </div>
       </div>
 
-      {/* ── Import error card ── */}
-      {importImagesError && (
+      {/* ── Import report ── */}
+      {importReport && importReport.length > 0 && (
+        <div
+          className="rounded-xl border border-surface-border bg-white p-4 space-y-3"
+          style={{ opacity: 0, animation: "slideUp 0.3s cubic-bezier(0.16,1,0.3,1) forwards" }}
+        >
+          <p className="text-sm font-semibold text-ink">Rapport d&apos;import par fichier</p>
+          <div className="space-y-2">
+            {importReport.map((r) => (
+              <div key={r.file} className={`rounded-lg border px-3 py-2.5 space-y-1 ${r.error ? "border-red-200 bg-red-50" : "border-surface-border bg-surface-muted/40"}`}>
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <span className="text-xs font-mono font-semibold text-ink">{r.file}</span>
+                  {r.error ? (
+                    <span className="text-xs text-red-600 font-medium">{r.error.slice(0, 120)}</span>
+                  ) : (
+                    <span className="text-xs text-green-600 font-semibold">+{r.insertedCharges} charges, +{r.insertedSessions} sessions</span>
+                  )}
+                </div>
+                {!r.error && (
+                  <div className="flex gap-4 flex-wrap">
+                    <span className="text-[11px] text-ink-muted">Diverses extraites : <span className="font-semibold text-ink">{r.extractedDiverses}</span></span>
+                    <span className="text-[11px] text-ink-muted">Métro extraites : <span className="font-semibold text-ink">{r.extractedMetro}</span></span>
+                    <span className="text-[11px] text-ink-muted">Employés extraits : <span className="font-semibold text-ink">{r.extractedEmployes}</span></span>
+                  </div>
+                )}
+                {r.rawJson && (
+                  <div>
+                    <button
+                      onClick={() => setExpandedRaw(expandedRaw === r.file ? null : r.file)}
+                      className="text-[11px] text-ink-muted underline hover:text-ink"
+                    >
+                      {expandedRaw === r.file ? "Masquer" : "Voir JSON brut"}
+                    </button>
+                    {expandedRaw === r.file && (
+                      <pre className="mt-1 text-[10px] font-mono bg-zinc-900 text-green-400 rounded-lg p-3 overflow-x-auto max-h-64 whitespace-pre-wrap">
+                        {r.rawJson}
+                      </pre>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          {importImagesDiag && (
+            <div className="rounded-lg bg-surface-muted border border-surface-border px-3 py-2 space-y-1">
+              <p className="text-[11px] font-semibold text-ink-muted uppercase tracking-wide">Diagnostic</p>
+              <p className="text-xs text-ink-secondary">Dossier trouvé : <span className={importImagesDiag.dirExists ? "text-green-600" : "text-red-600"}>{importImagesDiag.dirExists ? "Oui" : "Non"}</span></p>
+              <p className="text-xs text-ink-secondary">Images : <span className="font-mono text-ink">{String(importImagesDiag.filesFound)}</span></p>
+              <p className="text-xs text-ink-secondary">Clé Anthropic : <span className={importImagesDiag.hasApiKey ? "text-green-600" : "text-red-600"}>{importImagesDiag.hasApiKey ? "OK" : "MANQUANTE"}</span></p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Import fatal error (avant tout rapport) ── */}
+      {importImagesError && !importReport && (
         <div
           className="rounded-xl border border-red-200 bg-red-50 p-4 space-y-2"
           style={{ opacity: 0, animation: "slideUp 0.3s cubic-bezier(0.16,1,0.3,1) forwards" }}
@@ -387,8 +456,8 @@ export default function ChargesPage() {
               <p className="text-[11px] font-semibold text-red-500 uppercase tracking-wide">Diagnostic</p>
               <p className="text-xs text-ink-secondary font-mono">Dossier : <span className="text-ink">{String(importImagesDiag.dirPath)}</span></p>
               <p className="text-xs text-ink-secondary">Dossier trouvé : <span className={importImagesDiag.dirExists ? "text-green-600" : "text-red-600"}>{importImagesDiag.dirExists ? "Oui" : "Non"}</span></p>
-              <p className="text-xs text-ink-secondary">Images trouvées : <span className="font-mono text-ink">{String(importImagesDiag.filesFound)}</span>{(importImagesDiag.filesFound as number) === 0 ? " — placer les PNG dans ce dossier et redéployer" : ""}</p>
-              <p className="text-xs text-ink-secondary">Clé API Anthropic : <span className={importImagesDiag.hasApiKey ? "text-green-600" : "text-red-600"}>{importImagesDiag.hasApiKey ? "Configurée" : "MANQUANTE — ajouter ANTHROPIC_API_KEY sur Vercel"}</span></p>
+              <p className="text-xs text-ink-secondary">Images trouvées : <span className="font-mono text-ink">{String(importImagesDiag.filesFound)}</span></p>
+              <p className="text-xs text-ink-secondary">Clé API Anthropic : <span className={importImagesDiag.hasApiKey ? "text-green-600" : "text-red-600"}>{importImagesDiag.hasApiKey ? "Configurée" : "MANQUANTE"}</span></p>
             </div>
           )}
         </div>
