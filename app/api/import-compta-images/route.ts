@@ -51,7 +51,7 @@ function parseFrDate(dateStr: string, year = 2025): string | null {
 
 export async function POST() {
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  const dir = path.join(process.cwd(), "public", "data", "compta_2025");
+  const dir = path.join(process.cwd(), "public", "data", "compta-2025");
   const dirExists = fs.existsSync(dir);
   const files = dirExists ? fs.readdirSync(dir).filter((f) => /\.(png|jpg|jpeg)$/i.test(f)) : [];
 

@@ -54,12 +54,6 @@ export default function ChargesPage() {
   const [importImagesError, setImportImagesError] = useState<string | null>(null);
   const [importImagesDiag, setImportImagesDiag] = useState<Record<string, unknown> | null>(null);
 
-  const [importingExcel, setImportingExcel] = useState(false);
-  const [importExcelResult, setImportExcelResult] = useState<string | null>(null);
-  const [importExcelError, setImportExcelError] = useState<string | null>(null);
-  const [resetting, setResetting] = useState(false);
-  const [resetResult, setResetResult] = useState<string | null>(null);
-
   // Upload + AI
   const fileRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -270,56 +264,6 @@ export default function ChargesPage() {
     }
   }
 
-  async function handleImportExcel(withReset = false) {
-    setImportingExcel(true);
-    setImportExcelError(null);
-    setImportExcelResult(null);
-    try {
-      const res = await fetch(`/api/import-compta-excel${withReset ? "?reset=true" : ""}`, { method: "POST" });
-      const data = await res.json() as {
-        inserted?: { charges_diverses: number; charges_metro: number; sessions_employes: number; total_charges: number };
-        sheets?: Record<string, { diverses: number; metro: number; sessions: number }>;
-        warnings?: string[];
-        error?: string; diag?: unknown;
-      };
-      if (res.ok) {
-        const i = data.inserted ?? { charges_diverses: 0, charges_metro: 0, sessions_employes: 0, total_charges: 0 };
-        setImportExcelResult(
-          `${i.charges_diverses} div. + ${i.charges_metro} Métro + ${i.sessions_employes} sessions = ${i.total_charges} total`
-        );
-        if (data.warnings?.length) setImportExcelError(`${data.warnings.length} avertissements : ${data.warnings.slice(0, 3).join(" | ")}`);
-        await load();
-      } else {
-        setImportExcelError(data.error ?? `Erreur ${res.status}`);
-      }
-    } catch (err) {
-      setImportExcelError(err instanceof Error ? err.message : "Erreur réseau");
-    } finally {
-      setImportingExcel(false);
-    }
-  }
-
-  async function handleReset2025() {
-    if (!confirm("Supprimer TOUTES les charges/sessions importées (saison 2025) ? Cette action est irréversible.")) return;
-    setResetting(true);
-    setResetResult(null);
-    try {
-      const res = await fetch("/api/reset-compta-2025", { method: "POST" });
-      const data = await res.json() as { deleted?: { charges_deleted?: number; sessions_deleted?: number; employees_deleted?: number }; error?: string };
-      if (res.ok) {
-        const d = data.deleted ?? {};
-        setResetResult(`Reset OK — ${d.charges_deleted ?? 0} charges, ${d.sessions_deleted ?? 0} sessions, ${d.employees_deleted ?? 0} employés supprimés`);
-        await load();
-      } else {
-        setResetResult(`Erreur reset : ${data.error}`);
-      }
-    } catch (err) {
-      setResetResult(err instanceof Error ? err.message : "Erreur réseau");
-    } finally {
-      setResetting(false);
-    }
-  }
-
   // ── Derived ────────────────────────────────────────────────────────────────
 
   const filteredCharges = charges.filter((c) => {
@@ -377,59 +321,12 @@ export default function ChargesPage() {
             ) : (
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             )}
-            Importer via IA (PNG)
+            Importer compta 2025
           </button>
           {importImagesResult && !importImagesError && (
             <span className="text-xs text-green-600 font-medium max-w-xs">{importImagesResult}</span>
           )}
-          <button
-            onClick={() => handleImportExcel()}
-            disabled={importingExcel}
-            className="btn-secondary gap-2 text-xs"
-          >
-            {importingExcel ? (
-              <svg className="animate-spin" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-            ) : (
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-            )}
-            Import Excel 2025
-          </button>
-          {importExcelResult && !importExcelError && (
-            <span className="text-xs text-green-600 font-medium max-w-xs">{importExcelResult}</span>
-          )}
         </div>
-      </div>
-
-      {/* ── Bande Reset 2025 — toujours visible ── */}
-      <div
-        className="flex items-center gap-3 flex-wrap rounded-xl border px-4 py-3"
-        style={{ borderColor: "rgba(224,49,49,0.25)", backgroundColor: "rgba(224,49,49,0.04)" }}
-      >
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#E03131" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
-          <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/>
-        </svg>
-        <p className="text-xs text-ink-secondary flex-1">
-          <span className="font-semibold" style={{ color: "#E03131" }}>Reset données 2025</span>
-          {" "}— Supprime toutes les charges/sessions importées avant de relancer l&apos;import Excel.
-        </p>
-        <button
-          onClick={handleReset2025}
-          disabled={resetting}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all active:scale-[0.98] shrink-0"
-          style={{ backgroundColor: "#E03131", color: "#fff" }}
-        >
-          {resetting ? (
-            <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-          ) : (
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/></svg>
-          )}
-          {resetting ? "Suppression…" : "Reset données 2025"}
-        </button>
-        {resetResult && (
-          <span className="text-xs font-medium w-full" style={{ color: resetResult.startsWith("Erreur") ? "#E03131" : "#16A34A" }}>
-            {resetResult}
-          </span>
-        )}
       </div>
 
       {/* ── Import error card ── */}
@@ -452,28 +349,6 @@ export default function ChargesPage() {
               <p className="text-xs text-ink-secondary">Clé API Anthropic : <span className={importImagesDiag.hasApiKey ? "text-green-600" : "text-red-600"}>{importImagesDiag.hasApiKey ? "Configurée" : "MANQUANTE — ajouter ANTHROPIC_API_KEY sur Vercel"}</span></p>
             </div>
           )}
-        </div>
-      )}
-
-      {/* ── Excel import error/result ── */}
-      {(importExcelError || (importExcelResult && !importImagesError)) && (
-        <div
-          className={`rounded-xl border p-4 space-y-1 ${importExcelError && !importExcelResult ? "border-red-200 bg-red-50" : "border-green-200 bg-green-50"}`}
-          style={{ opacity: 0, animation: "slideUp 0.3s cubic-bezier(0.16,1,0.3,1) forwards" }}
-        >
-          {importExcelResult && (
-            <p className="text-sm font-semibold text-green-700">{importExcelResult}</p>
-          )}
-          {importExcelError && (
-            <p className="text-xs text-red-600">{importExcelError}</p>
-          )}
-          <button
-            onClick={() => handleImportExcel(true)}
-            disabled={importingExcel}
-            className="text-xs text-ink-muted underline hover:text-ink mt-1"
-          >
-            Réimporter (reset complet)
-          </button>
         </div>
       )}
 

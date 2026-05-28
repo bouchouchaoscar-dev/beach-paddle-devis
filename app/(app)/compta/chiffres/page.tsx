@@ -24,14 +24,7 @@ export default function ChiffresPage() {
   const [entries, setEntries] = useState<CaEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [importing, setImporting] = useState(false);
-  const [importDone, setImportDone] = useState(false);
-  const [importResult, setImportResult] = useState<{ inserted: number; total: number; message?: string } | null>(null);
-  const [importError, setImportError] = useState<string | null>(null);
   const [form, setForm] = useState({ date: today(), montant: "", notes: "" });
-  useEffect(() => {
-    setImportDone(localStorage.getItem("bp_excel_imported") === "1");
-  }, []);
 
   const isAll = saison === "all";
 
@@ -115,30 +108,6 @@ export default function ChiffresPage() {
     await load();
   }
 
-  async function handleImportExcel() {
-    setImporting(true);
-    setImportError(null);
-    setImportResult(null);
-    try {
-      const res = await fetch("/api/import-excel", { method: "POST" });
-      const json = await res.json() as { inserted?: number; total?: number; message?: string; error?: string; errorDetail?: string };
-      if (!res.ok) {
-        setImportError(json.error ?? `Erreur serveur ${res.status}`);
-        return;
-      }
-      setImportResult({ inserted: json.inserted ?? 0, total: json.total ?? 0, message: json.message });
-      if ((json.inserted ?? 0) > 0) {
-        localStorage.setItem("bp_excel_imported", "1");
-        setImportDone(true);
-        await load();
-      }
-    } catch (err) {
-      setImportError(err instanceof Error ? err.message : "Erreur réseau");
-    } finally {
-      setImporting(false);
-    }
-  }
-
   const fmtDate = (d: string) =>
     new Date(d + "T12:00:00").toLocaleDateString("fr-FR", { day: "2-digit", month: "short" });
 
@@ -171,33 +140,6 @@ export default function ChiffresPage() {
               <option key={s} value={s}>{s}</option>
             ))}
           </select>
-          {/* Import Excel */}
-          {!importDone && (
-            <button
-              onClick={handleImportExcel}
-              disabled={importing}
-              className="btn-secondary gap-2 text-xs"
-            >
-              {importing ? (
-                <svg className="animate-spin" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-              ) : (
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-              )}
-              Importer historique Excel
-            </button>
-          )}
-          {importError && (
-            <span className="text-xs text-red-500 font-medium max-w-xs truncate" title={importError}>
-              Erreur : {importError}
-            </span>
-          )}
-          {importResult && !importError && (
-            <span className={`text-xs font-medium ${importResult.inserted > 0 ? "text-green-600" : "text-ink-secondary"}`}>
-              {importResult.message === "Déjà importé"
-                ? `Déjà importé (${importResult.total} entrées)`
-                : `${importResult.inserted} / ${importResult.total} entrées importées`}
-            </span>
-          )}
         </div>
       </div>
 
