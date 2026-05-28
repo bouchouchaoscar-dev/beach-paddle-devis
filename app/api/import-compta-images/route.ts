@@ -4,6 +4,9 @@ import fs from "fs";
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@supabase/supabase-js";
 
+// Allow up to 5 minutes on Vercel (Pro: 300 s, Hobby: 60 s)
+export const maxDuration = 300;
+
 const PROMPT = `Analyse cette feuille de comptabilité et extrais toutes les données en JSON structuré avec trois tableaux :
 charges_diverses (objet, date, montant),
 charges_metro (objet, date, montant),
@@ -53,7 +56,7 @@ export async function POST() {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   const dir = path.join(process.cwd(), "public", "data", "compta-2025");
   const dirExists = fs.existsSync(dir);
-  const files = dirExists ? fs.readdirSync(dir).filter((f) => /\.(png|jpg|jpeg)$/i.test(f)) : [];
+  const files = dirExists ? fs.readdirSync(dir).filter((f) => /\.(png|jpg|jpeg)$/i.test(f)).sort() : [];
 
   const diag = {
     dirPath: dir,
@@ -63,25 +66,23 @@ export async function POST() {
     hasApiKey: !!(apiKey),
   };
 
-  console.log("[import-compta-images] Diagnostic:", JSON.stringify(diag));
-
   if (!apiKey) {
     return NextResponse.json({
-      error: "ANTHROPIC_API_KEY non configurée dans les variables d'environnement. Ajouter la clé sur Vercel : Settings → Environment Variables.",
+      error: "ANTHROPIC_API_KEY non configurée. Ajouter la clé sur Vercel : Settings → Environment Variables.",
       diag,
     }, { status: 500 });
   }
 
   if (!dirExists) {
     return NextResponse.json({
-      error: "Dossier public/data/compta_2025/ introuvable. Créer le dossier et y placer les images PNG.",
+      error: "Dossier public/data/compta-2025/ introuvable.",
       diag,
     }, { status: 404 });
   }
 
   if (files.length === 0) {
     return NextResponse.json({
-      error: `Aucune image PNG/JPG dans public/data/compta_2025/. Placer les captures compta (ex: compta_2025_avril.png) dans ce dossier et redéployer.`,
+      error: "Aucune image PNG/JPG dans public/data/compta-2025/.",
       diag,
     }, { status: 404 });
   }
@@ -96,8 +97,12 @@ export async function POST() {
   let totalCharges = 0;
   let totalSessions = 0;
   const errors: string[] = [];
+  const report: { file: string; charges: number; sessions: number }[] = [];
 
   for (const file of files) {
+    let fileCharges = 0;
+    let fileSessions = 0;
+
     const filePath = path.join(dir, file);
     const imgBuffer = fs.readFileSync(filePath);
     const base64 = imgBuffer.toString("base64");
@@ -112,7 +117,7 @@ export async function POST() {
     try {
       const response = await anthropic.messages.create({
         model: "claude-sonnet-4-6",
-        max_tokens: 2048,
+        max_tokens: 4096,
         messages: [
           {
             role: "user",
@@ -126,10 +131,10 @@ export async function POST() {
 
       const text = response.content[0]?.type === "text" ? response.content[0].text.trim() : "";
       const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) { errors.push(`${file}: pas de JSON`); continue; }
+      if (!jsonMatch) { errors.push(`${file}: pas de JSON dans la réponse`); continue; }
       parsed = JSON.parse(jsonMatch[0]);
     } catch (err) {
-      errors.push(`${file}: ${err instanceof Error ? err.message : "erreur"}`);
+      errors.push(`${file}: ${err instanceof Error ? err.message : "erreur Anthropic"}`);
       continue;
     }
 
@@ -143,7 +148,7 @@ export async function POST() {
         fournisseur: "Métro", description: item.objet,
         saison: "2025", statut_paiement: "paye", created_by: "import",
       });
-      if (!error) totalCharges++;
+      if (!error) { totalCharges++; fileCharges++; }
     }
 
     // Insert charges_diverses
@@ -156,7 +161,7 @@ export async function POST() {
         date, montant, categorie, fournisseur: item.objet,
         description: item.objet, saison: "2025", statut_paiement: "paye", created_by: "import",
       });
-      if (!error) totalCharges++;
+      if (!error) { totalCharges++; fileCharges++; }
     }
 
     // Insert work sessions + salary charges
@@ -166,21 +171,22 @@ export async function POST() {
       const montant = typeof item.montant === "number" ? item.montant : parseFloat(String(item.montant));
       if (!date || isNaN(heures) || isNaN(montant)) continue;
 
-      // Upsert employee
-      let empId: string | null = null;
       const nom = String(item.employe).trim();
+
+      // Find or create employee
+      let empId: string | null = null;
       const { data: existingEmp } = await supabase
         .from("employees")
         .select("id")
         .ilike("nom", nom)
-        .single();
+        .maybeSingle();
 
       if (existingEmp) {
         empId = existingEmp.id;
       } else {
         const { data: newEmp } = await supabase
           .from("employees")
-          .insert({ nom, tarif_horaire: heures > 0 ? montant / heures : 10, actif: true, saison_debut: "2025" })
+          .insert({ nom, tarif_horaire: heures > 0 ? Math.round((montant / heures) * 100) / 100 : 10, actif: true, saison_debut: "2025" })
           .select("id")
           .single();
         empId = newEmp?.id ?? null;
@@ -191,16 +197,20 @@ export async function POST() {
           employee_id: empId, date, heures, montant,
           saison: "2025", created_by: "import",
         });
+        fileSessions++;
         totalSessions++;
       }
 
-      // Also create a charge entry for salary
-      await supabase.from("charges").insert({
+      // Salary charge entry
+      const { error: eSalaire } = await supabase.from("charges").insert({
         date, montant, categorie: "salaire", fournisseur: nom,
         description: `${heures}h — ${nom}`, saison: "2025",
         statut_paiement: "paye", created_by: "import",
       });
+      if (!eSalaire) { totalCharges++; fileCharges++; }
     }
+
+    report.push({ file, charges: fileCharges, sessions: fileSessions });
   }
 
   return NextResponse.json({
@@ -208,6 +218,7 @@ export async function POST() {
     sessions: totalSessions,
     files: files.length,
     fileNames: files,
+    report,
     errors: errors.length > 0 ? errors : undefined,
     diag,
   });
