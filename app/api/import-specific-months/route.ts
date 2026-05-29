@@ -89,6 +89,11 @@ function parseFrDate(dateStr: string, year = 2025): string | null {
   }
 }
 
+// Sanitize names: strip chars that would break URL query encoding in Supabase ILIKE
+function sanitizeName(raw: string): string {
+  return raw.replace(/[%*?#&=+\\/<>{}|^[\]]/g, "").replace(/\s+/g, " ").trim();
+}
+
 interface ParsedSheet {
   charges_diverses?: { objet: string; date: string; montant: number }[];
   charges_metro?: { objet: string; date: string; montant: number }[];
@@ -112,7 +117,6 @@ async function importHandler(req: Request) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "ANTHROPIC_API_KEY manquante." }, { status: 500 });
 
-  // ── Validate Supabase env vars before creating client ──
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!supabaseUrl || !supabaseKey) {
@@ -121,10 +125,9 @@ async function importHandler(req: Request) {
     }, { status: 500 });
   }
 
-  // ── Validate that supabaseUrl is a valid URL ──
   let supabase;
   try {
-    new URL(supabaseUrl); // throws if invalid
+    new URL(supabaseUrl);
     supabase = createClient(supabaseUrl, supabaseKey);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -147,6 +150,8 @@ async function importHandler(req: Request) {
     skipped: number;
     error: string | null;
     rawText: string;
+    rawParsed: string;
+    lineErrors: string[];
     step: string;
   }[] = [];
 
@@ -160,6 +165,8 @@ async function importHandler(req: Request) {
       skipped: 0,
       error: null as string | null,
       rawText: "",
+      rawParsed: "",
+      lineErrors: [] as string[],
       step: "init",
     };
 
@@ -199,6 +206,7 @@ async function importHandler(req: Request) {
       entry.step = "json-parse";
       try {
         parsed = JSON.parse(m[0]);
+        entry.rawParsed = JSON.stringify(parsed, null, 2).slice(0, 3000);
       } catch (parseErr) {
         entry.error = `JSON invalide : ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`;
         report.push(entry);
@@ -214,7 +222,7 @@ async function importHandler(req: Request) {
     entry.extracted.metro = parsed.charges_metro?.length ?? 0;
     entry.extracted.employes = parsed.charges_employes?.length ?? 0;
 
-    // ── STEP 2: Delete existing data for this month ──
+    // ── STEP 2: Delete ──
     entry.step = "delete";
     const startDate = `${month}-01`;
     const endDate = `${month}-31`;
@@ -233,104 +241,160 @@ async function importHandler(req: Request) {
       continue;
     }
 
-    // ── STEP 3: Insert ──
+    // ── STEP 3: Insert — per-item try/catch so one bad line never stops the rest ──
     entry.step = "insert";
     const chargeKeys = new Set<string>();
     const sessionKeys = new Set<string>();
 
-    try {
-      // Insert charges_metro
-      entry.step = "insert-metro";
-      for (const item of parsed.charges_metro ?? []) {
-        const date = parseFrDate(item.date);
+    // charges_metro
+    entry.step = "insert-metro";
+    for (const item of parsed.charges_metro ?? []) {
+      try {
+        const date = parseFrDate(String(item.date ?? ""));
         const montant = typeof item.montant === "number" ? item.montant : parseFloat(String(item.montant));
-        if (!date || isNaN(montant)) continue;
+        if (!date || isNaN(montant)) {
+          entry.lineErrors.push(`metro SKIP — date="${item.date}"→${date}, montant="${item.montant}"→${montant}`);
+          entry.skipped++;
+          continue;
+        }
         const key = `${date}|${montant}|Métro`;
         if (chargeKeys.has(key)) { entry.skipped++; continue; }
         const { error } = await supabase.from("charges").insert({
           date, montant, categorie: "restauration_metro",
-          fournisseur: "Métro", description: item.objet,
+          fournisseur: "Métro", description: String(item.objet ?? ""),
           saison: "2025", statut_paiement: "paye", created_by: "import",
         });
-        if (!error) { entry.inserted.charges++; totalCharges++; chargeKeys.add(key); }
+        if (error) {
+          entry.lineErrors.push(`metro INSERT ERR — ${error.message} — objet="${item.objet}"`);
+        } else {
+          entry.inserted.charges++; totalCharges++; chargeKeys.add(key);
+        }
+      } catch (e) {
+        entry.lineErrors.push(`metro THROW — ${e instanceof Error ? e.message : String(e)} — raw=${JSON.stringify(item)}`);
       }
+    }
 
-      // Insert charges_diverses
-      entry.step = "insert-diverses";
-      for (const item of parsed.charges_diverses ?? []) {
-        const date = parseFrDate(item.date);
+    // charges_diverses
+    entry.step = "insert-diverses";
+    for (const item of parsed.charges_diverses ?? []) {
+      try {
+        const date = parseFrDate(String(item.date ?? ""));
         const montant = typeof item.montant === "number" ? item.montant : parseFloat(String(item.montant));
-        if (!date || isNaN(montant)) continue;
-        const categorie = guessCategorie(item.objet);
+        if (!date || isNaN(montant)) {
+          entry.lineErrors.push(`diverses SKIP — date="${item.date}"→${date}, montant="${item.montant}"→${montant}`);
+          entry.skipped++;
+          continue;
+        }
+        const categorie = guessCategorie(String(item.objet ?? ""));
         const key = `${date}|${montant}|${item.objet}`;
         if (chargeKeys.has(key)) { entry.skipped++; continue; }
         const { error } = await supabase.from("charges").insert({
-          date, montant, categorie, fournisseur: item.objet,
-          description: item.objet, saison: "2025", statut_paiement: "paye", created_by: "import",
+          date, montant, categorie, fournisseur: String(item.objet ?? ""),
+          description: String(item.objet ?? ""), saison: "2025", statut_paiement: "paye", created_by: "import",
         });
-        if (!error) { entry.inserted.charges++; totalCharges++; chargeKeys.add(key); }
+        if (error) {
+          entry.lineErrors.push(`diverses INSERT ERR — ${error.message} — objet="${item.objet}"`);
+        } else {
+          entry.inserted.charges++; totalCharges++; chargeKeys.add(key);
+        }
+      } catch (e) {
+        entry.lineErrors.push(`diverses THROW — ${e instanceof Error ? e.message : String(e)} — raw=${JSON.stringify(item)}`);
       }
+    }
 
-      // Insert work sessions + salary charges
-      entry.step = "insert-employes";
-      for (const item of parsed.charges_employes ?? []) {
-        const date = parseFrDate(item.date);
+    // charges_employes
+    entry.step = "insert-employes";
+    for (const item of parsed.charges_employes ?? []) {
+      try {
+        const date = parseFrDate(String(item.date ?? ""));
         const heures = typeof item.nb_heures === "number" ? item.nb_heures : parseFloat(String(item.nb_heures));
         const montant = typeof item.montant === "number" ? item.montant : parseFloat(String(item.montant));
-        if (!date || isNaN(heures) || isNaN(montant)) continue;
-        const nom = String(item.employe ?? "").trim();
-        if (!nom) continue;
 
-        entry.step = `insert-employes-lookup:${nom}`;
-        let empId: string | null = null;
-        const { data: existingEmp, error: empLookupErr } = await supabase
-          .from("employees").select("id").ilike("nom", nom).maybeSingle();
-        if (empLookupErr) {
+        if (!date || isNaN(heures) || isNaN(montant)) {
+          entry.lineErrors.push(`employe SKIP — date="${item.date}"→${date}, h=${item.nb_heures}, m=${item.montant}, emp="${item.employe}"`);
+          entry.skipped++;
           continue;
         }
-        if (existingEmp) {
-          empId = existingEmp.id;
-        } else {
-          entry.step = `insert-employes-create:${nom}`;
-          const { data: newEmp } = await supabase.from("employees")
-            .insert({ nom, tarif_horaire: heures > 0 ? Math.round((montant / heures) * 100) / 100 : 10, actif: true, saison_debut: "2025" })
-            .select("id").single();
-          empId = newEmp?.id ?? null;
+
+        // Sanitize: remove chars that would break URL query encoding (%, *, ?, #, etc.)
+        const nomRaw = String(item.employe ?? "").trim();
+        const nom = sanitizeName(nomRaw);
+        if (!nom) {
+          entry.lineErrors.push(`employe SKIP — nom vide après sanitize, raw="${nomRaw}"`);
+          entry.skipped++;
+          continue;
+        }
+        if (nom !== nomRaw) {
+          entry.lineErrors.push(`employe sanitize — "${nomRaw}" → "${nom}"`);
+        }
+
+        let empId: string | null = null;
+        try {
+          const { data: existingEmp, error: empLookupErr } = await supabase
+            .from("employees").select("id").ilike("nom", nom).maybeSingle();
+          if (empLookupErr) {
+            entry.lineErrors.push(`employe LOOKUP ERR — ${empLookupErr.message} — nom="${nom}"`);
+          } else if (existingEmp) {
+            empId = existingEmp.id;
+          } else {
+            const { data: newEmp, error: createErr } = await supabase.from("employees")
+              .insert({ nom, tarif_horaire: heures > 0 ? Math.round((montant / heures) * 100) / 100 : 10, actif: true, saison_debut: "2025" })
+              .select("id").single();
+            if (createErr) {
+              entry.lineErrors.push(`employe CREATE ERR — ${createErr.message} — nom="${nom}"`);
+            } else {
+              empId = newEmp?.id ?? null;
+            }
+          }
+        } catch (e) {
+          entry.lineErrors.push(`employe LOOKUP THROW — ${e instanceof Error ? e.message : String(e)} — nom="${nom}"`);
         }
 
         if (empId) {
-          entry.step = `insert-session:${nom}`;
-          const sessKey = `${date}|${heures}|${montant}|${empId}`;
-          if (!sessionKeys.has(sessKey)) {
-            const { error } = await supabase.from("work_sessions").insert({
-              employee_id: empId, date, heures, montant, saison: "2025", created_by: "import",
-            });
-            if (!error) { entry.inserted.sessions++; totalSessions++; sessionKeys.add(sessKey); }
-          } else {
-            entry.skipped++;
+          try {
+            const sessKey = `${date}|${heures}|${montant}|${empId}`;
+            if (!sessionKeys.has(sessKey)) {
+              const { error } = await supabase.from("work_sessions").insert({
+                employee_id: empId, date, heures, montant, saison: "2025", created_by: "import",
+              });
+              if (error) {
+                entry.lineErrors.push(`session INSERT ERR — ${error.message} — emp="${nom}"`);
+              } else {
+                entry.inserted.sessions++; totalSessions++; sessionKeys.add(sessKey);
+              }
+            } else {
+              entry.skipped++;
+            }
+          } catch (e) {
+            entry.lineErrors.push(`session THROW — ${e instanceof Error ? e.message : String(e)} — emp="${nom}"`);
           }
         }
 
-        entry.step = `insert-salaire:${nom}`;
-        const salKey = `${date}|${montant}|${nom}`;
-        if (!chargeKeys.has(salKey)) {
-          const { error } = await supabase.from("charges").insert({
-            date, montant, categorie: "salaire", fournisseur: nom,
-            description: `${heures}h — ${nom}`, saison: "2025",
-            statut_paiement: "paye", created_by: "import",
-          });
-          if (!error) { entry.inserted.charges++; totalCharges++; chargeKeys.add(salKey); }
-        } else {
-          entry.skipped++;
+        try {
+          const salKey = `${date}|${montant}|${nom}`;
+          if (!chargeKeys.has(salKey)) {
+            const { error } = await supabase.from("charges").insert({
+              date, montant, categorie: "salaire", fournisseur: nom,
+              description: `${heures}h — ${nom}`, saison: "2025",
+              statut_paiement: "paye", created_by: "import",
+            });
+            if (error) {
+              entry.lineErrors.push(`salaire INSERT ERR — ${error.message} — emp="${nom}"`);
+            } else {
+              entry.inserted.charges++; totalCharges++; chargeKeys.add(salKey);
+            }
+          } else {
+            entry.skipped++;
+          }
+        } catch (e) {
+          entry.lineErrors.push(`salaire THROW — ${e instanceof Error ? e.message : String(e)} — emp="${nom}"`);
         }
+      } catch (e) {
+        entry.lineErrors.push(`employe OUTER THROW — ${e instanceof Error ? e.message : String(e)} — raw=${JSON.stringify(item)}`);
       }
-
-      entry.step = "done";
-    } catch (err) {
-      entry.error = (entry.error ? entry.error + " | " : "") +
-        `Erreur INSERT (step=${entry.step}) : ${err instanceof Error ? err.message : String(err)}`;
     }
 
+    entry.step = "done";
     totalSkipped += entry.skipped;
     report.push(entry);
   }
