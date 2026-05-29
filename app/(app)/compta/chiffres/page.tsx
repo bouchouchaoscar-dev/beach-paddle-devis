@@ -18,13 +18,35 @@ const today = () => {
 
 const CHART_COLOR = "#0071E3";
 
+// Custom tooltip for daily chart showing acompte detail
+function DailyTooltip({ active, payload, label }: { active?: boolean; payload?: { value: number; payload: { acompte: number } }[]; label?: number }) {
+  if (!active || !payload?.length) return null;
+  const total = payload[0].value;
+  const acompte = payload[0].payload.acompte ?? 0;
+  return (
+    <div style={{ background: "white", border: "1px solid #D2D2D7", borderRadius: 8, padding: "8px 12px", fontSize: 12, boxShadow: "0 4px 16px -4px rgba(0,0,0,0.08)" }}>
+      <p style={{ fontWeight: 700, color: "#1D1D1F" }}>Jour {label} — {formatPrice(total)}</p>
+      {acompte > 0 && (
+        <p style={{ color: "#0071E3", marginTop: 2 }}>dont acompte : {formatPrice(acompte)}</p>
+      )}
+    </div>
+  );
+}
+
 export default function ChiffresPage() {
   const { saison, setSaison } = useComptaSaison();
   const [selectedMois, setSelectedMois] = useState(new Date().getMonth());
   const [entries, setEntries] = useState<CaEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ date: today(), montant: "", notes: "" });
+  const [form, setForm] = useState({
+    date: today(),
+    montant: "",
+    notes: "",
+    includeAcompte: false,
+    acompteMontant: "",
+    acompteClient: "",
+  });
   const [editingEntry, setEditingEntry] = useState<CaEntry | null>(null);
   const [editForm, setEditForm] = useState({ montant: "", notes: "" });
   const [editSaving, setEditSaving] = useState(false);
@@ -43,12 +65,14 @@ export default function ChiffresPage() {
   // ── Derived data ──────────────────────────────────────────────────────────
 
   const moisPad = String(selectedMois + 1).padStart(2, "0");
-  const monthKey = `${saison}-${moisPad}`;
+  const monthKey = saison !== "all" ? `${saison}-${moisPad}` : "";
   const monthEntries = entries.filter((e) => e.date.startsWith(monthKey));
   const monthTotal = monthEntries.reduce((s, e) => s + e.montant, 0);
   const saisonTotal = entries.reduce((s, e) => s + e.montant, 0);
+
   const sortedDesc = [...entries].sort((a, b) => b.montant - a.montant);
   const bestDay = sortedDesc[0] ?? null;
+
   const bestMonth = (() => {
     const byMonth: Record<string, number> = {};
     entries.forEach((e) => {
@@ -59,9 +83,10 @@ export default function ChiffresPage() {
     return best ?? null;
   })();
 
-  const todayEntry = entries.find((e) => e.date === form.date);
+  // CA entry (not acompte) for the selected date
+  const todayCaEntry = entries.find((e) => e.date === form.date && e.source !== "acompte");
 
-  // For "all" mode: per-year aggregates
+  // For "all" mode
   const byYear = SAISONS.reduce<Record<string, number>>((acc, yr) => {
     acc[yr] = entries.filter((e) => e.saison === yr).reduce((s, e) => s + e.montant, 0);
     return acc;
@@ -73,16 +98,37 @@ export default function ChiffresPage() {
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([yr, ca]) => ({ label: yr, ca }));
 
-  const dailyData = monthEntries
-    .map((e) => ({ day: parseInt(e.date.split("-")[2]), ca: e.montant, id: e.id }))
-    .sort((a, b) => a.day - b.day);
+  // Daily chart data: aggregate by day, track acompte portion
+  const dailyData = (() => {
+    const byDay: Record<number, { ca: number; acompte: number }> = {};
+    monthEntries.forEach((e) => {
+      const day = parseInt(e.date.split("-")[2]);
+      if (!byDay[day]) byDay[day] = { ca: 0, acompte: 0 };
+      if (e.source === "acompte") byDay[day].acompte += e.montant;
+      else byDay[day].ca += e.montant;
+    });
+    return Object.entries(byDay)
+      .map(([d, data]) => ({ day: parseInt(d), ca: data.ca + data.acompte, acompte: data.acompte }))
+      .sort((a, b) => a.day - b.day);
+  })();
 
-  // Always render Mar–Nov (indices 2–10) so all season months appear even with 0€
   const monthlyData = [2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => {
     const m = String(i + 1).padStart(2, "0");
     const sum = entries.filter((e) => e.date.startsWith(`${saison}-${m}`)).reduce((s, e) => s + e.montant, 0);
     return { label: MOIS_LABELS[i], ca: sum };
   });
+
+  // Group monthly entries by date for display
+  const monthEntriesByDate = (() => {
+    const groups: Record<string, CaEntry[]> = {};
+    [...monthEntries]
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .forEach((e) => {
+        if (!groups[e.date]) groups[e.date] = [];
+        groups[e.date].push(e);
+      });
+    return groups;
+  })();
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
@@ -99,7 +145,20 @@ export default function ChiffresPage() {
         saison: form.date.slice(0, 4),
         created_by: "",
       });
-      setForm({ date: today(), montant: "", notes: "" });
+      if (form.includeAcompte) {
+        const acompteMontant = parseFloat(form.acompteMontant);
+        if (!isNaN(acompteMontant) && acompteMontant > 0) {
+          await saveCaEntry({
+            date: form.date,
+            montant: acompteMontant,
+            source: "acompte",
+            notes: form.acompteClient || undefined,
+            saison: form.date.slice(0, 4),
+            created_by: "",
+          });
+        }
+      }
+      setForm({ date: today(), montant: "", notes: "", includeAcompte: false, acompteMontant: "", acompteClient: "" });
       await load();
     } finally {
       setSaving(false);
@@ -151,7 +210,6 @@ export default function ChiffresPage() {
           <p className="text-sm text-ink-secondary mt-0.5">Suivi quotidien des recettes</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Saison */}
           <select
             value={saison}
             onChange={(e) => setSaison(e.target.value)}
@@ -194,7 +252,7 @@ export default function ChiffresPage() {
         ))}
       </div>
 
-      {/* ── Entry + Monthly list / All-seasons table ── */}
+      {/* ── Entry form + Monthly list ── */}
       <div
         className="grid grid-cols-1 lg:grid-cols-2 gap-5"
         style={{ opacity: 0, animation: "slideUp 0.4s cubic-bezier(0.16,1,0.3,1) 0.15s forwards" }}
@@ -203,10 +261,10 @@ export default function ChiffresPage() {
         <div className="card p-5 space-y-4">
           <h2 className="text-sm font-semibold text-ink">Saisir une recette</h2>
 
-          {todayEntry && (
+          {todayCaEntry && (
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-700 font-medium">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-              CA déjà saisi ce jour : {formatPrice(todayEntry.montant)}
+              CA déjà saisi ce jour : {formatPrice(todayCaEntry.montant)}
             </div>
           )}
 
@@ -220,7 +278,7 @@ export default function ChiffresPage() {
               />
             </div>
             <div>
-              <label className="label">Montant (€)</label>
+              <label className="label">CA du jour (€)</label>
               <input
                 type="number"
                 value={form.montant}
@@ -241,6 +299,60 @@ export default function ChiffresPage() {
                 className="input-field"
               />
             </div>
+
+            {/* Acompte toggle */}
+            <div className="border-t border-surface-border pt-3">
+              <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                <div
+                  onClick={() => setForm((f) => ({ ...f, includeAcompte: !f.includeAcompte }))}
+                  className={`relative w-9 h-5 rounded-full transition-colors duration-200 flex-shrink-0 ${
+                    form.includeAcompte ? "bg-blue-500" : "bg-surface-border"
+                  }`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200 ${
+                    form.includeAcompte ? "translate-x-4" : "translate-x-0"
+                  }`} />
+                </div>
+                <span className="text-sm font-medium text-ink">Inclure un acompte reçu</span>
+              </label>
+
+              {form.includeAcompte && (
+                <div className="mt-3 space-y-2.5 pl-1">
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <label className="label">Montant acompte (€)</label>
+                      <input
+                        type="number"
+                        value={form.acompteMontant}
+                        min={0}
+                        step={0.5}
+                        placeholder="0.00"
+                        onChange={(e) => setForm((f) => ({ ...f, acompteMontant: e.target.value }))}
+                        className="input-field font-mono"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="label">De qui</label>
+                      <input
+                        type="text"
+                        value={form.acompteClient}
+                        placeholder="Nom client / groupe"
+                        onChange={(e) => setForm((f) => ({ ...f, acompteClient: e.target.value }))}
+                        className="input-field"
+                      />
+                    </div>
+                  </div>
+                  {form.montant && form.acompteMontant && (
+                    <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-blue-50 border border-blue-100 text-xs">
+                      <span className="text-ink-secondary">Total du jour</span>
+                      <span className="font-bold font-mono text-blue-600">
+                        {formatPrice((parseFloat(form.montant) || 0) + (parseFloat(form.acompteMontant) || 0))}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           <button
@@ -257,7 +369,7 @@ export default function ChiffresPage() {
           </button>
         </div>
 
-        {/* Monthly list — single season / Per-year table — all seasons */}
+        {/* Monthly list / Per-year table */}
         {isAll ? (
           <div className="card p-5">
             <h2 className="text-sm font-semibold text-ink mb-4">CA par saison</h2>
@@ -306,7 +418,7 @@ export default function ChiffresPage() {
                   <div key={i} className="h-9 rounded-lg bg-surface-muted animate-pulse" />
                 ))}
               </div>
-            ) : monthEntries.length === 0 ? (
+            ) : Object.keys(monthEntriesByDate).length === 0 ? (
               <div className="flex flex-col items-center justify-center py-10 text-center">
                 <div className="w-10 h-10 rounded-xl bg-brand-teal-light flex items-center justify-center mb-3">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0071E3" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
@@ -317,43 +429,61 @@ export default function ChiffresPage() {
             ) : (
               <>
                 <div className="space-y-1 max-h-72 overflow-y-auto pr-1">
-                  {monthEntries
-                    .sort((a, b) => b.date.localeCompare(a.date))
-                    .map((e) => (
-                      <div
-                        key={e.id}
-                        className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-surface-muted group transition-colors"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-mono text-ink-muted w-14">{fmtDate(e.date)}</span>
-                          {e.notes && (
-                            <span className="text-xs text-ink-muted truncate max-w-[100px]" title={e.notes}>
-                              {e.notes}
-                            </span>
-                          )}
-                          {e.source === "import_excel" && (
-                            <span className="badge text-[10px] bg-surface-muted text-ink-muted">Excel</span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-bold font-mono" style={{ color: "#0071E3" }}>
-                            {formatPrice(e.montant)}
-                          </span>
-                          <button
-                            onClick={() => openEdit(e)}
-                            className="opacity-0 group-hover:opacity-100 p-1 rounded-md text-ink-muted hover:text-brand-teal hover:bg-brand-teal-light transition-all"
+                  {Object.entries(monthEntriesByDate).map(([date, dayEntries]) => {
+                    const dayTotal = dayEntries.reduce((s, e) => s + e.montant, 0);
+                    const hasMultiple = dayEntries.length > 1;
+                    return (
+                      <div key={date}>
+                        {dayEntries.map((e) => (
+                          <div
+                            key={e.id}
+                            className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-surface-muted group transition-colors"
                           >
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                          </button>
-                          <button
-                            onClick={() => handleDelete(e.id)}
-                            className="opacity-0 group-hover:opacity-100 p-1 rounded-md text-ink-muted hover:text-brand-red hover:bg-brand-red-light transition-all"
-                          >
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-                          </button>
-                        </div>
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="text-xs font-mono text-ink-muted w-14 flex-shrink-0">{fmtDate(e.date)}</span>
+                              {e.source === "acompte" ? (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-blue-50 text-blue-600 border border-blue-100 flex-shrink-0">
+                                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                                  Acompte
+                                </span>
+                              ) : null}
+                              {e.notes && (
+                                <span className="text-xs text-ink-muted truncate max-w-[90px]" title={e.notes}>
+                                  {e.notes}
+                                </span>
+                              )}
+                              {e.source === "import_excel" && (
+                                <span className="badge text-[10px] bg-surface-muted text-ink-muted">Excel</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <span className="text-sm font-bold font-mono" style={{ color: e.source === "acompte" ? "#0071E3" : "#0071E3" }}>
+                                {formatPrice(e.montant)}
+                              </span>
+                              <button
+                                onClick={() => openEdit(e)}
+                                className="opacity-0 group-hover:opacity-100 p-1 rounded-md text-ink-muted hover:text-brand-teal hover:bg-brand-teal-light transition-all"
+                              >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                              </button>
+                              <button
+                                onClick={() => handleDelete(e.id)}
+                                className="opacity-0 group-hover:opacity-100 p-1 rounded-md text-ink-muted hover:text-brand-red hover:bg-brand-red-light transition-all"
+                              >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                        {hasMultiple && (
+                          <div className="flex items-center justify-between px-3 py-1 mb-1 rounded-lg bg-blue-50 border-l-2 border-blue-300">
+                            <span className="text-[11px] font-medium text-blue-600">Total {fmtDate(date)}</span>
+                            <span className="text-[11px] font-bold font-mono text-blue-600">{formatPrice(dayTotal)}</span>
+                          </div>
+                        )}
                       </div>
-                    ))}
+                    );
+                  })}
                 </div>
                 <div className="flex items-center justify-between mt-3 pt-3 border-t border-surface-border">
                   <span className="text-xs font-medium text-ink-secondary">Total {MOIS_FULL[selectedMois]}</span>
@@ -373,7 +503,6 @@ export default function ChiffresPage() {
         style={{ opacity: 0, animation: "slideUp 0.4s cubic-bezier(0.16,1,0.3,1) 0.2s forwards" }}
       >
         {isAll ? (
-          /* All-seasons: full-width yearly bar chart */
           <div className="card p-5">
             <h2 className="text-sm font-semibold text-ink mb-4">CA par saison — comparaison</h2>
             {yearlyData.length === 0 ? (
@@ -395,7 +524,6 @@ export default function ChiffresPage() {
           </div>
         ) : (
           <>
-            {/* Daily line */}
             <div className="card p-5">
               <h2 className="text-sm font-semibold text-ink mb-4">
                 CA journalier — {MOIS_FULL[selectedMois]} {saison}
@@ -408,17 +536,13 @@ export default function ChiffresPage() {
                     <CartesianGrid strokeDasharray="3 3" stroke="#E5E5EA" />
                     <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#8E8E93" }} />
                     <YAxis tick={{ fontSize: 11, fill: "#8E8E93" }} tickFormatter={(v) => `${v}€`} />
-                    <Tooltip
-                      formatter={(v) => [formatPrice(v as number), "CA"]}
-                      contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #D2D2D7", boxShadow: "0 4px 16px -4px rgba(0,0,0,0.08)" }}
-                    />
+                    <Tooltip content={<DailyTooltip />} />
                     <Line type="monotone" dataKey="ca" stroke={CHART_COLOR} strokeWidth={2} dot={{ r: 3, fill: CHART_COLOR }} activeDot={{ r: 5 }} />
                   </LineChart>
                 </ResponsiveContainer>
               )}
             </div>
 
-            {/* Monthly bars */}
             <div className="card p-5">
               <h2 className="text-sm font-semibold text-ink mb-4">CA mensuel — Saison {saison}</h2>
               <ResponsiveContainer width="100%" height={220}>
@@ -437,6 +561,7 @@ export default function ChiffresPage() {
           </>
         )}
       </div>
+
       {/* ── Edit CA modal ── */}
       {editingEntry && (
         <div
@@ -450,7 +575,16 @@ export default function ChiffresPage() {
           >
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-semibold text-ink">Modifier la recette</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-semibold text-ink">
+                    {editingEntry.source === "acompte" ? "Modifier l'acompte" : "Modifier la recette"}
+                  </h3>
+                  {editingEntry.source === "acompte" && (
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-blue-50 text-blue-600 border border-blue-100">
+                      Acompte
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-ink-muted mt-0.5">{fmtDate(editingEntry.date)}</p>
               </div>
               <button
@@ -473,11 +607,11 @@ export default function ChiffresPage() {
               />
             </div>
             <div>
-              <label className="label">Notes (optionnel)</label>
+              <label className="label">{editingEntry.source === "acompte" ? "De qui (client / groupe)" : "Notes (optionnel)"}</label>
               <input
                 type="text"
                 value={editForm.notes}
-                placeholder="Ex : journée anniversaire, météo…"
+                placeholder={editingEntry.source === "acompte" ? "Nom client / groupe" : "Ex : journée anniversaire…"}
                 onChange={(e) => setEditForm((f) => ({ ...f, notes: e.target.value }))}
                 className="input-field"
               />

@@ -2,7 +2,7 @@ export interface CaEntry {
   id: string;
   date: string;
   montant: number;
-  source: "manuel" | "import_excel";
+  source: "manuel" | "import_excel" | "acompte";
   notes?: string;
   saison: string;
   created_at: string;
