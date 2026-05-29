@@ -84,7 +84,7 @@ function parseFrDate(dateStr: string, year = 2025): string | null {
     const mois = moisFr[moisKey];
     if (!mois || day < 1 || day > 31) return null;
     return `${year}-${String(mois).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-  } catch (e) {
+  } catch {
     return null;
   }
 }
