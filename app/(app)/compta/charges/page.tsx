@@ -54,6 +54,8 @@ export default function ChargesPage() {
   const [monthReports, setMonthReports] = useState<Record<string, string>>({});
   const [monthRawTexts, setMonthRawTexts] = useState<Record<string, string>>({});
   const [expandedRawMonth, setExpandedRawMonth] = useState<string | null>(null);
+  const [testJuilletLoading, setTestJuilletLoading] = useState(false);
+  const [testJuilletRaw, setTestJuilletRaw] = useState<string | null>(null);
   const [editingCharge, setEditingCharge] = useState<typeof charges[0] | null>(null);
   const [editForm, setEditForm] = useState({ date: "", montant: "", categorie: "autre" as ChargeCategory, fournisseur: "", description: "" });
   const [editSaving, setEditSaving] = useState(false);
@@ -311,6 +313,24 @@ export default function ChargesPage() {
     }
   }
 
+  async function handleTestJuillet() {
+    setTestJuilletLoading(true);
+    setTestJuilletRaw(null);
+    try {
+      const res = await fetch("/api/test-juillet");
+      const data = await res.json() as { rawText?: string; error?: string; length?: number; stopReason?: string; inputTokens?: number; outputTokens?: number };
+      if (data.error) {
+        setTestJuilletRaw(`❌ Erreur : ${data.error}`);
+      } else {
+        setTestJuilletRaw(`stop_reason: ${data.stopReason} | tokens: ${data.inputTokens}→${data.outputTokens} | length: ${data.length}\n\n${data.rawText ?? ""}`);
+      }
+    } catch (err) {
+      setTestJuilletRaw(`❌ Réseau : ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setTestJuilletLoading(false);
+    }
+  }
+
   // ── Derived ────────────────────────────────────────────────────────────────
 
   const filteredCharges = charges.filter((c) => {
@@ -430,6 +450,35 @@ export default function ChargesPage() {
             {monthRawTexts[expandedRawMonth]}
           </pre>
         )}
+
+        <div className="border-t border-surface-border pt-3 flex flex-col gap-2">
+          <p className="text-xs text-ink-muted font-medium">Diagnostic Vision (sans insertion Supabase)</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={handleTestJuillet}
+              disabled={testJuilletLoading}
+              className="btn-secondary gap-1.5 text-xs"
+              style={{ color: "#8B5CF6", borderColor: "rgba(139,92,246,0.3)" }}
+            >
+              {testJuilletLoading ? (
+                <svg className="animate-spin" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+              ) : (
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              )}
+              Test brut Juillet
+            </button>
+            {testJuilletRaw && (
+              <button onClick={() => setTestJuilletRaw(null)} className="text-xs text-ink-muted underline hover:text-ink">
+                Masquer
+              </button>
+            )}
+          </div>
+          {testJuilletRaw && (
+            <pre className="text-[10px] font-mono bg-zinc-900 text-green-400 rounded-xl p-3 overflow-x-auto max-h-96 whitespace-pre-wrap">
+              {testJuilletRaw}
+            </pre>
+          )}
+        </div>
       </div>
 
       {/* ── Tabs ── */}
