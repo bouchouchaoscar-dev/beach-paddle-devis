@@ -134,15 +134,7 @@ export async function POST(req: Request) {
     const filePath = path.join(dir, file);
     if (!fs.existsSync(filePath)) { entry.error = `PNG introuvable : ${file}`; report.push(entry); continue; }
 
-    // 1 — Delete existing data for this month
-    const startDate = `${month}-01`;
-    const endDate = `${month}-31`;
-    const { count: dc } = await supabase.from("charges").delete({ count: "exact" }).gte("date", startDate).lte("date", endDate);
-    const { count: ds } = await supabase.from("work_sessions").delete({ count: "exact" }).gte("date", startDate).lte("date", endDate);
-    entry.deleted.charges = dc ?? 0;
-    entry.deleted.sessions = ds ?? 0;
-
-    // 2 — Extract via Claude Vision
+    // ── STEP 1: Vision FIRST — rawText is secured before any Supabase call ──
     const base64 = fs.readFileSync(filePath).toString("base64");
     let parsed: ParsedSheet;
     try {
@@ -157,7 +149,7 @@ export async function POST(req: Request) {
       const rawText = response.content[0]?.type === "text" ? response.content[0].text.trim() : "";
       entry.rawText = rawText;
 
-      // Strip markdown code fences Claude may wrap the JSON in
+      // Strip markdown code fences
       const clean = rawText
         .replace(/^```json\s*/i, "")
         .replace(/^```\s*/i, "")
@@ -166,7 +158,7 @@ export async function POST(req: Request) {
 
       const m = clean.match(/\{[\s\S]*\}/);
       if (!m) {
-        entry.error = `Pas de JSON dans la réponse Claude. Début réponse : ${rawText.slice(0, 200)}`;
+        entry.error = `Pas de JSON dans la réponse. Début : ${rawText.slice(0, 200)}`;
         report.push(entry);
         continue;
       }
@@ -178,7 +170,7 @@ export async function POST(req: Request) {
         continue;
       }
     } catch (err) {
-      entry.error = err instanceof Error ? err.message : "Erreur Anthropic";
+      entry.error = `Erreur Vision : ${err instanceof Error ? err.message : String(err)}`;
       report.push(entry);
       continue;
     }
@@ -187,99 +179,111 @@ export async function POST(req: Request) {
     entry.extracted.metro = parsed.charges_metro?.length ?? 0;
     entry.extracted.employes = parsed.charges_employes?.length ?? 0;
 
-    // 3 — Load existing charges for this month into a dedup Set (1 query)
-    const { data: existingCharges } = await supabase
-      .from("charges")
-      .select("date,montant,fournisseur")
-      .gte("date", startDate)
-      .lte("date", endDate);
-    const chargeKeys = new Set(
-      (existingCharges ?? []).map((c: { date: string; montant: number; fournisseur: string | null }) =>
-        `${c.date}|${c.montant}|${c.fournisseur ?? ""}`)
-    );
-
-    const { data: existingSessions } = await supabase
-      .from("work_sessions")
-      .select("date,heures,montant,employee_id")
-      .gte("date", startDate)
-      .lte("date", endDate);
-    const sessionKeys = new Set(
-      (existingSessions ?? []).map((s: { date: string; heures: number; montant: number; employee_id: string }) =>
-        `${s.date}|${s.heures}|${s.montant}|${s.employee_id}`)
-    );
-
-    // 4 — Insert charges_metro
-    for (const item of parsed.charges_metro ?? []) {
-      const date = parseFrDate(item.date);
-      const montant = typeof item.montant === "number" ? item.montant : parseFloat(String(item.montant));
-      if (!date || isNaN(montant)) continue;
-      const key = `${date}|${montant}|Métro`;
-      if (chargeKeys.has(key)) { entry.skipped++; continue; }
-      const { error } = await supabase.from("charges").insert({
-        date, montant, categorie: "restauration_metro",
-        fournisseur: "Métro", description: item.objet,
-        saison: "2025", statut_paiement: "paye", created_by: "import",
-      });
-      if (!error) { entry.inserted.charges++; totalCharges++; chargeKeys.add(key); }
+    // ── STEP 2: Delete existing data for this month ──
+    const startDate = `${month}-01`;
+    const endDate = `${month}-31`;
+    try {
+      const { error: e1, count: dc } = await supabase
+        .from("charges").delete({ count: "exact" }).gte("date", startDate).lte("date", endDate);
+      const { error: e2, count: ds } = await supabase
+        .from("work_sessions").delete({ count: "exact" }).gte("date", startDate).lte("date", endDate);
+      entry.deleted.charges = dc ?? 0;
+      entry.deleted.sessions = ds ?? 0;
+      if (e1) entry.error = `DELETE charges: ${e1.message}`;
+      if (e2) entry.error = (entry.error ? entry.error + " | " : "") + `DELETE sessions: ${e2.message}`;
+    } catch (err) {
+      entry.error = `Erreur DELETE: ${err instanceof Error ? err.message : String(err)}`;
+      report.push(entry);
+      continue;
     }
 
-    // 5 — Insert charges_diverses
-    for (const item of parsed.charges_diverses ?? []) {
-      const date = parseFrDate(item.date);
-      const montant = typeof item.montant === "number" ? item.montant : parseFloat(String(item.montant));
-      if (!date || isNaN(montant)) continue;
-      const categorie = guessCategorie(item.objet);
-      const key = `${date}|${montant}|${item.objet}`;
-      if (chargeKeys.has(key)) { entry.skipped++; continue; }
-      const { error } = await supabase.from("charges").insert({
-        date, montant, categorie, fournisseur: item.objet,
-        description: item.objet, saison: "2025", statut_paiement: "paye", created_by: "import",
-      });
-      if (!error) { entry.inserted.charges++; totalCharges++; chargeKeys.add(key); }
-    }
+    // ── STEP 3: Insert ──
+    const chargeKeys = new Set<string>();
+    const sessionKeys = new Set<string>();
 
-    // 6 — Insert work sessions + salary charges
-    for (const item of parsed.charges_employes ?? []) {
-      const date = parseFrDate(item.date);
-      const heures = typeof item.nb_heures === "number" ? item.nb_heures : parseFloat(String(item.nb_heures));
-      const montant = typeof item.montant === "number" ? item.montant : parseFloat(String(item.montant));
-      if (!date || isNaN(heures) || isNaN(montant)) continue;
-      const nom = String(item.employe).trim();
-
-      let empId: string | null = null;
-      const { data: existingEmp } = await supabase.from("employees").select("id").ilike("nom", nom).maybeSingle();
-      if (existingEmp) {
-        empId = existingEmp.id;
-      } else {
-        const { data: newEmp } = await supabase.from("employees")
-          .insert({ nom, tarif_horaire: heures > 0 ? Math.round((montant / heures) * 100) / 100 : 10, actif: true, saison_debut: "2025" })
-          .select("id").single();
-        empId = newEmp?.id ?? null;
+    try {
+      // Insert charges_metro
+      for (const item of parsed.charges_metro ?? []) {
+        const date = parseFrDate(item.date);
+        const montant = typeof item.montant === "number" ? item.montant : parseFloat(String(item.montant));
+        if (!date || isNaN(montant)) continue;
+        const key = `${date}|${montant}|Métro`;
+        if (chargeKeys.has(key)) { entry.skipped++; continue; }
+        const { error } = await supabase.from("charges").insert({
+          date, montant, categorie: "restauration_metro",
+          fournisseur: "Métro", description: item.objet,
+          saison: "2025", statut_paiement: "paye", created_by: "import",
+        });
+        if (!error) { entry.inserted.charges++; totalCharges++; chargeKeys.add(key); }
       }
 
-      if (empId) {
-        const sessKey = `${date}|${heures}|${montant}|${empId}`;
-        if (!sessionKeys.has(sessKey)) {
-          const { error } = await supabase.from("work_sessions").insert({
-            employee_id: empId, date, heures, montant, saison: "2025", created_by: "import",
+      // Insert charges_diverses
+      for (const item of parsed.charges_diverses ?? []) {
+        const date = parseFrDate(item.date);
+        const montant = typeof item.montant === "number" ? item.montant : parseFloat(String(item.montant));
+        if (!date || isNaN(montant)) continue;
+        const categorie = guessCategorie(item.objet);
+        const key = `${date}|${montant}|${item.objet}`;
+        if (chargeKeys.has(key)) { entry.skipped++; continue; }
+        const { error } = await supabase.from("charges").insert({
+          date, montant, categorie, fournisseur: item.objet,
+          description: item.objet, saison: "2025", statut_paiement: "paye", created_by: "import",
+        });
+        if (!error) { entry.inserted.charges++; totalCharges++; chargeKeys.add(key); }
+      }
+
+      // Insert work sessions + salary charges
+      for (const item of parsed.charges_employes ?? []) {
+        const date = parseFrDate(item.date);
+        const heures = typeof item.nb_heures === "number" ? item.nb_heures : parseFloat(String(item.nb_heures));
+        const montant = typeof item.montant === "number" ? item.montant : parseFloat(String(item.montant));
+        if (!date || isNaN(heures) || isNaN(montant)) continue;
+        const nom = String(item.employe).trim();
+        if (!nom) continue;
+
+        let empId: string | null = null;
+        const { data: existingEmp, error: empLookupErr } = await supabase
+          .from("employees").select("id").ilike("nom", nom).maybeSingle();
+        if (empLookupErr) {
+          // skip this employee entry but continue
+          continue;
+        }
+        if (existingEmp) {
+          empId = existingEmp.id;
+        } else {
+          const { data: newEmp } = await supabase.from("employees")
+            .insert({ nom, tarif_horaire: heures > 0 ? Math.round((montant / heures) * 100) / 100 : 10, actif: true, saison_debut: "2025" })
+            .select("id").single();
+          empId = newEmp?.id ?? null;
+        }
+
+        if (empId) {
+          const sessKey = `${date}|${heures}|${montant}|${empId}`;
+          if (!sessionKeys.has(sessKey)) {
+            const { error } = await supabase.from("work_sessions").insert({
+              employee_id: empId, date, heures, montant, saison: "2025", created_by: "import",
+            });
+            if (!error) { entry.inserted.sessions++; totalSessions++; sessionKeys.add(sessKey); }
+          } else {
+            entry.skipped++;
+          }
+        }
+
+        const salKey = `${date}|${montant}|${nom}`;
+        if (!chargeKeys.has(salKey)) {
+          const { error } = await supabase.from("charges").insert({
+            date, montant, categorie: "salaire", fournisseur: nom,
+            description: `${heures}h — ${nom}`, saison: "2025",
+            statut_paiement: "paye", created_by: "import",
           });
-          if (!error) { entry.inserted.sessions++; totalSessions++; sessionKeys.add(sessKey); }
+          if (!error) { entry.inserted.charges++; totalCharges++; chargeKeys.add(salKey); }
         } else {
           entry.skipped++;
         }
       }
-
-      const salKey = `${date}|${montant}|${nom}`;
-      if (!chargeKeys.has(salKey)) {
-        const { error } = await supabase.from("charges").insert({
-          date, montant, categorie: "salaire", fournisseur: nom,
-          description: `${heures}h — ${nom}`, saison: "2025",
-          statut_paiement: "paye", created_by: "import",
-        });
-        if (!error) { entry.inserted.charges++; totalCharges++; chargeKeys.add(salKey); }
-      } else {
-        entry.skipped++;
-      }
+    } catch (err) {
+      entry.error = (entry.error ? entry.error + " | " : "") +
+        `Erreur INSERT: ${err instanceof Error ? err.message : String(err)}`;
     }
 
     totalSkipped += entry.skipped;
