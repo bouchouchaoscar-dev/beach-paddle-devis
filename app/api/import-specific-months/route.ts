@@ -76,13 +76,17 @@ function parseFrDate(dateStr: string, year = 2025): string | null {
     nov: 11, novembre: 11,
     dec: 12, déc: 12, décembre: 12, decembre: 12,
   };
-  const match = String(dateStr).match(/(\d+)[- ]?([a-zA-Zéèûôîêâàùüïëäÿœæ]+)/);
-  if (!match) return null;
-  const day = parseInt(match[1]);
-  const moisKey = match[2].toLowerCase().trim();
-  const mois = moisFr[moisKey];
-  if (!mois || day < 1 || day > 31) return null;
-  return `${year}-${String(mois).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  try {
+    const match = String(dateStr).match(/(\d+)[- ]?([a-zA-ZÀ-ɏ]+)/);
+    if (!match) return null;
+    const day = parseInt(match[1]);
+    const moisKey = match[2].toLowerCase().trim();
+    const mois = moisFr[moisKey];
+    if (!mois || day < 1 || day > 31) return null;
+    return `${year}-${String(mois).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  } catch (e) {
+    return null;
+  }
 }
 
 interface ParsedSheet {
@@ -96,7 +100,7 @@ export async function POST(req: Request) {
     return await importHandler(req);
   } catch (fatal) {
     const msg = fatal instanceof Error ? fatal.message : String(fatal);
-    const stack = fatal instanceof Error ? (fatal.stack ?? "").slice(0, 800) : "";
+    const stack = fatal instanceof Error ? (fatal.stack ?? "").slice(0, 1200) : "";
     return NextResponse.json({ error: `[FATAL] ${msg}`, stack }, { status: 500 });
   }
 }
@@ -108,11 +112,28 @@ async function importHandler(req: Request) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "ANTHROPIC_API_KEY manquante." }, { status: 500 });
 
+  // ── Validate Supabase env vars before creating client ──
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !supabaseKey) {
+    return NextResponse.json({
+      error: `[CONFIG] Supabase env vars manquantes — URL: ${supabaseUrl ? "ok" : "UNDEFINED"}, KEY: ${supabaseKey ? "ok" : "UNDEFINED"}`,
+    }, { status: 500 });
+  }
+
+  // ── Validate that supabaseUrl is a valid URL ──
+  let supabase;
+  try {
+    new URL(supabaseUrl); // throws if invalid
+    supabase = createClient(supabaseUrl, supabaseKey);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({
+      error: `[SUPABASE_INIT] createClient a échoué — URL="${supabaseUrl}" — ${msg}`,
+    }, { status: 500 });
+  }
+
   const dir = path.join(process.cwd(), "public", "data", "compta-2025");
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
   const anthropic = new Anthropic({ apiKey });
 
   let totalCharges = 0;
@@ -126,6 +147,7 @@ async function importHandler(req: Request) {
     skipped: number;
     error: string | null;
     rawText: string;
+    step: string;
   }[] = [];
 
   for (const month of months) {
@@ -138,13 +160,15 @@ async function importHandler(req: Request) {
       skipped: 0,
       error: null as string | null,
       rawText: "",
+      step: "init",
     };
 
     if (!file) { entry.error = `Aucun PNG pour ${month}`; report.push(entry); continue; }
     const filePath = path.join(dir, file);
     if (!fs.existsSync(filePath)) { entry.error = `PNG introuvable : ${file}`; report.push(entry); continue; }
 
-    // ── STEP 1: Vision FIRST — rawText is secured before any Supabase call ──
+    // ── STEP 1: Vision FIRST ──
+    entry.step = "vision";
     const base64 = fs.readFileSync(filePath).toString("base64");
     let parsed: ParsedSheet;
     try {
@@ -159,19 +183,20 @@ async function importHandler(req: Request) {
       const rawText = response.content[0]?.type === "text" ? response.content[0].text.trim() : "";
       entry.rawText = rawText;
 
-      // Strip markdown code fences
       const clean = rawText
         .replace(/^```json\s*/i, "")
         .replace(/^```\s*/i, "")
         .replace(/\s*```$/i, "")
         .trim();
 
+      entry.step = "json-extract";
       const m = clean.match(/\{[\s\S]*\}/);
       if (!m) {
         entry.error = `Pas de JSON dans la réponse. Début : ${rawText.slice(0, 200)}`;
         report.push(entry);
         continue;
       }
+      entry.step = "json-parse";
       try {
         parsed = JSON.parse(m[0]);
       } catch (parseErr) {
@@ -180,7 +205,7 @@ async function importHandler(req: Request) {
         continue;
       }
     } catch (err) {
-      entry.error = `Erreur Vision : ${err instanceof Error ? err.message : String(err)}`;
+      entry.error = `Erreur Vision (step=${entry.step}) : ${err instanceof Error ? err.message : String(err)}`;
       report.push(entry);
       continue;
     }
@@ -190,6 +215,7 @@ async function importHandler(req: Request) {
     entry.extracted.employes = parsed.charges_employes?.length ?? 0;
 
     // ── STEP 2: Delete existing data for this month ──
+    entry.step = "delete";
     const startDate = `${month}-01`;
     const endDate = `${month}-31`;
     try {
@@ -208,11 +234,13 @@ async function importHandler(req: Request) {
     }
 
     // ── STEP 3: Insert ──
+    entry.step = "insert";
     const chargeKeys = new Set<string>();
     const sessionKeys = new Set<string>();
 
     try {
       // Insert charges_metro
+      entry.step = "insert-metro";
       for (const item of parsed.charges_metro ?? []) {
         const date = parseFrDate(item.date);
         const montant = typeof item.montant === "number" ? item.montant : parseFloat(String(item.montant));
@@ -228,6 +256,7 @@ async function importHandler(req: Request) {
       }
 
       // Insert charges_diverses
+      entry.step = "insert-diverses";
       for (const item of parsed.charges_diverses ?? []) {
         const date = parseFrDate(item.date);
         const montant = typeof item.montant === "number" ? item.montant : parseFloat(String(item.montant));
@@ -243,24 +272,26 @@ async function importHandler(req: Request) {
       }
 
       // Insert work sessions + salary charges
+      entry.step = "insert-employes";
       for (const item of parsed.charges_employes ?? []) {
         const date = parseFrDate(item.date);
         const heures = typeof item.nb_heures === "number" ? item.nb_heures : parseFloat(String(item.nb_heures));
         const montant = typeof item.montant === "number" ? item.montant : parseFloat(String(item.montant));
         if (!date || isNaN(heures) || isNaN(montant)) continue;
-        const nom = String(item.employe).trim();
+        const nom = String(item.employe ?? "").trim();
         if (!nom) continue;
 
+        entry.step = `insert-employes-lookup:${nom}`;
         let empId: string | null = null;
         const { data: existingEmp, error: empLookupErr } = await supabase
           .from("employees").select("id").ilike("nom", nom).maybeSingle();
         if (empLookupErr) {
-          // skip this employee entry but continue
           continue;
         }
         if (existingEmp) {
           empId = existingEmp.id;
         } else {
+          entry.step = `insert-employes-create:${nom}`;
           const { data: newEmp } = await supabase.from("employees")
             .insert({ nom, tarif_horaire: heures > 0 ? Math.round((montant / heures) * 100) / 100 : 10, actif: true, saison_debut: "2025" })
             .select("id").single();
@@ -268,6 +299,7 @@ async function importHandler(req: Request) {
         }
 
         if (empId) {
+          entry.step = `insert-session:${nom}`;
           const sessKey = `${date}|${heures}|${montant}|${empId}`;
           if (!sessionKeys.has(sessKey)) {
             const { error } = await supabase.from("work_sessions").insert({
@@ -279,6 +311,7 @@ async function importHandler(req: Request) {
           }
         }
 
+        entry.step = `insert-salaire:${nom}`;
         const salKey = `${date}|${montant}|${nom}`;
         if (!chargeKeys.has(salKey)) {
           const { error } = await supabase.from("charges").insert({
@@ -291,9 +324,11 @@ async function importHandler(req: Request) {
           entry.skipped++;
         }
       }
+
+      entry.step = "done";
     } catch (err) {
       entry.error = (entry.error ? entry.error + " | " : "") +
-        `Erreur INSERT: ${err instanceof Error ? err.message : String(err)}`;
+        `Erreur INSERT (step=${entry.step}) : ${err instanceof Error ? err.message : String(err)}`;
     }
 
     totalSkipped += entry.skipped;
