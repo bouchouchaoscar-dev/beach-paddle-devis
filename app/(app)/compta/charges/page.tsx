@@ -80,6 +80,7 @@ export default function ChargesPage() {
     heureDebut: "",
     heureFin: "",
     heures: "",
+    tarif: "",
     notes: "",
   });
   const [viewingEmpId, setViewingEmpId] = useState<string | null>(null);
@@ -204,7 +205,8 @@ export default function ChargesPage() {
       heures = calcSessionHours(sessionForm.heureDebut, sessionForm.heureFin);
     }
     if (heures <= 0) return;
-    const montant = heures * emp.tarif_horaire;
+    const tarif = parseFloat(sessionForm.tarif) || emp.tarif_horaire;
+    const montant = heures * tarif;
     setSaving(true);
     try {
       await saveWorkSession({
@@ -229,7 +231,7 @@ export default function ChargesPage() {
         statut_paiement: "paye",
         created_by: "",
       });
-      setSessionForm((f) => ({ ...f, heures: "", notes: "", heureDebut: "", heureFin: "" }));
+      setSessionForm((f) => ({ ...f, heures: "", notes: "", heureDebut: "", heureFin: "", tarif: String(emp.tarif_horaire) }));
       await load();
     } finally {
       setSaving(false);
@@ -369,8 +371,9 @@ export default function ChargesPage() {
     ? calcSessionHours(sessionForm.heureDebut, sessionForm.heureFin)
     : parseFloat(sessionForm.heures) || 0;
   const selectedEmp = employees.find((e) => e.id === sessionForm.employeeId);
+  const sessionTarifPreview = parseFloat(sessionForm.tarif) || selectedEmp?.tarif_horaire || 0;
   const sessionMontantPreview = sessionHoursPreview > 0 && selectedEmp
-    ? sessionHoursPreview * selectedEmp.tarif_horaire
+    ? sessionHoursPreview * sessionTarifPreview
     : 0;
 
   function fmtDate(d: string) {
@@ -842,7 +845,11 @@ export default function ChargesPage() {
               <div className="space-y-3">
                 <div>
                   <label className="label">Employé</label>
-                  <select value={sessionForm.employeeId} onChange={(e) => setSessionForm((f) => ({ ...f, employeeId: e.target.value }))} className="input-field">
+                  <select value={sessionForm.employeeId} onChange={(e) => {
+                    const newId = e.target.value;
+                    const emp = employees.find((emp) => emp.id === newId);
+                    setSessionForm((f) => ({ ...f, employeeId: newId, tarif: emp ? String(emp.tarif_horaire) : "" }));
+                  }} className="input-field">
                     <option value="">— Choisir —</option>
                     {employees.filter((e) => e.actif).map((e) => (
                       <option key={e.id} value={e.id}>{e.nom} ({e.tarif_horaire}€/h)</option>
@@ -868,13 +875,25 @@ export default function ChargesPage() {
                   <input type="number" value={sessionForm.heures} min={0} step={0.5} placeholder="Ex : 3.5" onChange={(e) => setSessionForm((f) => ({ ...f, heures: e.target.value }))} className="input-field" />
                 </div>
                 <div>
+                  <label className="label">Tarif horaire (€/h)</label>
+                  <input
+                    type="number"
+                    value={sessionForm.tarif}
+                    min={0}
+                    step={0.5}
+                    placeholder={selectedEmp ? `${selectedEmp.tarif_horaire}€/h (défaut)` : "€/h"}
+                    onChange={(e) => setSessionForm((f) => ({ ...f, tarif: e.target.value }))}
+                    className="input-field font-mono"
+                  />
+                </div>
+                <div>
                   <label className="label">Notes</label>
                   <input type="text" value={sessionForm.notes} placeholder="Optionnel" onChange={(e) => setSessionForm((f) => ({ ...f, notes: e.target.value }))} className="input-field" />
                 </div>
 
                 {sessionHoursPreview > 0 && selectedEmp && (
                   <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-brand-teal-light border border-brand-teal/20 text-sm">
-                    <span className="text-ink-secondary">{sessionHoursPreview}h × {selectedEmp.tarif_horaire}€</span>
+                    <span className="text-ink-secondary">{sessionHoursPreview}h × {sessionTarifPreview}€</span>
                     <span className="font-bold font-mono text-brand-teal">{formatPrice(sessionMontantPreview)}</span>
                   </div>
                 )}
