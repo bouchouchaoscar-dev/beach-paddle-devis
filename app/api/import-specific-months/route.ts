@@ -25,7 +25,7 @@ La feuille contient 3 tableaux côte à côte :
 2. CHARGES METRO (milieu) : colonnes Objet, Date, Montant. Extraire toutes les lignes jusqu'à TOTAL CHARGES METRO.
 
 3. CHARGES EMPLOYÉS (droite) : colonnes Employé, Nombre d'heures, Date, Montant. Extraire toutes les lignes jusqu'à TOTAL CHARGES EMPLOYÉS.
-   Attention : en juillet il peut y avoir plusieurs blocs CHARGES EMPLOYÉS côte à côte.
+   IMPORTANT : en juillet il y a jusqu'à 4 blocs CHARGES EMPLOYÉS côte à côte. Tu DOIS parcourir et extraire les lignes de CHAQUE bloc, de gauche à droite, sans en omettre aucun. Toutes les lignes employé de tous les blocs doivent apparaître dans le même tableau "charges_employes".
 
 Format JSON attendu :
 {

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
-  getCharges, saveCharge, deleteCharge,
+  getCharges, saveCharge, updateCharge, deleteCharge,
   getEmployees, saveEmployee, updateEmployee,
   getWorkSessions, saveWorkSession, deleteWorkSession,
 } from "@/lib/compta";
@@ -52,6 +52,9 @@ export default function ChargesPage() {
   const [resetMsg, setResetMsg] = useState<string | null>(null);
   const [importingMonth, setImportingMonth] = useState<string | null>(null);
   const [monthReports, setMonthReports] = useState<Record<string, string>>({});
+  const [editingCharge, setEditingCharge] = useState<typeof charges[0] | null>(null);
+  const [editForm, setEditForm] = useState({ date: "", montant: "", categorie: "autre" as ChargeCategory, fournisseur: "", description: "" });
+  const [editSaving, setEditSaving] = useState(false);
 
   // Upload + AI
   const fileRef = useRef<HTMLInputElement>(null);
@@ -279,6 +282,29 @@ export default function ChargesPage() {
       setResetMsg(err instanceof Error ? err.message : "Erreur réseau");
     } finally {
       setResetting(false);
+    }
+  }
+
+  function openEdit(c: typeof charges[0]) {
+    setEditingCharge(c);
+    setEditForm({ date: c.date, montant: String(c.montant), categorie: c.categorie, fournisseur: c.fournisseur ?? "", description: c.description ?? "" });
+  }
+
+  async function handleUpdateCharge() {
+    if (!editingCharge) return;
+    const montant = parseFloat(editForm.montant);
+    if (!editForm.date || isNaN(montant)) return;
+    setEditSaving(true);
+    try {
+      await updateCharge(editingCharge.id, {
+        date: editForm.date, montant, categorie: editForm.categorie,
+        fournisseur: editForm.fournisseur || undefined,
+        description: editForm.description || undefined,
+      });
+      setEditingCharge(null);
+      await load();
+    } finally {
+      setEditSaving(false);
     }
   }
 
@@ -830,6 +856,12 @@ export default function ChargesPage() {
                   {formatPrice(c.montant)}
                 </span>
                 <button
+                  onClick={() => openEdit(c)}
+                  className="opacity-0 group-hover:opacity-100 p-1 rounded-md text-ink-muted hover:text-brand-teal hover:bg-brand-teal-light transition-all shrink-0"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </button>
+                <button
                   onClick={() => deleteCharge(c.id).then(load)}
                   className="opacity-0 group-hover:opacity-100 p-1 rounded-md text-ink-muted hover:text-brand-red hover:bg-brand-red-light transition-all shrink-0"
                 >
@@ -840,6 +872,66 @@ export default function ChargesPage() {
           </div>
         )}
       </div>
+      {/* ── Edit charge modal ── */}
+      {editingCharge && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: "rgba(0,0,0,0.3)", backdropFilter: "blur(4px)" }}
+          onClick={() => setEditingCharge(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl w-full max-w-md p-5 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-ink">Modifier la charge</h3>
+              <button
+                onClick={() => setEditingCharge(null)}
+                className="p-1 rounded-md text-ink-muted hover:text-ink hover:bg-surface-muted transition-colors"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="label">Date</label>
+                <input type="date" value={editForm.date} onChange={(e) => setEditForm((f) => ({ ...f, date: e.target.value }))} className="input-field" />
+              </div>
+              <div>
+                <label className="label">Montant (€)</label>
+                <input type="number" value={editForm.montant} min={0} step={0.01} onChange={(e) => setEditForm((f) => ({ ...f, montant: e.target.value }))} className="input-field font-mono" />
+              </div>
+            </div>
+            <div>
+              <label className="label">Catégorie</label>
+              <select value={editForm.categorie} onChange={(e) => setEditForm((f) => ({ ...f, categorie: e.target.value as ChargeCategory }))} className="input-field">
+                {CATEGORIES.map((c) => <option key={c} value={c}>{CHARGE_LABELS[c]}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">Fournisseur</label>
+              <input type="text" value={editForm.fournisseur} onChange={(e) => setEditForm((f) => ({ ...f, fournisseur: e.target.value }))} className="input-field" />
+            </div>
+            <div>
+              <label className="label">Description</label>
+              <input type="text" value={editForm.description} onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))} className="input-field" />
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => setEditingCharge(null)} className="btn-secondary flex-1">
+                Annuler
+              </button>
+              <button onClick={handleUpdateCharge} disabled={editSaving || !editForm.montant} className="btn-primary flex-1">
+                {editSaving ? (
+                  <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                ) : (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                )}
+                Sauvegarder
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

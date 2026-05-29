@@ -71,6 +71,11 @@ export async function saveCharge(charge: Omit<Charge, "id" | "created_at">): Pro
   if (error) throw new Error(error.message);
 }
 
+export async function updateCharge(id: string, patch: Partial<Omit<Charge, "id" | "created_at">>): Promise<void> {
+  const { error } = await supabase.from("charges").update(patch).eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
 export async function deleteCharge(id: string): Promise<void> {
   const { error } = await supabase.from("charges").delete().eq("id", id);
   if (error) throw new Error(error.message);
