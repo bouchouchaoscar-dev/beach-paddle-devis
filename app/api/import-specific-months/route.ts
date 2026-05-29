@@ -92,6 +92,16 @@ interface ParsedSheet {
 }
 
 export async function POST(req: Request) {
+  try {
+    return await importHandler(req);
+  } catch (fatal) {
+    const msg = fatal instanceof Error ? fatal.message : String(fatal);
+    const stack = fatal instanceof Error ? (fatal.stack ?? "").slice(0, 800) : "";
+    return NextResponse.json({ error: `[FATAL] ${msg}`, stack }, { status: 500 });
+  }
+}
+
+async function importHandler(req: Request) {
   const body = await req.json().catch(() => ({})) as { months?: string[] };
   const months: string[] = body.months ?? ["2025-04", "2025-07", "2025-09"];
 
