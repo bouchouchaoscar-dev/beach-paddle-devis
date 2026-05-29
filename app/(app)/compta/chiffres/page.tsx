@@ -5,7 +5,7 @@ import {
   ResponsiveContainer, LineChart, Line, BarChart, Bar,
   CartesianGrid, XAxis, YAxis, Tooltip,
 } from "recharts";
-import { getCaEntries, saveCaEntry, deleteCaEntry } from "@/lib/compta";
+import { getCaEntries, saveCaEntry, updateCaEntry, deleteCaEntry } from "@/lib/compta";
 import { formatPrice } from "@/lib/calculations";
 import { MOIS_FULL, MOIS_LABELS, SAISONS, type CaEntry } from "@/lib/compta-types";
 import { DatePicker } from "@/components/ui/DatePicker";
@@ -25,6 +25,9 @@ export default function ChiffresPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ date: today(), montant: "", notes: "" });
+  const [editingEntry, setEditingEntry] = useState<CaEntry | null>(null);
+  const [editForm, setEditForm] = useState({ montant: "", notes: "" });
+  const [editSaving, setEditSaving] = useState(false);
 
   const isAll = saison === "all";
 
@@ -106,6 +109,25 @@ export default function ChiffresPage() {
   async function handleDelete(id: string) {
     await deleteCaEntry(id);
     await load();
+  }
+
+  function openEdit(e: CaEntry) {
+    setEditingEntry(e);
+    setEditForm({ montant: String(e.montant), notes: e.notes ?? "" });
+  }
+
+  async function handleUpdateEntry() {
+    if (!editingEntry) return;
+    const montant = parseFloat(editForm.montant);
+    if (isNaN(montant) || montant <= 0) return;
+    setEditSaving(true);
+    try {
+      await updateCaEntry(editingEntry.id, { montant, notes: editForm.notes || undefined });
+      setEditingEntry(null);
+      await load();
+    } finally {
+      setEditSaving(false);
+    }
   }
 
   const fmtDate = (d: string) =>
@@ -318,6 +340,12 @@ export default function ChiffresPage() {
                             {formatPrice(e.montant)}
                           </span>
                           <button
+                            onClick={() => openEdit(e)}
+                            className="opacity-0 group-hover:opacity-100 p-1 rounded-md text-ink-muted hover:text-brand-teal hover:bg-brand-teal-light transition-all"
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                          </button>
+                          <button
                             onClick={() => handleDelete(e.id)}
                             className="opacity-0 group-hover:opacity-100 p-1 rounded-md text-ink-muted hover:text-brand-red hover:bg-brand-red-light transition-all"
                           >
@@ -409,6 +437,67 @@ export default function ChiffresPage() {
           </>
         )}
       </div>
+      {/* ── Edit CA modal ── */}
+      {editingEntry && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: "rgba(0,0,0,0.3)", backdropFilter: "blur(4px)" }}
+          onClick={() => setEditingEntry(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-ink">Modifier la recette</h3>
+                <p className="text-xs text-ink-muted mt-0.5">{fmtDate(editingEntry.date)}</p>
+              </div>
+              <button
+                onClick={() => setEditingEntry(null)}
+                className="p-1 rounded-md text-ink-muted hover:text-ink hover:bg-surface-muted transition-colors"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div>
+              <label className="label">Montant (€)</label>
+              <input
+                type="number"
+                value={editForm.montant}
+                min={0}
+                step={0.5}
+                autoFocus
+                onChange={(e) => setEditForm((f) => ({ ...f, montant: e.target.value }))}
+                className="input-field font-mono"
+              />
+            </div>
+            <div>
+              <label className="label">Notes (optionnel)</label>
+              <input
+                type="text"
+                value={editForm.notes}
+                placeholder="Ex : journée anniversaire, météo…"
+                onChange={(e) => setEditForm((f) => ({ ...f, notes: e.target.value }))}
+                className="input-field"
+              />
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => setEditingEntry(null)} className="btn-secondary flex-1">
+                Annuler
+              </button>
+              <button onClick={handleUpdateEntry} disabled={editSaving || !editForm.montant} className="btn-primary flex-1">
+                {editSaving ? (
+                  <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                ) : (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                )}
+                Sauvegarder
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
