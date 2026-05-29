@@ -766,9 +766,13 @@ export default function ChargesPage() {
                       <div className="flex items-center gap-2">
                         {(() => {
                           const empSessions = sessions.filter((s) => s.employee_id === emp.id);
-                          const total = empSessions.reduce((s, ws) => s + ws.montant, 0);
-                          return total > 0 ? (
-                            <span className="text-xs font-mono text-ink-secondary">{formatPrice(total)}</span>
+                          const totalMontant = empSessions.reduce((s, ws) => s + ws.montant, 0);
+                          const totalHeures = empSessions.reduce((s, ws) => s + ws.heures, 0);
+                          return totalMontant > 0 ? (
+                            <div className="text-right">
+                              <p className="text-xs font-mono font-semibold text-ink-secondary">{formatPrice(totalMontant)}</p>
+                              <p className="text-[10px] text-ink-muted">{totalHeures}h · {empSessions.length} sess.</p>
+                            </div>
                           ) : null;
                         })()}
                         {emp.actif && (
@@ -814,7 +818,7 @@ export default function ChargesPage() {
               {/* View employee sessions */}
               {viewingEmpId && viewingEmp && (
                 <div className="mt-4 border-t border-surface-border pt-4">
-                  <p className="text-xs font-semibold text-ink mb-2">{viewingEmp.nom} — Sessions</p>
+                  <p className="text-xs font-semibold text-ink mb-2">{viewingEmp.nom} — Sessions {saison !== "all" ? saison : ""}</p>
                   {sessionsByEmp.length === 0 ? (
                     <p className="text-xs text-ink-muted">Aucune session</p>
                   ) : (
@@ -829,9 +833,11 @@ export default function ChargesPage() {
                           </button>
                         </div>
                       ))}
-                      <div className="flex justify-between text-xs font-semibold pt-1 px-2">
-                        <span>Total {saison}</span>
-                        <span className="font-mono">{formatPrice(sessionsByEmp.reduce((s, ws) => s + ws.montant, 0))}</span>
+                      <div className="mt-1 px-2 py-2 rounded-xl bg-brand-teal-light border border-brand-teal/20">
+                        <div className="flex justify-between text-xs font-semibold text-brand-teal">
+                          <span>{sessionsByEmp.length} session{sessionsByEmp.length > 1 ? "s" : ""} · {sessionsByEmp.reduce((s, ws) => s + ws.heures, 0)}h</span>
+                          <span className="font-mono">{formatPrice(sessionsByEmp.reduce((s, ws) => s + ws.montant, 0))}</span>
+                        </div>
                       </div>
                     </div>
                   )}
