@@ -13,6 +13,7 @@ import {
   type Charge, type Employee, type WorkSession, type ChargeCategory,
 } from "@/lib/compta-types";
 import { useComptaSaison } from "../ComptaSaisonProvider";
+import { DatePicker } from "@/components/ui/DatePicker";
 
 const CATEGORIES: ChargeCategory[] = ["restauration_metro", "restauration_autre", "equipement", "salaire", "autre"];
 const MODES_PAIEMENT = ["CB", "Espèces", "Virement", "Chèque"];
@@ -419,7 +420,7 @@ export default function ChargesPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="label">Date</label>
-                  <input type="date" value={chargeForm.date} onChange={(e) => setChargeForm((f) => ({ ...f, date: e.target.value }))} className="input-field" />
+                  <DatePicker value={chargeForm.date} onChange={(v) => setChargeForm((f) => ({ ...f, date: v }))} allowPast />
                 </div>
                 <div>
                   <label className="label">Montant (€)</label>
@@ -476,7 +477,7 @@ export default function ChargesPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="label">Date</label>
-                  <input type="date" value={chargeForm.date} onChange={(e) => setChargeForm((f) => ({ ...f, date: e.target.value }))} className="input-field" />
+                  <DatePicker value={chargeForm.date} onChange={(v) => setChargeForm((f) => ({ ...f, date: v }))} allowPast />
                 </div>
                 <div>
                   <label className="label">Montant (€)</label>
@@ -639,7 +640,7 @@ export default function ChargesPage() {
                 </div>
                 <div>
                   <label className="label">Date</label>
-                  <input type="date" value={sessionForm.date} onChange={(e) => setSessionForm((f) => ({ ...f, date: e.target.value }))} className="input-field" />
+                  <DatePicker value={sessionForm.date} onChange={(v) => setSessionForm((f) => ({ ...f, date: v }))} allowPast />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
@@ -803,7 +804,7 @@ export default function ChargesPage() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="label">Date</label>
-                <input type="date" value={editForm.date} onChange={(e) => setEditForm((f) => ({ ...f, date: e.target.value }))} className="input-field" />
+                <DatePicker value={editForm.date} onChange={(v) => setEditForm((f) => ({ ...f, date: v }))} allowPast />
               </div>
               <div>
                 <label className="label">Montant (€)</label>
