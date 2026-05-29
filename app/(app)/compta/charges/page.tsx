@@ -48,16 +48,6 @@ export default function ChargesPage() {
   const [saving, setSaving] = useState(false);
   const [filterCat, setFilterCat] = useState<ChargeCategory | "all">("all");
   const [filterMois, setFilterMois] = useState<string>("all");
-  const [resetting, setResetting] = useState(false);
-  const [resetMsg, setResetMsg] = useState<string | null>(null);
-  const [importingMonth, setImportingMonth] = useState<string | null>(null);
-  const [monthReports, setMonthReports] = useState<Record<string, string>>({});
-  const [monthRawTexts, setMonthRawTexts] = useState<Record<string, string>>({});
-  const [expandedRawMonth, setExpandedRawMonth] = useState<string | null>(null);
-  const [testJuilletLoading, setTestJuilletLoading] = useState(false);
-  const [testJuilletRaw, setTestJuilletRaw] = useState<string | null>(null);
-  const [debugJuilletLoading, setDebugJuilletLoading] = useState(false);
-  const [debugJuilletRaw, setDebugJuilletRaw] = useState<string | null>(null);
   const [editingCharge, setEditingCharge] = useState<typeof charges[0] | null>(null);
   const [editForm, setEditForm] = useState({ date: "", montant: "", categorie: "autre" as ChargeCategory, fournisseur: "", description: "" });
   const [editSaving, setEditSaving] = useState(false);
@@ -238,62 +228,6 @@ export default function ChargesPage() {
     }
   }
 
-  async function handleImportMonth(month: string) {
-    setImportingMonth(month);
-    setMonthReports((r) => ({ ...r, [month]: "…" }));
-    try {
-      const res = await fetch("/api/import-specific-months", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ months: [month] }),
-      });
-      const data = await res.json() as {
-        report?: { month: string; deleted: { charges: number; sessions: number }; extracted: { diverses: number; metro: number; employes: number }; inserted: { charges: number; sessions: number }; error: string | null; rawText?: string }[];
-        error?: string;
-      };
-      if (!res.ok) {
-        setMonthReports((r) => ({ ...r, [month]: `❌ ${data.error ?? res.status}` }));
-        return;
-      }
-      const entry = data.report?.[0];
-      if (!entry) { setMonthReports((r) => ({ ...r, [month]: "❌ Pas de rapport" })); return; }
-      if (entry.rawText) setMonthRawTexts((r) => ({ ...r, [month]: entry.rawText! }));
-      if (entry.error) {
-        setMonthReports((r) => ({ ...r, [month]: `❌ ${entry.error}` }));
-      } else {
-        setMonthReports((r) => ({
-          ...r,
-          [month]: `✓ +${entry.inserted.charges}c +${entry.inserted.sessions}s (extrait: ${entry.extracted.diverses}div ${entry.extracted.metro}met ${entry.extracted.employes}emp)`,
-        }));
-        await load();
-      }
-    } catch (err) {
-      setMonthReports((r) => ({ ...r, [month]: `❌ ${err instanceof Error ? err.message : "Erreur réseau"}` }));
-    } finally {
-      setImportingMonth(null);
-    }
-  }
-
-  async function handleReset() {
-    if (!confirm("Supprimer TOUTES les charges/sessions/employés 2025 ? Irréversible.")) return;
-    setResetting(true);
-    setResetMsg(null);
-    try {
-      const res = await fetch("/api/reset-charges-2025", { method: "POST" });
-      const data = await res.json() as { charges?: number; sessions?: number; employees?: number; error?: string };
-      if (res.ok) {
-        setResetMsg(`Reset OK — ${data.charges ?? 0} charges, ${data.sessions ?? 0} sessions, ${data.employees ?? 0} employés supprimés`);
-        await load();
-      } else {
-        setResetMsg(`Erreur : ${data.error}`);
-      }
-    } catch (err) {
-      setResetMsg(err instanceof Error ? err.message : "Erreur réseau");
-    } finally {
-      setResetting(false);
-    }
-  }
-
   function openEdit(c: typeof charges[0]) {
     setEditingCharge(c);
     setEditForm({ date: c.date, montant: String(c.montant), categorie: c.categorie, fournisseur: c.fournisseur ?? "", description: c.description ?? "" });
@@ -314,42 +248,6 @@ export default function ChargesPage() {
       await load();
     } finally {
       setEditSaving(false);
-    }
-  }
-
-  async function handleTestJuillet() {
-    setTestJuilletLoading(true);
-    setTestJuilletRaw(null);
-    try {
-      const res = await fetch("/api/test-juillet");
-      const data = await res.json() as { rawText?: string; error?: string; length?: number; stopReason?: string; inputTokens?: number; outputTokens?: number };
-      if (data.error) {
-        setTestJuilletRaw(`❌ Erreur : ${data.error}`);
-      } else {
-        setTestJuilletRaw(`stop_reason: ${data.stopReason} | tokens: ${data.inputTokens}→${data.outputTokens} | length: ${data.length}\n\n${data.rawText ?? ""}`);
-      }
-    } catch (err) {
-      setTestJuilletRaw(`❌ Réseau : ${err instanceof Error ? err.message : String(err)}`);
-    } finally {
-      setTestJuilletLoading(false);
-    }
-  }
-
-  async function handleDebugJuillet() {
-    setDebugJuilletLoading(true);
-    setDebugJuilletRaw(null);
-    try {
-      const res = await fetch("/api/debug-juillet");
-      const data = await res.json() as { ok?: boolean; steps?: Record<string, string>; error?: string };
-      if (data.error) {
-        setDebugJuilletRaw(`❌ Erreur : ${data.error}`);
-      } else {
-        setDebugJuilletRaw(JSON.stringify(data.steps ?? data, null, 2));
-      }
-    } catch (err) {
-      setDebugJuilletRaw(`❌ Réseau : ${err instanceof Error ? err.message : String(err)}`);
-    } finally {
-      setDebugJuilletLoading(false);
     }
   }
 
@@ -401,129 +299,6 @@ export default function ChargesPage() {
             <option value="all">Toutes les saisons</option>
             {[...SAISONS].reverse().map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
-          <button
-            onClick={handleReset}
-            disabled={resetting}
-            className="btn-secondary gap-2 text-xs"
-            style={{ color: "#E03131", borderColor: "rgba(224,49,49,0.3)" }}
-          >
-            {resetting ? (
-              <svg className="animate-spin" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-            ) : (
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/></svg>
-            )}
-            Reset 2025
-          </button>
-          {resetMsg && (
-            <span className="text-xs font-medium" style={{ color: resetMsg.startsWith("Erreur") ? "#E03131" : "#16A34A" }}>
-              {resetMsg}
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* ── Import données 2025 ── */}
-      <div
-        className="rounded-xl border border-surface-border bg-white p-4 space-y-3"
-        style={{ opacity: 0, animation: "slideUp 0.4s cubic-bezier(0.16,1,0.3,1) 0.08s forwards" }}
-      >
-        <p className="text-sm font-semibold text-ink">Import données 2025</p>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
-          {([
-            { month: "2025-04", label: "Avril" },
-            { month: "2025-05", label: "Mai" },
-            { month: "2025-06", label: "Juin" },
-            { month: "2025-07", label: "Juillet" },
-            { month: "2025-08", label: "Août" },
-            { month: "2025-09", label: "Septembre" },
-          ]).map(({ month, label }) => (
-            <div key={month} className="flex flex-col gap-1">
-              <button
-                onClick={() => handleImportMonth(month)}
-                disabled={importingMonth !== null}
-                className="btn-secondary gap-1.5 text-xs w-full justify-center"
-                style={{ color: "#F59E0B", borderColor: "rgba(245,158,11,0.3)" }}
-              >
-                {importingMonth === month ? (
-                  <svg className="animate-spin" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-                ) : (
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                )}
-                {label}
-              </button>
-              {monthReports[month] && (
-                <span className="text-[10px] font-mono leading-tight"
-                  style={{ color: monthReports[month].startsWith("❌") ? "#E03131" : "#16A34A" }}>
-                  {monthReports[month]}
-                </span>
-              )}
-              {monthRawTexts[month] && (
-                <button
-                  onClick={() => setExpandedRawMonth(expandedRawMonth === month ? null : month)}
-                  className="text-[10px] text-ink-muted underline hover:text-ink text-left"
-                >
-                  {expandedRawMonth === month ? "Masquer JSON" : "Voir JSON brut"}
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-        {expandedRawMonth && monthRawTexts[expandedRawMonth] && (
-          <pre className="text-[10px] font-mono bg-zinc-900 text-green-400 rounded-xl p-3 overflow-x-auto max-h-72 whitespace-pre-wrap mt-1">
-            {monthRawTexts[expandedRawMonth]}
-          </pre>
-        )}
-
-        <div className="border-t border-surface-border pt-3 flex flex-col gap-2">
-          <p className="text-xs text-ink-muted font-medium">Diagnostic Vision (sans insertion Supabase)</p>
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={handleTestJuillet}
-              disabled={testJuilletLoading}
-              className="btn-secondary gap-1.5 text-xs"
-              style={{ color: "#8B5CF6", borderColor: "rgba(139,92,246,0.3)" }}
-            >
-              {testJuilletLoading ? (
-                <svg className="animate-spin" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-              ) : (
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              )}
-              Test brut Juillet
-            </button>
-            {testJuilletRaw && (
-              <button onClick={() => setTestJuilletRaw(null)} className="text-xs text-ink-muted underline hover:text-ink">
-                Masquer
-              </button>
-            )}
-            <button
-              onClick={handleDebugJuillet}
-              disabled={debugJuilletLoading}
-              className="btn-secondary gap-1.5 text-xs"
-              style={{ color: "#D97706", borderColor: "rgba(217,119,6,0.3)" }}
-            >
-              {debugJuilletLoading ? (
-                <svg className="animate-spin" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-              ) : (
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
-              )}
-              Debug Juillet
-            </button>
-            {debugJuilletRaw && (
-              <button onClick={() => setDebugJuilletRaw(null)} className="text-xs text-ink-muted underline hover:text-ink">
-                Masquer debug
-              </button>
-            )}
-          </div>
-          {testJuilletRaw && (
-            <pre className="text-[10px] font-mono bg-zinc-900 text-green-400 rounded-xl p-3 overflow-x-auto max-h-96 whitespace-pre-wrap">
-              {testJuilletRaw}
-            </pre>
-          )}
-          {debugJuilletRaw && (
-            <pre className="text-[10px] font-mono bg-zinc-900 text-amber-300 rounded-xl p-3 overflow-x-auto max-h-96 whitespace-pre-wrap">
-              {debugJuilletRaw}
-            </pre>
-          )}
         </div>
       </div>
 
