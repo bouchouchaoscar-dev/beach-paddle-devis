@@ -4,9 +4,8 @@ import fs from "fs";
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@supabase/supabase-js";
 
-export const maxDuration = 300;
+export const maxDuration = 60;
 
-// Month prefix → PNG filename
 const MONTH_TO_FILE: Record<string, string> = {
   "2025-04": "compta_2025_avril.png",
   "2025-05": "compta_2025_mai.png",
@@ -97,9 +96,7 @@ export async function POST(req: Request) {
   const months: string[] = body.months ?? ["2025-04", "2025-07", "2025-09"];
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json({ error: "ANTHROPIC_API_KEY manquante." }, { status: 500 });
-  }
+  if (!apiKey) return NextResponse.json({ error: "ANTHROPIC_API_KEY manquante." }, { status: 500 });
 
   const dir = path.join(process.cwd(), "public", "data", "compta-2025");
   const supabase = createClient(
@@ -110,85 +107,55 @@ export async function POST(req: Request) {
 
   let totalCharges = 0;
   let totalSessions = 0;
+  let totalSkipped = 0;
   const report: {
-    month: string;
-    file: string;
+    month: string; file: string;
     deleted: { charges: number; sessions: number };
     extracted: { diverses: number; metro: number; employes: number };
     inserted: { charges: number; sessions: number };
+    skipped: number;
     error: string | null;
   }[] = [];
 
   for (const month of months) {
     const file = MONTH_TO_FILE[month];
     const entry = {
-      month,
-      file: file ?? "(inconnu)",
+      month, file: file ?? "(inconnu)",
       deleted: { charges: 0, sessions: 0 },
       extracted: { diverses: 0, metro: 0, employes: 0 },
       inserted: { charges: 0, sessions: 0 },
+      skipped: 0,
       error: null as string | null,
     };
 
-    if (!file) {
-      entry.error = `Aucun fichier PNG mappé pour ${month}`;
-      report.push(entry);
-      continue;
-    }
-
+    if (!file) { entry.error = `Aucun PNG pour ${month}`; report.push(entry); continue; }
     const filePath = path.join(dir, file);
-    if (!fs.existsSync(filePath)) {
-      entry.error = `Fichier introuvable : ${filePath}`;
-      report.push(entry);
-      continue;
-    }
+    if (!fs.existsSync(filePath)) { entry.error = `PNG introuvable : ${file}`; report.push(entry); continue; }
 
-    // 1. Delete existing charges/sessions for this month only
+    // 1 — Delete existing data for this month
     const startDate = `${month}-01`;
     const endDate = `${month}-31`;
+    const { count: dc } = await supabase.from("charges").delete({ count: "exact" }).gte("date", startDate).lte("date", endDate);
+    const { count: ds } = await supabase.from("work_sessions").delete({ count: "exact" }).gte("date", startDate).lte("date", endDate);
+    entry.deleted.charges = dc ?? 0;
+    entry.deleted.sessions = ds ?? 0;
 
-    const { count: deletedCharges } = await supabase
-      .from("charges")
-      .delete({ count: "exact" })
-      .gte("date", startDate)
-      .lte("date", endDate);
-
-    const { count: deletedSessions } = await supabase
-      .from("work_sessions")
-      .delete({ count: "exact" })
-      .gte("date", startDate)
-      .lte("date", endDate);
-
-    entry.deleted.charges = deletedCharges ?? 0;
-    entry.deleted.sessions = deletedSessions ?? 0;
-
-    // 2. Extract from PNG via Claude Vision
-    const imgBuffer = fs.readFileSync(filePath);
-    const base64 = imgBuffer.toString("base64");
-    const mimeType = file.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg";
-
+    // 2 — Extract via Claude Vision
+    const base64 = fs.readFileSync(filePath).toString("base64");
     let parsed: ParsedSheet;
     try {
       const response = await anthropic.messages.create({
         model: "claude-sonnet-4-6",
         max_tokens: 4096,
-        messages: [{
-          role: "user",
-          content: [
-            { type: "image", source: { type: "base64", media_type: mimeType as "image/png" | "image/jpeg", data: base64 } },
-            { type: "text", text: PROMPT },
-          ],
-        }],
+        messages: [{ role: "user", content: [
+          { type: "image", source: { type: "base64", media_type: "image/png", data: base64 } },
+          { type: "text", text: PROMPT },
+        ]}],
       });
-
       const text = response.content[0]?.type === "text" ? response.content[0].text.trim() : "";
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        entry.error = `Pas de JSON dans la réponse Claude`;
-        report.push(entry);
-        continue;
-      }
-      parsed = JSON.parse(jsonMatch[0]);
+      const m = text.match(/\{[\s\S]*\}/);
+      if (!m) { entry.error = "Pas de JSON dans la réponse Claude"; report.push(entry); continue; }
+      parsed = JSON.parse(m[0]);
     } catch (err) {
       entry.error = err instanceof Error ? err.message : "Erreur Anthropic";
       report.push(entry);
@@ -199,73 +166,104 @@ export async function POST(req: Request) {
     entry.extracted.metro = parsed.charges_metro?.length ?? 0;
     entry.extracted.employes = parsed.charges_employes?.length ?? 0;
 
-    // 3. Insert charges_metro
+    // 3 — Load existing charges for this month into a dedup Set (1 query)
+    const { data: existingCharges } = await supabase
+      .from("charges")
+      .select("date,montant,fournisseur")
+      .gte("date", startDate)
+      .lte("date", endDate);
+    const chargeKeys = new Set(
+      (existingCharges ?? []).map((c: { date: string; montant: number; fournisseur: string | null }) =>
+        `${c.date}|${c.montant}|${c.fournisseur ?? ""}`)
+    );
+
+    const { data: existingSessions } = await supabase
+      .from("work_sessions")
+      .select("date,heures,montant,employee_id")
+      .gte("date", startDate)
+      .lte("date", endDate);
+    const sessionKeys = new Set(
+      (existingSessions ?? []).map((s: { date: string; heures: number; montant: number; employee_id: string }) =>
+        `${s.date}|${s.heures}|${s.montant}|${s.employee_id}`)
+    );
+
+    // 4 — Insert charges_metro
     for (const item of parsed.charges_metro ?? []) {
       const date = parseFrDate(item.date);
       const montant = typeof item.montant === "number" ? item.montant : parseFloat(String(item.montant));
       if (!date || isNaN(montant)) continue;
+      const key = `${date}|${montant}|Métro`;
+      if (chargeKeys.has(key)) { entry.skipped++; continue; }
       const { error } = await supabase.from("charges").insert({
         date, montant, categorie: "restauration_metro",
         fournisseur: "Métro", description: item.objet,
         saison: "2025", statut_paiement: "paye", created_by: "import",
       });
-      if (!error) { entry.inserted.charges++; totalCharges++; }
+      if (!error) { entry.inserted.charges++; totalCharges++; chargeKeys.add(key); }
     }
 
-    // 4. Insert charges_diverses
+    // 5 — Insert charges_diverses
     for (const item of parsed.charges_diverses ?? []) {
       const date = parseFrDate(item.date);
       const montant = typeof item.montant === "number" ? item.montant : parseFloat(String(item.montant));
       if (!date || isNaN(montant)) continue;
       const categorie = guessCategorie(item.objet);
+      const key = `${date}|${montant}|${item.objet}`;
+      if (chargeKeys.has(key)) { entry.skipped++; continue; }
       const { error } = await supabase.from("charges").insert({
         date, montant, categorie, fournisseur: item.objet,
         description: item.objet, saison: "2025", statut_paiement: "paye", created_by: "import",
       });
-      if (!error) { entry.inserted.charges++; totalCharges++; }
+      if (!error) { entry.inserted.charges++; totalCharges++; chargeKeys.add(key); }
     }
 
-    // 5. Insert work sessions + salary charges
+    // 6 — Insert work sessions + salary charges
     for (const item of parsed.charges_employes ?? []) {
       const date = parseFrDate(item.date);
       const heures = typeof item.nb_heures === "number" ? item.nb_heures : parseFloat(String(item.nb_heures));
       const montant = typeof item.montant === "number" ? item.montant : parseFloat(String(item.montant));
       if (!date || isNaN(heures) || isNaN(montant)) continue;
-
       const nom = String(item.employe).trim();
-      let empId: string | null = null;
-      const { data: existingEmp } = await supabase
-        .from("employees").select("id").ilike("nom", nom).maybeSingle();
 
+      let empId: string | null = null;
+      const { data: existingEmp } = await supabase.from("employees").select("id").ilike("nom", nom).maybeSingle();
       if (existingEmp) {
         empId = existingEmp.id;
       } else {
-        const { data: newEmp } = await supabase
-          .from("employees")
+        const { data: newEmp } = await supabase.from("employees")
           .insert({ nom, tarif_horaire: heures > 0 ? Math.round((montant / heures) * 100) / 100 : 10, actif: true, saison_debut: "2025" })
           .select("id").single();
         empId = newEmp?.id ?? null;
       }
 
       if (empId) {
-        await supabase.from("work_sessions").insert({
-          employee_id: empId, date, heures, montant,
-          saison: "2025", created_by: "import",
-        });
-        entry.inserted.sessions++;
-        totalSessions++;
+        const sessKey = `${date}|${heures}|${montant}|${empId}`;
+        if (!sessionKeys.has(sessKey)) {
+          const { error } = await supabase.from("work_sessions").insert({
+            employee_id: empId, date, heures, montant, saison: "2025", created_by: "import",
+          });
+          if (!error) { entry.inserted.sessions++; totalSessions++; sessionKeys.add(sessKey); }
+        } else {
+          entry.skipped++;
+        }
       }
 
-      const { error: eSalaire } = await supabase.from("charges").insert({
-        date, montant, categorie: "salaire", fournisseur: nom,
-        description: `${heures}h — ${nom}`, saison: "2025",
-        statut_paiement: "paye", created_by: "import",
-      });
-      if (!eSalaire) { entry.inserted.charges++; totalCharges++; }
+      const salKey = `${date}|${montant}|${nom}`;
+      if (!chargeKeys.has(salKey)) {
+        const { error } = await supabase.from("charges").insert({
+          date, montant, categorie: "salaire", fournisseur: nom,
+          description: `${heures}h — ${nom}`, saison: "2025",
+          statut_paiement: "paye", created_by: "import",
+        });
+        if (!error) { entry.inserted.charges++; totalCharges++; chargeKeys.add(salKey); }
+      } else {
+        entry.skipped++;
+      }
     }
 
+    totalSkipped += entry.skipped;
     report.push(entry);
   }
 
-  return NextResponse.json({ totalCharges, totalSessions, months, report });
+  return NextResponse.json({ totalCharges, totalSessions, totalSkipped, months, report });
 }

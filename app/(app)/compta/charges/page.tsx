@@ -19,17 +19,6 @@ const MODES_PAIEMENT = ["CB", "Espèces", "Virement", "Chèque"];
 
 type Tab = "upload" | "manuel" | "employes";
 
-interface FileReport {
-  file: string;
-  extractedDiverses: number;
-  extractedMetro: number;
-  extractedEmployes: number;
-  insertedCharges: number;
-  insertedSessions: number;
-  rawJson: string;
-  error: string | null;
-}
-
 interface ExtractedData {
   date?: string;
   montant_total?: number;
@@ -59,13 +48,6 @@ export default function ChargesPage() {
   const [saving, setSaving] = useState(false);
   const [filterCat, setFilterCat] = useState<ChargeCategory | "all">("all");
   const [filterMois, setFilterMois] = useState<string>("all");
-  const [importImagesDone, setImportImagesDone] = useState(false);
-  const [importingImages, setImportingImages] = useState(false);
-  const [importImagesResult, setImportImagesResult] = useState<string | null>(null);
-  const [importImagesError, setImportImagesError] = useState<string | null>(null);
-  const [importImagesDiag, setImportImagesDiag] = useState<Record<string, unknown> | null>(null);
-  const [importReport, setImportReport] = useState<FileReport[] | null>(null);
-  const [expandedRaw, setExpandedRaw] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
   const [resetMsg, setResetMsg] = useState<string | null>(null);
   const [importingMonth, setImportingMonth] = useState<string | null>(null);
@@ -92,10 +74,6 @@ export default function ChargesPage() {
     notes: "",
   });
   const [viewingEmpId, setViewingEmpId] = useState<string | null>(null);
-
-  useEffect(() => {
-    setImportImagesDone(localStorage.getItem("bp_compta_images_imported") === "1");
-  }, []);
 
   const isAll = saison === "all";
 
@@ -249,40 +227,6 @@ export default function ChargesPage() {
     }
   }
 
-  async function handleImportImages() {
-    setImportingImages(true);
-    setImportImagesError(null);
-    setImportImagesResult(null);
-    setImportImagesDiag(null);
-    setImportReport(null);
-    setExpandedRaw(null);
-    try {
-      const res = await fetch("/api/import-compta-images", { method: "POST" });
-      const data = await res.json() as {
-        charges?: number; sessions?: number; files?: number; fileNames?: string[];
-        report?: FileReport[]; errors?: string[]; error?: string;
-        diag?: Record<string, unknown>;
-      };
-      if (data.diag) setImportImagesDiag(data.diag);
-      if (data.report) setImportReport(data.report);
-      if (res.ok) {
-        setImportImagesResult(`${data.charges ?? 0} charges + ${data.sessions ?? 0} sessions — ${data.files ?? 0} fichier(s)`);
-        if ((data.errors ?? []).length > 0) {
-          setImportImagesError(`Avertissements : ${data.errors!.join(" | ")}`);
-        }
-        localStorage.setItem("bp_compta_images_imported", "1");
-        setImportImagesDone(true);
-        await load();
-      } else {
-        setImportImagesError(data.error ?? `Erreur serveur ${res.status}`);
-      }
-    } catch (err) {
-      setImportImagesError(err instanceof Error ? err.message : "Erreur réseau");
-    } finally {
-      setImportingImages(false);
-    }
-  }
-
   async function handleImportMonth(month: string) {
     setImportingMonth(month);
     setMonthReports((r) => ({ ...r, [month]: "…" }));
@@ -327,8 +271,6 @@ export default function ChargesPage() {
       const data = await res.json() as { charges?: number; sessions?: number; employees?: number; error?: string };
       if (res.ok) {
         setResetMsg(`Reset OK — ${data.charges ?? 0} charges, ${data.sessions ?? 0} sessions, ${data.employees ?? 0} employés supprimés`);
-        localStorage.removeItem("bp_compta_images_imported");
-        setImportImagesDone(false);
         await load();
       } else {
         setResetMsg(`Erreur : ${data.error}`);
@@ -388,21 +330,6 @@ export default function ChargesPage() {
             {[...SAISONS].reverse().map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
           <button
-            onClick={handleImportImages}
-            disabled={importingImages}
-            className={`btn-secondary gap-2 text-xs ${importImagesDone && !importImagesError ? "opacity-60" : ""}`}
-          >
-            {importingImages ? (
-              <svg className="animate-spin" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-            ) : (
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            )}
-            Importer compta 2025
-          </button>
-          {importImagesResult && !importImagesError && (
-            <span className="text-xs text-green-600 font-medium max-w-xs">{importImagesResult}</span>
-          )}
-          <button
             onClick={handleReset}
             disabled={resetting}
             className="btn-secondary gap-2 text-xs"
@@ -420,16 +347,29 @@ export default function ChargesPage() {
               {resetMsg}
             </span>
           )}
+        </div>
+      </div>
+
+      {/* ── Import données 2025 ── */}
+      <div
+        className="rounded-xl border border-surface-border bg-white p-4 space-y-3"
+        style={{ opacity: 0, animation: "slideUp 0.4s cubic-bezier(0.16,1,0.3,1) 0.08s forwards" }}
+      >
+        <p className="text-sm font-semibold text-ink">Import données 2025</p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
           {([
             { month: "2025-04", label: "Avril" },
+            { month: "2025-05", label: "Mai" },
+            { month: "2025-06", label: "Juin" },
             { month: "2025-07", label: "Juillet" },
+            { month: "2025-08", label: "Août" },
             { month: "2025-09", label: "Septembre" },
           ]).map(({ month, label }) => (
-            <div key={month} className="flex flex-col gap-0.5">
+            <div key={month} className="flex flex-col gap-1">
               <button
                 onClick={() => handleImportMonth(month)}
                 disabled={importingMonth !== null}
-                className="btn-secondary gap-1.5 text-xs"
+                className="btn-secondary gap-1.5 text-xs w-full justify-center"
                 style={{ color: "#F59E0B", borderColor: "rgba(245,158,11,0.3)" }}
               >
                 {importingMonth === month ? (
@@ -440,7 +380,7 @@ export default function ChargesPage() {
                 {label}
               </button>
               {monthReports[month] && (
-                <span className="text-[10px] font-mono leading-tight max-w-[160px]"
+                <span className="text-[10px] font-mono leading-tight"
                   style={{ color: monthReports[month].startsWith("❌") ? "#E03131" : "#16A34A" }}>
                   {monthReports[month]}
                 </span>
@@ -449,83 +389,6 @@ export default function ChargesPage() {
           ))}
         </div>
       </div>
-
-      {/* ── Import report ── */}
-      {importReport && importReport.length > 0 && (
-        <div
-          className="rounded-xl border border-surface-border bg-white p-4 space-y-3"
-          style={{ opacity: 0, animation: "slideUp 0.3s cubic-bezier(0.16,1,0.3,1) forwards" }}
-        >
-          <p className="text-sm font-semibold text-ink">Rapport d&apos;import par fichier</p>
-          <div className="space-y-2">
-            {importReport.map((r) => (
-              <div key={r.file} className={`rounded-lg border px-3 py-2.5 space-y-1 ${r.error ? "border-red-200 bg-red-50" : "border-surface-border bg-surface-muted/40"}`}>
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <span className="text-xs font-mono font-semibold text-ink">{r.file}</span>
-                  {r.error ? (
-                    <span className="text-xs text-red-600 font-medium">{r.error.slice(0, 120)}</span>
-                  ) : (
-                    <span className="text-xs text-green-600 font-semibold">+{r.insertedCharges} charges, +{r.insertedSessions} sessions</span>
-                  )}
-                </div>
-                {!r.error && (
-                  <div className="flex gap-4 flex-wrap">
-                    <span className="text-[11px] text-ink-muted">Diverses extraites : <span className="font-semibold text-ink">{r.extractedDiverses}</span></span>
-                    <span className="text-[11px] text-ink-muted">Métro extraites : <span className="font-semibold text-ink">{r.extractedMetro}</span></span>
-                    <span className="text-[11px] text-ink-muted">Employés extraits : <span className="font-semibold text-ink">{r.extractedEmployes}</span></span>
-                  </div>
-                )}
-                {r.rawJson && (
-                  <div>
-                    <button
-                      onClick={() => setExpandedRaw(expandedRaw === r.file ? null : r.file)}
-                      className="text-[11px] text-ink-muted underline hover:text-ink"
-                    >
-                      {expandedRaw === r.file ? "Masquer" : "Voir JSON brut"}
-                    </button>
-                    {expandedRaw === r.file && (
-                      <pre className="mt-1 text-[10px] font-mono bg-zinc-900 text-green-400 rounded-lg p-3 overflow-x-auto max-h-64 whitespace-pre-wrap">
-                        {r.rawJson}
-                      </pre>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-          {importImagesDiag && (
-            <div className="rounded-lg bg-surface-muted border border-surface-border px-3 py-2 space-y-1">
-              <p className="text-[11px] font-semibold text-ink-muted uppercase tracking-wide">Diagnostic</p>
-              <p className="text-xs text-ink-secondary">Dossier trouvé : <span className={importImagesDiag.dirExists ? "text-green-600" : "text-red-600"}>{importImagesDiag.dirExists ? "Oui" : "Non"}</span></p>
-              <p className="text-xs text-ink-secondary">Images : <span className="font-mono text-ink">{String(importImagesDiag.filesFound)}</span></p>
-              <p className="text-xs text-ink-secondary">Clé Anthropic : <span className={importImagesDiag.hasApiKey ? "text-green-600" : "text-red-600"}>{importImagesDiag.hasApiKey ? "OK" : "MANQUANTE"}</span></p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── Import fatal error (avant tout rapport) ── */}
-      {importImagesError && !importReport && (
-        <div
-          className="rounded-xl border border-red-200 bg-red-50 p-4 space-y-2"
-          style={{ opacity: 0, animation: "slideUp 0.3s cubic-bezier(0.16,1,0.3,1) forwards" }}
-        >
-          <div className="flex items-start gap-2">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#E03131" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 mt-0.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-            <p className="text-sm font-semibold text-red-700">Erreur import compta 2025</p>
-          </div>
-          <p className="text-xs text-red-600 ml-5">{importImagesError}</p>
-          {importImagesDiag && (
-            <div className="ml-5 mt-2 rounded-lg bg-white border border-red-100 px-3 py-2 space-y-1">
-              <p className="text-[11px] font-semibold text-red-500 uppercase tracking-wide">Diagnostic</p>
-              <p className="text-xs text-ink-secondary font-mono">Dossier : <span className="text-ink">{String(importImagesDiag.dirPath)}</span></p>
-              <p className="text-xs text-ink-secondary">Dossier trouvé : <span className={importImagesDiag.dirExists ? "text-green-600" : "text-red-600"}>{importImagesDiag.dirExists ? "Oui" : "Non"}</span></p>
-              <p className="text-xs text-ink-secondary">Images trouvées : <span className="font-mono text-ink">{String(importImagesDiag.filesFound)}</span></p>
-              <p className="text-xs text-ink-secondary">Clé API Anthropic : <span className={importImagesDiag.hasApiKey ? "text-green-600" : "text-red-600"}>{importImagesDiag.hasApiKey ? "Configurée" : "MANQUANTE"}</span></p>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* ── Tabs ── */}
       <div
