@@ -68,8 +68,8 @@ export default function ChargesPage() {
   const [expandedRaw, setExpandedRaw] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
   const [resetMsg, setResetMsg] = useState<string | null>(null);
-  const [importingMissing, setImportingMissing] = useState(false);
-  const [importMissingReport, setImportMissingReport] = useState<string | null>(null);
+  const [importingMonth, setImportingMonth] = useState<string | null>(null);
+  const [monthReports, setMonthReports] = useState<Record<string, string>>({});
 
   // Upload + AI
   const fileRef = useRef<HTMLInputElement>(null);
@@ -283,35 +283,38 @@ export default function ChargesPage() {
     }
   }
 
-  async function handleImportMissingMonths() {
-    setImportingMissing(true);
-    setImportMissingReport(null);
+  async function handleImportMonth(month: string) {
+    setImportingMonth(month);
+    setMonthReports((r) => ({ ...r, [month]: "…" }));
     try {
       const res = await fetch("/api/import-specific-months", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ months: ["2025-04", "2025-07", "2025-09"] }),
+        body: JSON.stringify({ months: [month] }),
       });
       const data = await res.json() as {
-        totalCharges?: number; totalSessions?: number;
         report?: { month: string; deleted: { charges: number; sessions: number }; extracted: { diverses: number; metro: number; employes: number }; inserted: { charges: number; sessions: number }; error: string | null }[];
         error?: string;
       };
-      if (res.ok && data.report) {
-        const lines = data.report.map((r) =>
-          r.error
-            ? `${r.month} : ERREUR — ${r.error}`
-            : `${r.month} : -${r.deleted.charges}c/-${r.deleted.sessions}s supprimés → +${r.inserted.charges}c/+${r.inserted.sessions}s insérés (extrait : ${r.extracted.diverses}div+${r.extracted.metro}met+${r.extracted.employes}emp)`
-        );
-        setImportMissingReport(lines.join("\n"));
-        await load();
+      if (!res.ok) {
+        setMonthReports((r) => ({ ...r, [month]: `❌ ${data.error ?? res.status}` }));
+        return;
+      }
+      const entry = data.report?.[0];
+      if (!entry) { setMonthReports((r) => ({ ...r, [month]: "❌ Pas de rapport" })); return; }
+      if (entry.error) {
+        setMonthReports((r) => ({ ...r, [month]: `❌ ${entry.error}` }));
       } else {
-        setImportMissingReport(`Erreur : ${data.error ?? res.status}`);
+        setMonthReports((r) => ({
+          ...r,
+          [month]: `✓ +${entry.inserted.charges}c +${entry.inserted.sessions}s (extrait: ${entry.extracted.diverses}div ${entry.extracted.metro}met ${entry.extracted.employes}emp)`,
+        }));
+        await load();
       }
     } catch (err) {
-      setImportMissingReport(err instanceof Error ? err.message : "Erreur réseau");
+      setMonthReports((r) => ({ ...r, [month]: `❌ ${err instanceof Error ? err.message : "Erreur réseau"}` }));
     } finally {
-      setImportingMissing(false);
+      setImportingMonth(null);
     }
   }
 
@@ -417,24 +420,33 @@ export default function ChargesPage() {
               {resetMsg}
             </span>
           )}
-          <button
-            onClick={handleImportMissingMonths}
-            disabled={importingMissing}
-            className="btn-secondary gap-2 text-xs"
-            style={{ color: "#F59E0B", borderColor: "rgba(245,158,11,0.3)" }}
-          >
-            {importingMissing ? (
-              <svg className="animate-spin" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-            ) : (
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            )}
-            Avr/Juil/Sept
-          </button>
-          {importMissingReport && (
-            <pre className="text-[10px] font-mono max-w-md whitespace-pre-wrap" style={{ color: importMissingReport.includes("ERREUR") ? "#E03131" : "#16A34A" }}>
-              {importMissingReport}
-            </pre>
-          )}
+          {([
+            { month: "2025-04", label: "Avril" },
+            { month: "2025-07", label: "Juillet" },
+            { month: "2025-09", label: "Septembre" },
+          ]).map(({ month, label }) => (
+            <div key={month} className="flex flex-col gap-0.5">
+              <button
+                onClick={() => handleImportMonth(month)}
+                disabled={importingMonth !== null}
+                className="btn-secondary gap-1.5 text-xs"
+                style={{ color: "#F59E0B", borderColor: "rgba(245,158,11,0.3)" }}
+              >
+                {importingMonth === month ? (
+                  <svg className="animate-spin" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                ) : (
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                )}
+                {label}
+              </button>
+              {monthReports[month] && (
+                <span className="text-[10px] font-mono leading-tight max-w-[160px]"
+                  style={{ color: monthReports[month].startsWith("❌") ? "#E03131" : "#16A34A" }}>
+                  {monthReports[month]}
+                </span>
+              )}
+            </div>
+          ))}
         </div>
       </div>
 

@@ -54,9 +54,18 @@ function guessCategorie(objet: string): string {
 
 function parseFrDate(dateStr: string, year = 2025): string | null {
   const moisFr: Record<string, number> = {
-    janvier: 1, février: 2, fevrier: 2, mars: 3, avril: 4,
-    mai: 5, juin: 6, juillet: 7, août: 8, aout: 8,
-    septembre: 9, octobre: 10, novembre: 11, décembre: 12, decembre: 12,
+    jan: 1, janv: 1, janvier: 1,
+    fev: 2, fév: 2, févr: 2, fevr: 2, février: 2, fevrier: 2,
+    mar: 3, mars: 3,
+    avr: 4, avril: 4,
+    mai: 5,
+    jun: 6, juin: 6,
+    juil: 7, juillet: 7,
+    aou: 8, aout: 8, août: 8,
+    sep: 9, sept: 9, septembre: 9,
+    oct: 10, octobre: 10,
+    nov: 11, novembre: 11,
+    dec: 12, déc: 12, décembre: 12, decembre: 12,
   };
   const match = String(dateStr).match(/(\d+)[- ]?([a-zA-Zéèûôîêâàùüïëäÿœæ]+)/);
   if (!match) return null;
