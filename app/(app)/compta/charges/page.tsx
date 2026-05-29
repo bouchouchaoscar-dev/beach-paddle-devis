@@ -56,6 +56,8 @@ export default function ChargesPage() {
   const [expandedRawMonth, setExpandedRawMonth] = useState<string | null>(null);
   const [testJuilletLoading, setTestJuilletLoading] = useState(false);
   const [testJuilletRaw, setTestJuilletRaw] = useState<string | null>(null);
+  const [debugJuilletLoading, setDebugJuilletLoading] = useState(false);
+  const [debugJuilletRaw, setDebugJuilletRaw] = useState<string | null>(null);
   const [editingCharge, setEditingCharge] = useState<typeof charges[0] | null>(null);
   const [editForm, setEditForm] = useState({ date: "", montant: "", categorie: "autre" as ChargeCategory, fournisseur: "", description: "" });
   const [editSaving, setEditSaving] = useState(false);
@@ -331,6 +333,24 @@ export default function ChargesPage() {
     }
   }
 
+  async function handleDebugJuillet() {
+    setDebugJuilletLoading(true);
+    setDebugJuilletRaw(null);
+    try {
+      const res = await fetch("/api/debug-juillet");
+      const data = await res.json() as { ok?: boolean; steps?: Record<string, string>; error?: string };
+      if (data.error) {
+        setDebugJuilletRaw(`❌ Erreur : ${data.error}`);
+      } else {
+        setDebugJuilletRaw(JSON.stringify(data.steps ?? data, null, 2));
+      }
+    } catch (err) {
+      setDebugJuilletRaw(`❌ Réseau : ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setDebugJuilletLoading(false);
+    }
+  }
+
   // ── Derived ────────────────────────────────────────────────────────────────
 
   const filteredCharges = charges.filter((c) => {
@@ -472,10 +492,33 @@ export default function ChargesPage() {
                 Masquer
               </button>
             )}
+            <button
+              onClick={handleDebugJuillet}
+              disabled={debugJuilletLoading}
+              className="btn-secondary gap-1.5 text-xs"
+              style={{ color: "#D97706", borderColor: "rgba(217,119,6,0.3)" }}
+            >
+              {debugJuilletLoading ? (
+                <svg className="animate-spin" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+              ) : (
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+              )}
+              Debug Juillet
+            </button>
+            {debugJuilletRaw && (
+              <button onClick={() => setDebugJuilletRaw(null)} className="text-xs text-ink-muted underline hover:text-ink">
+                Masquer debug
+              </button>
+            )}
           </div>
           {testJuilletRaw && (
             <pre className="text-[10px] font-mono bg-zinc-900 text-green-400 rounded-xl p-3 overflow-x-auto max-h-96 whitespace-pre-wrap">
               {testJuilletRaw}
+            </pre>
+          )}
+          {debugJuilletRaw && (
+            <pre className="text-[10px] font-mono bg-zinc-900 text-amber-300 rounded-xl p-3 overflow-x-auto max-h-96 whitespace-pre-wrap">
+              {debugJuilletRaw}
             </pre>
           )}
         </div>
