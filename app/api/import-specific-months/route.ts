@@ -115,6 +115,7 @@ export async function POST(req: Request) {
     inserted: { charges: number; sessions: number };
     skipped: number;
     error: string | null;
+    rawText: string;
   }[] = [];
 
   for (const month of months) {
@@ -126,6 +127,7 @@ export async function POST(req: Request) {
       inserted: { charges: 0, sessions: 0 },
       skipped: 0,
       error: null as string | null,
+      rawText: "",
     };
 
     if (!file) { entry.error = `Aucun PNG pour ${month}`; report.push(entry); continue; }
@@ -152,10 +154,29 @@ export async function POST(req: Request) {
           { type: "text", text: PROMPT },
         ]}],
       });
-      const text = response.content[0]?.type === "text" ? response.content[0].text.trim() : "";
-      const m = text.match(/\{[\s\S]*\}/);
-      if (!m) { entry.error = "Pas de JSON dans la réponse Claude"; report.push(entry); continue; }
-      parsed = JSON.parse(m[0]);
+      const rawText = response.content[0]?.type === "text" ? response.content[0].text.trim() : "";
+      entry.rawText = rawText;
+
+      // Strip markdown code fences Claude may wrap the JSON in
+      const clean = rawText
+        .replace(/^```json\s*/i, "")
+        .replace(/^```\s*/i, "")
+        .replace(/\s*```$/i, "")
+        .trim();
+
+      const m = clean.match(/\{[\s\S]*\}/);
+      if (!m) {
+        entry.error = `Pas de JSON dans la réponse Claude. Début réponse : ${rawText.slice(0, 200)}`;
+        report.push(entry);
+        continue;
+      }
+      try {
+        parsed = JSON.parse(m[0]);
+      } catch (parseErr) {
+        entry.error = `JSON invalide : ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`;
+        report.push(entry);
+        continue;
+      }
     } catch (err) {
       entry.error = err instanceof Error ? err.message : "Erreur Anthropic";
       report.push(entry);

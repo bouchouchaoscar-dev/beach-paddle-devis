@@ -52,6 +52,8 @@ export default function ChargesPage() {
   const [resetMsg, setResetMsg] = useState<string | null>(null);
   const [importingMonth, setImportingMonth] = useState<string | null>(null);
   const [monthReports, setMonthReports] = useState<Record<string, string>>({});
+  const [monthRawTexts, setMonthRawTexts] = useState<Record<string, string>>({});
+  const [expandedRawMonth, setExpandedRawMonth] = useState<string | null>(null);
   const [editingCharge, setEditingCharge] = useState<typeof charges[0] | null>(null);
   const [editForm, setEditForm] = useState({ date: "", montant: "", categorie: "autre" as ChargeCategory, fournisseur: "", description: "" });
   const [editSaving, setEditSaving] = useState(false);
@@ -240,7 +242,7 @@ export default function ChargesPage() {
         body: JSON.stringify({ months: [month] }),
       });
       const data = await res.json() as {
-        report?: { month: string; deleted: { charges: number; sessions: number }; extracted: { diverses: number; metro: number; employes: number }; inserted: { charges: number; sessions: number }; error: string | null }[];
+        report?: { month: string; deleted: { charges: number; sessions: number }; extracted: { diverses: number; metro: number; employes: number }; inserted: { charges: number; sessions: number }; error: string | null; rawText?: string }[];
         error?: string;
       };
       if (!res.ok) {
@@ -249,6 +251,7 @@ export default function ChargesPage() {
       }
       const entry = data.report?.[0];
       if (!entry) { setMonthReports((r) => ({ ...r, [month]: "❌ Pas de rapport" })); return; }
+      if (entry.rawText) setMonthRawTexts((r) => ({ ...r, [month]: entry.rawText! }));
       if (entry.error) {
         setMonthReports((r) => ({ ...r, [month]: `❌ ${entry.error}` }));
       } else {
@@ -411,9 +414,22 @@ export default function ChargesPage() {
                   {monthReports[month]}
                 </span>
               )}
+              {monthRawTexts[month] && (
+                <button
+                  onClick={() => setExpandedRawMonth(expandedRawMonth === month ? null : month)}
+                  className="text-[10px] text-ink-muted underline hover:text-ink text-left"
+                >
+                  {expandedRawMonth === month ? "Masquer JSON" : "Voir JSON brut"}
+                </button>
+              )}
             </div>
           ))}
         </div>
+        {expandedRawMonth && monthRawTexts[expandedRawMonth] && (
+          <pre className="text-[10px] font-mono bg-zinc-900 text-green-400 rounded-xl p-3 overflow-x-auto max-h-72 whitespace-pre-wrap mt-1">
+            {monthRawTexts[expandedRawMonth]}
+          </pre>
+        )}
       </div>
 
       {/* ── Tabs ── */}
