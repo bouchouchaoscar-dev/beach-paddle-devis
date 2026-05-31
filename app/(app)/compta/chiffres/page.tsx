@@ -281,6 +281,7 @@ export default function ChiffresPage() {
               <label className="label">CA du jour (€)</label>
               <input
                 type="number"
+                inputMode="decimal"
                 value={form.montant}
                 min={0}
                 step={0.5}
@@ -323,6 +324,7 @@ export default function ChiffresPage() {
                       <label className="label">Montant acompte (€)</label>
                       <input
                         type="number"
+                        inputMode="decimal"
                         value={form.acompteMontant}
                         min={0}
                         step={0.5}
@@ -614,6 +616,7 @@ export default function ChiffresPage() {
               <label className="label">Montant (€)</label>
               <input
                 type="number"
+                inputMode="decimal"
                 value={editForm.montant}
                 min={0}
                 step={0.5}

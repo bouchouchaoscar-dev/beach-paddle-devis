@@ -443,7 +443,7 @@ export default function ChargesPage() {
                 </div>
                 <div>
                   <label className="label">Montant (€)</label>
-                  <input type="number" value={chargeForm.montant} min={0} step={0.01} placeholder="0.00" onChange={(e) => setChargeForm((f) => ({ ...f, montant: e.target.value }))} className="input-field font-mono" />
+                  <input type="number" inputMode="decimal" value={chargeForm.montant} min={0} step={0.01} placeholder="0.00" onChange={(e) => setChargeForm((f) => ({ ...f, montant: e.target.value }))} className="input-field font-mono" />
                 </div>
               </div>
 
@@ -500,7 +500,7 @@ export default function ChargesPage() {
                 </div>
                 <div>
                   <label className="label">Montant (€)</label>
-                  <input type="number" value={chargeForm.montant} min={0} step={0.01} placeholder="0.00" onChange={(e) => setChargeForm((f) => ({ ...f, montant: e.target.value }))} className="input-field font-mono" />
+                  <input type="number" inputMode="decimal" value={chargeForm.montant} min={0} step={0.01} placeholder="0.00" onChange={(e) => setChargeForm((f) => ({ ...f, montant: e.target.value }))} className="input-field font-mono" />
                 </div>
               </div>
               <div>
@@ -597,6 +597,7 @@ export default function ChargesPage() {
                   />
                   <input
                     type="number"
+                    inputMode="decimal"
                     value={newEmpTarif}
                     min={0}
                     step={0.5}
@@ -673,12 +674,13 @@ export default function ChargesPage() {
                 </div>
                 <div>
                   <label className="label">Ou nb heures (si pas d&apos;horaires)</label>
-                  <input type="number" value={sessionForm.heures} min={0} step={0.5} placeholder="Ex : 3.5" onChange={(e) => setSessionForm((f) => ({ ...f, heures: e.target.value }))} className="input-field" />
+                  <input type="number" inputMode="decimal" value={sessionForm.heures} min={0} step={0.5} placeholder="Ex : 3.5" onChange={(e) => setSessionForm((f) => ({ ...f, heures: e.target.value }))} className="input-field" />
                 </div>
                 <div>
                   <label className="label">Tarif horaire (€/h)</label>
                   <input
                     type="number"
+                    inputMode="decimal"
                     value={sessionForm.tarif}
                     min={0}
                     step={0.5}
@@ -827,7 +829,7 @@ export default function ChargesPage() {
               </div>
               <div>
                 <label className="label">Montant (€)</label>
-                <input type="number" value={editForm.montant} min={0} step={0.01} onChange={(e) => setEditForm((f) => ({ ...f, montant: e.target.value }))} className="input-field font-mono" />
+                <input type="number" inputMode="decimal" value={editForm.montant} min={0} step={0.01} onChange={(e) => setEditForm((f) => ({ ...f, montant: e.target.value }))} className="input-field font-mono" />
               </div>
             </div>
             <div>

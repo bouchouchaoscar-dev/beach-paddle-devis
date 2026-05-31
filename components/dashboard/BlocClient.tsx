@@ -170,6 +170,7 @@ export function BlocClient({ form, onChange }: Props) {
             </button>
             <input
               type="number"
+              inputMode="numeric"
               value={form.participantsCount}
               min={1}
               max={500}

@@ -408,6 +408,7 @@ function GuidedBuilder({
             <div className="relative">
               <input
                 type="number"
+                inputMode="decimal"
                 value={item.manualPrice ?? 0}
                 min={0}
                 step={0.5}
@@ -561,6 +562,7 @@ export function BlocSnacking({ form, onChange }: Props) {
                     <div className="relative flex-1 max-w-32">
                       <input
                         type="number"
+                        inputMode="decimal"
                         value={item.manualPrice ?? 0}
                         min={0}
                         step={0.5}

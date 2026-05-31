@@ -229,6 +229,7 @@ export function DocumentPreview({ form, calc, onClose, onFormChange, readOnly, e
         <div className="relative">
           <input
             type="number"
+            inputMode="decimal"
             value={acompteVerse}
             min={0}
             step={10}

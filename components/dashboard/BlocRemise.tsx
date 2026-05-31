@@ -132,6 +132,7 @@ export function BlocRemise({ form, onChange }: Props) {
               </button>
               <input
                 type="number"
+                inputMode="numeric"
                 value={discount.accompagnatorsCount}
                 min={0}
                 max={50}
