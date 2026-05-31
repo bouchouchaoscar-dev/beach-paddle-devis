@@ -69,13 +69,11 @@ export default function QontoPage() {
   const [rules, setRules] = useState<QontoRule[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const [resetting, setResetting] = useState(false);
   const [syncReport, setSyncReport] = useState<SyncReport | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<ExpandedState | null>(null);
   const [processing, setProcessing] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"pending" | "inclus" | "regles">("pending");
-  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -95,7 +93,8 @@ export default function QontoPage() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { handleSync(); }, []);
 
   const pendingTxs = transactions.filter((t) => t.statut === "en_attente");
   const inclusTxs = transactions.filter((t) => t.statut === "inclus");
@@ -146,27 +145,6 @@ export default function QontoPage() {
     }
   }
 
-  async function handleResetAndResync() {
-    setResetting(true);
-    setSyncReport(null);
-    setSyncError(null);
-    setShowResetConfirm(false);
-    setSelectedIds(new Set());
-    try {
-      const resetRes = await fetch("/api/qonto-reset", { method: "POST" });
-      const resetData = await resetRes.json();
-      if (resetData.error) { setSyncError(resetData.error); return; }
-
-      const syncRes = await fetch("/api/qonto-sync", { method: "POST" });
-      const syncData = await syncRes.json();
-      if (syncData.error) { setSyncError(syncData.error); } else { setSyncReport(syncData as SyncReport); }
-      await load();
-    } catch (err) {
-      setSyncError(err instanceof Error ? err.message : "Erreur réseau");
-    } finally {
-      setResetting(false);
-    }
-  }
 
   function openExpand(tx: QontoDbTransaction, action: "inclure" | "exclure") {
     if (expanded?.id === tx.id && expanded.action === action) { setExpanded(null); return; }
@@ -261,48 +239,12 @@ export default function QontoPage() {
           <p className="text-sm text-ink-secondary mt-0.5">Transactions bancaires — synchronisation automatique</p>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Reset */}
-          {!showResetConfirm ? (
-            <button
-              onClick={() => setShowResetConfirm(true)}
-              disabled={resetting || syncing}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-surface-border text-ink-secondary hover:border-red-300 hover:text-red-600 hover:bg-red-50 transition-all"
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="1 4 1 10 7 10"/>
-                <path d="M3.51 15a9 9 0 1 0 .49-4"/>
-              </svg>
-              Réinitialiser
-            </button>
-          ) : (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-50 border border-red-200 text-xs">
-              <span className="text-red-700 font-medium">Vider et resynchroniser ?</span>
-              <button
-                onClick={handleResetAndResync}
-                disabled={resetting}
-                className="px-2 py-0.5 rounded bg-red-600 text-white font-semibold hover:bg-red-700 transition-colors"
-              >
-                {resetting ? "…" : "Confirmer"}
-              </button>
-              <button onClick={() => setShowResetConfirm(false)} className="text-ink-muted hover:text-ink">Annuler</button>
-            </div>
-          )}
-
-          {/* Sync */}
-          <button
-            onClick={handleSync}
-            disabled={syncing || resetting}
-            className="btn-primary gap-2 shrink-0"
-            style={{ backgroundColor: "#0071E3" }}
-          >
-            {syncing ? (
-              <><svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>Synchronisation…</>
-            ) : (
-              <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Synchroniser Qonto</>
-            )}
-          </button>
-        </div>
+        {syncing && (
+          <div className="flex items-center gap-2 text-xs text-ink-secondary">
+            <svg className="animate-spin" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+            Synchronisation…
+          </div>
+        )}
       </div>
 
       {/* Sync error */}
