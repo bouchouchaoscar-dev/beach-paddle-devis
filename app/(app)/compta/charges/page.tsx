@@ -688,15 +688,41 @@ export default function ChargesPage() {
                   <label className="label">Date</label>
                   <DatePicker value={sessionForm.date} onChange={(v) => setSessionForm((f) => ({ ...f, date: v }))} allowPast />
                 </div>
-                <div className="flex flex-col gap-3">
-                  <div>
-                    <label className="label">Heure début</label>
-                    <input type="time" value={sessionForm.heureDebut} onChange={(e) => setSessionForm((f) => ({ ...f, heureDebut: e.target.value }))} className="input-field w-full box-border" />
-                  </div>
-                  <div>
-                    <label className="label">Heure fin</label>
-                    <input type="time" value={sessionForm.heureFin} onChange={(e) => setSessionForm((f) => ({ ...f, heureFin: e.target.value }))} className="input-field w-full box-border" />
-                  </div>
+                <div>
+                  <label className="label">Heure début</label>
+                  <select
+                    value={sessionForm.heureDebut}
+                    onChange={(e) => setSessionForm((f) => ({ ...f, heureDebut: e.target.value }))}
+                    className="input-field w-full appearance-none cursor-pointer"
+                    style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239C9890' stroke-width='2.5' stroke-linecap='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center", paddingRight: "32px" }}
+                  >
+                    <option value="">— Non définie</option>
+                    {Array.from({ length: 29 }, (_, i) => {
+                      const totalMinutes = 8 * 60 + i * 30;
+                      const h = Math.floor(totalMinutes / 60);
+                      const m = totalMinutes % 60;
+                      const val = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+                      return <option key={val} value={val}>{val}</option>;
+                    })}
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Heure fin</label>
+                  <select
+                    value={sessionForm.heureFin}
+                    onChange={(e) => setSessionForm((f) => ({ ...f, heureFin: e.target.value }))}
+                    className="input-field w-full appearance-none cursor-pointer"
+                    style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239C9890' stroke-width='2.5' stroke-linecap='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center", paddingRight: "32px" }}
+                  >
+                    <option value="">— Non définie</option>
+                    {Array.from({ length: 29 }, (_, i) => {
+                      const totalMinutes = 8 * 60 + i * 30;
+                      const h = Math.floor(totalMinutes / 60);
+                      const m = totalMinutes % 60;
+                      const val = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+                      return <option key={val} value={val}>{val}</option>;
+                    })}
+                  </select>
                 </div>
                 <div>
                   <label className="label">Ou nb heures (si pas d&apos;horaires)</label>
