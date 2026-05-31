@@ -29,7 +29,7 @@ function Checkbox({ checked, indeterminate, onChange }: { checked: boolean; inde
   return (
     <button
       onClick={(e) => { e.stopPropagation(); onChange(); }}
-      className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors shrink-0 ${
+      className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors shrink-0 ${
         checked || indeterminate
           ? "bg-brand-teal border-brand-teal"
           : "border-surface-border hover:border-brand-teal bg-white"
@@ -79,7 +79,6 @@ export default function QontoPage() {
   const inclusTxs = transactions.filter((t) => t.statut === "inclus");
   const visibleTxs = activeTab === "pending" ? pendingTxs : inclusTxs;
 
-  // Clear selection on tab change
   function switchTab(tab: typeof activeTab) {
     setActiveTab(tab);
     setSelectedIds(new Set());
@@ -87,7 +86,6 @@ export default function QontoPage() {
     setShowBulkInclude(false);
   }
 
-  // ── Selection helpers ────────────────────────────────────────────────────
   function toggleSelect(id: string) {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -108,7 +106,6 @@ export default function QontoPage() {
   const someSelected = visibleTxs.some((t) => selectedIds.has(t.id)) && !allSelected;
   const selectedCount = Array.from(selectedIds).filter((id) => visibleTxs.some((t) => t.id === id)).length;
 
-  // ── API calls ────────────────────────────────────────────────────────────
   function openExpand(tx: QontoDbTransaction, action: "inclure" | "exclure") {
     if (expanded?.id === tx.id && expanded.action === action) { setExpanded(null); return; }
     setExpanded({ id: tx.id, action, categorie: (tx.categorie as ChargeCategory) ?? "autre", fournisseur: tx.fournisseur ?? tx.libelle ?? "", memoriser: false });
@@ -145,7 +142,6 @@ export default function QontoPage() {
     } finally { setProcessing(null); }
   }
 
-  // ── Bulk actions ─────────────────────────────────────────────────────────
   async function handleBulkAction(action: "exclude" | "include" | "delete", categorie?: string) {
     const ids = Array.from(selectedIds).filter((id) => visibleTxs.some((t) => t.id === id));
     if (!ids.length) return;
@@ -184,29 +180,23 @@ export default function QontoPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6 pb-32">
+    <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6 pb-32">
 
       {/* Header */}
-      <div
-        className="flex items-start justify-between flex-wrap gap-4"
-        style={{ opacity: 0, animation: "slideUp 0.4s cubic-bezier(0.16,1,0.3,1) 0.05s forwards" }}
-      >
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-ink flex items-center gap-2.5">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0071E3" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>
-              <line x1="6" y1="15" x2="10" y2="15"/><line x1="14" y1="15" x2="16" y2="15"/>
-            </svg>
-            Qonto
-          </h1>
-          <p className="text-sm text-ink-secondary mt-0.5">Transactions bancaires — synchronisation automatique</p>
-        </div>
-
+      <div style={{ opacity: 0, animation: "slideUp 0.4s cubic-bezier(0.16,1,0.3,1) 0.05s forwards" }}>
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-ink flex items-center gap-2.5">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0071E3" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>
+            <line x1="6" y1="15" x2="10" y2="15"/><line x1="14" y1="15" x2="16" y2="15"/>
+          </svg>
+          Qonto
+        </h1>
+        <p className="text-xs sm:text-sm text-ink-secondary mt-0.5">Transactions bancaires — synchronisation automatique</p>
       </div>
 
-      {/* Tabs */}
+      {/* Tabs — full width on mobile */}
       <div
-        className="flex items-center gap-1 p-1 bg-surface-muted rounded-xl border border-surface-border w-fit"
+        className="flex items-center gap-1 p-1 bg-surface-muted rounded-xl border border-surface-border w-full sm:w-fit"
         style={{ opacity: 0, animation: "slideUp 0.4s cubic-bezier(0.16,1,0.3,1) 0.1s forwards" }}
       >
         {([
@@ -215,21 +205,21 @@ export default function QontoPage() {
           { id: "regles" as const, label: "Règles", count: rules.length },
         ]).map((tab) => (
           <button key={tab.id} onClick={() => switchTab(tab.id)}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+            className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 whitespace-nowrap ${
               activeTab === tab.id ? "bg-white shadow-soft text-brand-teal" : "text-ink-secondary hover:text-ink"
             }`}
           >
             {tab.label}
             {tab.count > 0 && (
-              <span className={`inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold ${
-                tab.countColor ? `${tab.countColor} text-white` : "bg-surface-muted text-ink-secondary"
+              <span className={`inline-flex items-center justify-center min-w-[16px] h-[16px] sm:min-w-[18px] sm:h-[18px] px-1 rounded-full text-[9px] sm:text-[10px] font-bold ${
+                tab.countColor ? `${tab.countColor} text-white` : "bg-surface-border text-ink-secondary"
               }`}>{tab.count}</span>
             )}
           </button>
         ))}
       </div>
 
-      {/* ── Tab: En attente + Incluses (shared list logic) ── */}
+      {/* ── Tab: En attente + Incluses ── */}
       {(activeTab === "pending" || activeTab === "inclus") && (
         <div style={{ opacity: 0, animation: "slideUp 0.4s cubic-bezier(0.16,1,0.3,1) 0.15s forwards" }}>
           {visibleTxs.length === 0 ? (
@@ -245,7 +235,7 @@ export default function QontoPage() {
           ) : (
             <div className="card overflow-hidden">
               {/* Select-all header */}
-              <div className="flex items-center gap-3 px-4 py-2.5 border-b border-surface-border bg-surface-muted/30">
+              <div className="flex items-center gap-3 px-3 sm:px-4 py-2.5 border-b border-surface-border bg-surface-muted/30">
                 <Checkbox checked={allSelected} indeterminate={someSelected} onChange={toggleSelectAll} />
                 <span className="text-xs text-ink-secondary">
                   {selectedCount > 0
@@ -266,83 +256,119 @@ export default function QontoPage() {
                   const isLoading = processing === tx.id;
 
                   return (
-                    <div key={tx.id} className={isChecked ? "bg-brand-teal-light/20" : ""}>
+                    <div key={tx.id} className={`group ${isChecked ? "bg-brand-teal-light/20" : ""}`}>
                       {/* Main row */}
-                      <div className={`flex items-center gap-3 px-4 py-3 transition-colors ${isExpandedHere ? "bg-surface-muted/50" : "hover:bg-surface-muted/20"}`}>
+                      <div className={`flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3 transition-colors ${isExpandedHere ? "bg-surface-muted/50" : "hover:bg-surface-muted/20"}`}>
                         <Checkbox checked={isChecked} onChange={() => toggleSelect(tx.id)} />
-                        <div className="shrink-0 text-xs text-ink-muted font-mono w-14">{fmtDate(tx.date)}</div>
+
+                        {/* Libellé + date sous le libellé sur mobile */}
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-ink truncate">{tx.libelle}</p>
+                          <p className="text-[11px] text-ink-muted font-mono mt-0.5 sm:hidden">{fmtDate(tx.date)}</p>
                           {activeTab === "inclus" && tx.categorie && (
                             <p className="text-[11px] text-ink-muted mt-0.5">{CHARGE_LABELS[tx.categorie as ChargeCategory] ?? tx.categorie}</p>
                           )}
                         </div>
+
+                        {/* Date: desktop uniquement */}
+                        <div className="hidden sm:block shrink-0 text-xs text-ink-muted font-mono w-14">{fmtDate(tx.date)}</div>
+
+                        {/* Montant */}
                         <div className="shrink-0 text-sm font-bold text-ink tabular-nums font-mono">{formatPrice(tx.montant)}</div>
 
                         {activeTab === "pending" ? (
+                          <>
+                            {/* Mobile : icônes seules */}
+                            <div className="flex items-center gap-1 shrink-0 sm:hidden">
+                              <button onClick={() => openExpand(tx, "inclure")} disabled={isLoading}
+                                className={`w-9 h-9 flex items-center justify-center rounded-lg border transition-all ${
+                                  isExpandedHere && expanded?.action === "inclure"
+                                    ? "bg-green-600 text-white border-green-600"
+                                    : "bg-green-50 text-green-700 border-green-200 active:bg-green-100"
+                                }`}>
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                              </button>
+                              <button onClick={() => openExpand(tx, "exclure")} disabled={isLoading}
+                                className={`w-9 h-9 flex items-center justify-center rounded-lg border transition-all ${
+                                  isExpandedHere && expanded?.action === "exclure"
+                                    ? "bg-red-600 text-white border-red-600"
+                                    : "bg-red-50 text-red-600 border-red-200 active:bg-red-100"
+                                }`}>
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                                </svg>
+                              </button>
+                            </div>
+                            {/* Desktop : icône + texte */}
+                            <div className="hidden sm:flex items-center gap-1.5 shrink-0">
+                              <button onClick={() => openExpand(tx, "inclure")} disabled={isLoading}
+                                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all ${
+                                  isExpandedHere && expanded?.action === "inclure"
+                                    ? "bg-green-600 text-white border-green-600"
+                                    : "bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
+                                }`}>
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                                Inclure
+                              </button>
+                              <button onClick={() => openExpand(tx, "exclure")} disabled={isLoading}
+                                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all ${
+                                  isExpandedHere && expanded?.action === "exclure"
+                                    ? "bg-red-600 text-white border-red-600"
+                                    : "bg-red-50 text-red-600 border-red-200 hover:bg-red-100"
+                                }`}>
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                                </svg>
+                                Exclure
+                              </button>
+                            </div>
+                          </>
+                        ) : (
                           <div className="flex items-center gap-1.5 shrink-0">
-                            <button onClick={() => openExpand(tx, "inclure")} disabled={isLoading}
-                              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all ${
-                                isExpandedHere && expanded?.action === "inclure"
-                                  ? "bg-green-600 text-white border-green-600"
-                                  : "bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
-                              }`}>
-                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                              Inclure
-                            </button>
-                            <button onClick={() => openExpand(tx, "exclure")} disabled={isLoading}
-                              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all ${
-                                isExpandedHere && expanded?.action === "exclure"
-                                  ? "bg-red-600 text-white border-red-600"
-                                  : "bg-red-50 text-red-600 border-red-200 hover:bg-red-100"
-                              }`}>
-                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <span className="hidden sm:inline px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-semibold">incluse</span>
+                            {/* Toujours visible sur mobile, hover sur desktop */}
+                            <button onClick={() => handleReject(tx.id, false)} disabled={isLoading}
+                              className="sm:opacity-0 sm:group-hover:opacity-100 w-8 h-8 flex items-center justify-center rounded-lg bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-all">
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                 <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                               </svg>
-                              Exclure
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2 shrink-0">
-                            <span className="px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-semibold">incluse</span>
-                            <button onClick={() => handleReject(tx.id, false)} disabled={isLoading}
-                              className="opacity-0 group-hover:opacity-100 px-2 py-1 rounded-lg bg-red-50 text-red-600 text-[11px] font-medium border border-red-200 hover:bg-red-100 transition-all">
-                              Exclure
                             </button>
                           </div>
                         )}
                       </div>
 
-                      {/* Inline single-item expand form (pending only) */}
+                      {/* Formulaire inline (pending uniquement) */}
                       {isExpandedHere && expanded && activeTab === "pending" && (
-                        <div className="px-4 pb-4 pt-2 bg-surface-muted/40 border-t border-surface-border">
+                        <div className="px-3 sm:px-4 pb-4 pt-3 bg-surface-muted/40 border-t border-surface-border">
                           {expanded.action === "inclure" ? (
-                            <div className="flex flex-wrap items-end gap-3">
+                            <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-3">
                               <div>
                                 <label className="label">Catégorie</label>
-                                <select value={expanded.categorie} onChange={(e) => setExpanded((s) => s ? { ...s, categorie: e.target.value as ChargeCategory } : s)} className="input-field !py-1.5 !text-sm">
+                                <select value={expanded.categorie} onChange={(e) => setExpanded((s) => s ? { ...s, categorie: e.target.value as ChargeCategory } : s)} className="input-field !py-1.5 !text-sm w-full sm:w-auto">
                                   {CATEGORIES.map((c) => <option key={c} value={c}>{CHARGE_LABELS[c]}</option>)}
                                 </select>
                               </div>
-                              <div className="flex-1 min-w-[160px]">
+                              <div className="sm:flex-1 sm:min-w-[160px]">
                                 <label className="label">Fournisseur</label>
-                                <input type="text" value={expanded.fournisseur} onChange={(e) => setExpanded((s) => s ? { ...s, fournisseur: e.target.value } : s)} className="input-field !py-1.5 !text-sm" />
+                                <input type="text" value={expanded.fournisseur} onChange={(e) => setExpanded((s) => s ? { ...s, fournisseur: e.target.value } : s)} className="input-field !py-1.5 !text-sm w-full" />
                               </div>
-                              <label className="flex items-center gap-2 text-xs text-ink cursor-pointer mb-1.5">
-                                <input type="checkbox" checked={expanded.memoriser} onChange={(e) => setExpanded((s) => s ? { ...s, memoriser: e.target.checked } : s)} className="w-3.5 h-3.5 rounded accent-brand-teal" />
-                                Mémoriser
-                              </label>
-                              <div className="flex gap-2 mb-0.5">
-                                <button onClick={handleApprove} disabled={!!processing}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-semibold hover:bg-green-700 disabled:opacity-50 transition-colors">
-                                  {processing === tx.id ? <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
-                                  Confirmer
-                                </button>
-                                <button onClick={() => setExpanded(null)} className="px-3 py-1.5 rounded-lg bg-surface-muted text-ink-secondary text-xs font-medium hover:bg-surface-border transition-colors">Annuler</button>
+                              <div className="flex items-center justify-between sm:justify-start sm:items-end gap-3">
+                                <label className="flex items-center gap-2 text-xs text-ink cursor-pointer">
+                                  <input type="checkbox" checked={expanded.memoriser} onChange={(e) => setExpanded((s) => s ? { ...s, memoriser: e.target.checked } : s)} className="w-3.5 h-3.5 rounded accent-brand-teal" />
+                                  Mémoriser
+                                </label>
+                                <div className="flex gap-2">
+                                  <button onClick={handleApprove} disabled={!!processing}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-semibold hover:bg-green-700 disabled:opacity-50 transition-colors">
+                                    {processing === tx.id ? <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                                    Confirmer
+                                  </button>
+                                  <button onClick={() => setExpanded(null)} className="px-3 py-1.5 rounded-lg bg-surface-muted text-ink-secondary text-xs font-medium hover:bg-surface-border transition-colors">Annuler</button>
+                                </div>
                               </div>
                             </div>
                           ) : (
-                            <div className="flex flex-wrap items-center gap-3">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
                               <label className="flex items-center gap-2 text-xs text-ink cursor-pointer">
                                 <input type="checkbox" checked={expanded.memoriser} onChange={(e) => setExpanded((s) => s ? { ...s, memoriser: e.target.checked } : s)} className="w-3.5 h-3.5 rounded accent-red-500" />
                                 Mémoriser cette exclusion
@@ -383,17 +409,18 @@ export default function QontoPage() {
             ) : (
               <div className="divide-y divide-surface-border">
                 {rules.map((rule) => (
-                  <div key={rule.id} className="flex items-center gap-3 px-4 py-3 group hover:bg-surface-muted/20 transition-colors">
+                  <div key={rule.id} className="group flex items-center gap-3 px-3 sm:px-4 py-3 hover:bg-surface-muted/20 transition-colors">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-mono font-medium text-ink">contient &quot;{rule.libelle_contains}&quot;</p>
+                      <p className="text-sm font-mono font-medium text-ink truncate">contient &quot;{rule.libelle_contains}&quot;</p>
                       {rule.categorie && <p className="text-[11px] text-ink-muted mt-0.5">→ {CHARGE_LABELS[rule.categorie as ChargeCategory] ?? rule.categorie}</p>}
                     </div>
                     <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold ${rule.action === "inclus" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
                       {rule.action}
                     </span>
+                    {/* Toujours visible sur mobile */}
                     <button onClick={() => handleDeleteRule(rule.id)}
-                      className="shrink-0 opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-ink-muted hover:text-red-600 hover:bg-red-50 transition-all">
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      className="shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 p-2 rounded-lg text-ink-muted hover:text-red-600 hover:bg-red-50 transition-all">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
                         <path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
                       </svg>
@@ -406,7 +433,7 @@ export default function QontoPage() {
 
           <div className="card p-4">
             <h3 className="text-xs font-semibold text-ink-secondary uppercase tracking-wider mb-3">Règles par défaut (non modifiables)</h3>
-            <div className="space-y-1.5 text-xs text-ink-secondary">
+            <div className="space-y-2 text-xs text-ink-secondary">
               {[
                 { label: "SGC SAINT MAUR", action: "inclus", cat: "Autre" },
                 { label: "CARREFOUR ORMESS", action: "inclus", cat: "Restauration autre" },
@@ -416,8 +443,8 @@ export default function QontoPage() {
                 { label: "Virements reçus", action: "exclu", cat: null },
                 { label: "NETFLIX / SPOTIFY / SFR…", action: "exclu", cat: null },
               ].map((r, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold ${r.action === "inclus" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>{r.action}</span>
+                <div key={i} className="flex items-start gap-2 flex-wrap">
+                  <span className={`shrink-0 inline-flex px-1.5 py-0.5 rounded text-[9px] font-bold ${r.action === "inclus" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>{r.action}</span>
                   <span className="font-mono">{r.label}</span>
                   {r.cat && <span className="text-ink-muted">→ {r.cat}</span>}
                 </div>
@@ -427,33 +454,30 @@ export default function QontoPage() {
         </div>
       )}
 
-      {/* ── Floating bulk action bar ── */}
+      {/* ── Barre d'actions groupées flottante ── */}
       {selectedCount > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-2xl">
+        <div className="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-1.5rem)] sm:w-[calc(100%-2rem)] max-w-2xl">
           <div className="bg-zinc-900 text-white rounded-2xl shadow-2xl border border-zinc-700 overflow-hidden">
-            {/* Main bar */}
-            <div className="flex items-center gap-3 px-4 py-3 flex-wrap">
-              <span className="text-sm font-semibold shrink-0">
+            <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3 flex-wrap">
+              <span className="text-xs sm:text-sm font-semibold shrink-0">
                 {selectedCount} sélectionnée{selectedCount > 1 ? "s" : ""}
               </span>
               <div className="w-px h-4 bg-zinc-600 shrink-0" />
 
-              {/* Inclure (pending only) */}
               {activeTab === "pending" && (
                 <button
                   onClick={() => { setShowBulkInclude((v) => !v); setShowDeleteConfirm(false); }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-semibold hover:bg-green-500 transition-colors"
+                  className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-semibold hover:bg-green-500 transition-colors"
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                   Inclure {selectedCount}
                 </button>
               )}
 
-              {/* Exclure */}
               <button
                 onClick={() => handleBulkAction("exclude")}
                 disabled={bulkProcessing}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-700 text-white text-xs font-semibold hover:bg-zinc-600 disabled:opacity-50 transition-colors"
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-zinc-700 text-white text-xs font-semibold hover:bg-zinc-600 disabled:opacity-50 transition-colors"
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -461,18 +485,17 @@ export default function QontoPage() {
                 Exclure {selectedCount}
               </button>
 
-              {/* Supprimer */}
               <button
                 onClick={() => { setShowDeleteConfirm((v) => !v); setShowBulkInclude(false); }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-700 text-white text-xs font-semibold hover:bg-red-600 transition-colors ml-auto"
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-red-700 text-white text-xs font-semibold hover:bg-red-600 transition-colors ml-auto"
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
                 </svg>
-                Supprimer {selectedCount}
+                <span className="hidden sm:inline">Supprimer {selectedCount}</span>
+                <span className="sm:hidden">{selectedCount}</span>
               </button>
 
-              {/* Désélectionner */}
               <button
                 onClick={() => setSelectedIds(new Set())}
                 className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-700 transition-colors shrink-0"
@@ -483,9 +506,8 @@ export default function QontoPage() {
               </button>
             </div>
 
-            {/* Bulk include form */}
             {showBulkInclude && (
-              <div className="px-4 pb-3 pt-1 border-t border-zinc-700 flex flex-wrap items-center gap-3">
+              <div className="px-3 sm:px-4 pb-3 pt-2 border-t border-zinc-700 flex flex-wrap items-center gap-3">
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-zinc-300">Catégorie :</span>
                   <select
@@ -510,9 +532,8 @@ export default function QontoPage() {
               </div>
             )}
 
-            {/* Delete confirmation */}
             {showDeleteConfirm && (
-              <div className="px-4 pb-3 pt-1 border-t border-zinc-700 flex items-center gap-3">
+              <div className="px-3 sm:px-4 pb-3 pt-2 border-t border-zinc-700 flex flex-wrap items-center gap-3">
                 <span className="text-xs text-red-300 font-medium">Supprimer définitivement {selectedCount} transaction{selectedCount > 1 ? "s" : ""} ?</span>
                 <button
                   onClick={() => handleBulkAction("delete")}
