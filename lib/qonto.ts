@@ -152,8 +152,8 @@ export function applyDefaultRules(tx: QontoTransaction): RuleResult {
   if (label.includes("SGC SAINT MAUR")) {
     return { statut: "inclus", categorie: "autre", auto_rule: "inclus:SGC_SAINT_MAUR" };
   }
-  if (label.includes("CARREFOUR ORMESSON")) {
-    return { statut: "inclus", categorie: "restauration_autre", auto_rule: "inclus:CARREFOUR_ORMESSON" };
+  if (label.includes("CARREFOUR ORMESS")) {
+    return { statut: "inclus", categorie: "restauration_autre", auto_rule: "inclus:CARREFOUR_ORMESS" };
   }
   if (label.includes("LIDL") && label.includes("CHENNEVIERES")) {
     return { statut: "inclus", categorie: "restauration_autre", auto_rule: "inclus:LIDL_CHENNEVIERES" };
