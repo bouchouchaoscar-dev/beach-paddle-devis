@@ -412,6 +412,10 @@ function GuidedBuilder({
                 value={item.manualPrice ?? 0}
                 min={0}
                 step={0.5}
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
                 onChange={(e) => onUpdate({ manualPrice: parseFloat(e.target.value) || 0 })}
                 className="w-20 h-9 border border-surface-border bg-white text-center text-sm font-bold font-mono text-ink outline-none pr-5 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
               />
@@ -574,6 +578,10 @@ export function BlocSnacking({ form, onChange }: Props) {
                           value={item.manualPrice ?? 0}
                           min={0}
                           step={0.5}
+                          autoComplete="off"
+                          autoCorrect="off"
+                          autoCapitalize="off"
+                          spellCheck={false}
                           onChange={(e) => updateItem(item.id, { manualPrice: parseFloat(e.target.value) || 0 })}
                           className="w-20 h-9 border border-surface-border bg-white text-center text-sm font-bold font-mono text-ink outline-none pr-5 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                         />

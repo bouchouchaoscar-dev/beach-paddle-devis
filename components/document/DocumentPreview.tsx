@@ -234,6 +234,10 @@ export function DocumentPreview({ form, calc, onClose, onFormChange, readOnly, e
             min={0}
             step={10}
             placeholder="0"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
             onChange={(e) => setAcompteVerse(e.target.value)}
             className={`${compact ? "w-20 rounded-lg" : "w-24"} h-9 border border-surface-border bg-white text-center text-sm font-bold text-ink outline-none font-mono pr-6 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
           />

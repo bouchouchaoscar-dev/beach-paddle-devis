@@ -174,6 +174,10 @@ export function BlocClient({ form, onChange }: Props) {
               value={form.participantsCount}
               min={1}
               max={500}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
               onChange={(e) => {
                 const v = parseInt(e.target.value);
                 if (!isNaN(v) && v >= 1) onChange({ participantsCount: v });

@@ -291,6 +291,10 @@ export default function ChiffresPage() {
                     min={0}
                     step={10}
                     placeholder="0"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
                     onChange={(e) => setForm((f) => ({ ...f, montant: e.target.value }))}
                     className="w-full h-9 border border-surface-border bg-white text-center text-sm font-bold font-mono text-ink outline-none pr-6 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                   />
@@ -345,6 +349,10 @@ export default function ChiffresPage() {
                             min={0}
                             step={10}
                             placeholder="0"
+                            autoComplete="off"
+                            autoCorrect="off"
+                            autoCapitalize="off"
+                            spellCheck={false}
                             onChange={(e) => setForm((f) => ({ ...f, acompteMontant: e.target.value }))}
                             className="w-full h-9 border border-surface-border bg-white text-center text-sm font-bold font-mono text-ink outline-none pr-6 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                           />
@@ -648,6 +656,10 @@ export default function ChiffresPage() {
                     min={0}
                     step={1}
                     autoFocus
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
                     onChange={(e) => setEditForm((f) => ({ ...f, montant: e.target.value }))}
                     className="w-full h-9 border border-surface-border bg-white text-center text-sm font-bold font-mono text-ink outline-none pr-6 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                   />
