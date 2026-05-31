@@ -559,19 +559,33 @@ export function BlocSnacking({ form, onChange }: Props) {
                 {item.formula !== "guidee" && item.pricePerPerson === null && (
                   <div className="flex items-center gap-2">
                     <label className="text-xs text-ink-secondary whitespace-nowrap">Prix / pers. :</label>
-                    <div className="relative flex-1 max-w-32">
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        value={item.manualPrice ?? 0}
-                        min={0}
-                        step={0.5}
-                        onChange={(e) =>
-                          updateItem(item.id, { manualPrice: parseFloat(e.target.value) || 0 })
-                        }
-                        className="input-field pr-7 text-sm font-mono"
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted text-sm">€</span>
+                    <div className="flex items-center gap-0">
+                      <button
+                        type="button"
+                        onClick={() => updateItem(item.id, { manualPrice: Math.max(0, Math.round(((item.manualPrice ?? 0) - 0.5) * 100) / 100) })}
+                        className="flex items-center justify-center w-8 h-9 rounded-l-xl border border-r-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border transition-colors active:scale-95"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                      </button>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          value={item.manualPrice ?? 0}
+                          min={0}
+                          step={0.5}
+                          onChange={(e) => updateItem(item.id, { manualPrice: parseFloat(e.target.value) || 0 })}
+                          className="w-20 h-9 border border-surface-border bg-white text-center text-sm font-bold font-mono text-ink outline-none pr-5 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                        />
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-muted text-sm pointer-events-none">€</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => updateItem(item.id, { manualPrice: Math.round(((item.manualPrice ?? 0) + 0.5) * 100) / 100 })}
+                        className="flex items-center justify-center w-8 h-9 rounded-r-xl border border-l-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border transition-colors active:scale-95"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                      </button>
                     </div>
                   </div>
                 )}

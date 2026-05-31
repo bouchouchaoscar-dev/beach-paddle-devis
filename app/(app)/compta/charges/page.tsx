@@ -443,7 +443,18 @@ export default function ChargesPage() {
                 </div>
                 <div>
                   <label className="label">Montant (€)</label>
-                  <input type="number" inputMode="decimal" value={chargeForm.montant} min={0} step={0.01} placeholder="0.00" onChange={(e) => setChargeForm((f) => ({ ...f, montant: e.target.value }))} className="input-field font-mono" />
+                  <div className="flex items-center gap-0">
+                    <button type="button" onClick={() => setChargeForm((f) => ({ ...f, montant: String(Math.max(0, (parseFloat(f.montant) || 0) - 1)) }))} className="flex items-center justify-center w-9 h-9 rounded-l-xl border border-r-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border hover:text-ink transition-colors active:scale-95">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    </button>
+                    <div className="relative flex-1">
+                      <input type="number" inputMode="decimal" value={chargeForm.montant} min={0} step={1} placeholder="0" onChange={(e) => setChargeForm((f) => ({ ...f, montant: e.target.value }))} className="w-full h-9 border border-surface-border bg-white text-center text-sm font-bold font-mono text-ink outline-none pr-6 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-muted text-sm pointer-events-none">€</span>
+                    </div>
+                    <button type="button" onClick={() => setChargeForm((f) => ({ ...f, montant: String((parseFloat(f.montant) || 0) + 1) }))} className="flex items-center justify-center w-9 h-9 rounded-r-xl border border-l-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border hover:text-ink transition-colors active:scale-95">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -500,7 +511,18 @@ export default function ChargesPage() {
                 </div>
                 <div>
                   <label className="label">Montant (€)</label>
-                  <input type="number" inputMode="decimal" value={chargeForm.montant} min={0} step={0.01} placeholder="0.00" onChange={(e) => setChargeForm((f) => ({ ...f, montant: e.target.value }))} className="input-field font-mono" />
+                  <div className="flex items-center gap-0">
+                    <button type="button" onClick={() => setChargeForm((f) => ({ ...f, montant: String(Math.max(0, (parseFloat(f.montant) || 0) - 1)) }))} className="flex items-center justify-center w-9 h-9 rounded-l-xl border border-r-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border hover:text-ink transition-colors active:scale-95">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    </button>
+                    <div className="relative flex-1">
+                      <input type="number" inputMode="decimal" value={chargeForm.montant} min={0} step={1} placeholder="0" onChange={(e) => setChargeForm((f) => ({ ...f, montant: e.target.value }))} className="w-full h-9 border border-surface-border bg-white text-center text-sm font-bold font-mono text-ink outline-none pr-6 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-muted text-sm pointer-events-none">€</span>
+                    </div>
+                    <button type="button" onClick={() => setChargeForm((f) => ({ ...f, montant: String((parseFloat(f.montant) || 0) + 1) }))} className="flex items-center justify-center w-9 h-9 rounded-r-xl border border-l-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border hover:text-ink transition-colors active:scale-95">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    </button>
+                  </div>
                 </div>
               </div>
               <div>
@@ -587,25 +609,28 @@ export default function ChargesPage() {
               {/* Add employee */}
               <div className="border-t border-surface-border pt-4 space-y-2">
                 <p className="text-xs font-medium text-ink-muted">Ajouter un employé</p>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newEmpNom}
-                    placeholder="Prénom Nom"
-                    onChange={(e) => setNewEmpNom(e.target.value)}
-                    className="input-field flex-1"
-                  />
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    value={newEmpTarif}
-                    min={0}
-                    step={0.5}
-                    placeholder="€/h"
-                    onChange={(e) => setNewEmpTarif(e.target.value)}
-                    className="input-field !w-20 text-center font-mono"
-                  />
-                  <button onClick={handleAddEmployee} disabled={addingEmp || !newEmpNom.trim()} className="btn-primary px-3">
+                <input
+                  type="text"
+                  value={newEmpNom}
+                  placeholder="Prénom Nom"
+                  onChange={(e) => setNewEmpNom(e.target.value)}
+                  className="input-field w-full"
+                />
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-ink-secondary whitespace-nowrap">Tarif :</label>
+                  <div className="flex items-center gap-0 flex-1">
+                    <button type="button" onClick={() => setNewEmpTarif((v) => String(Math.max(0, (parseFloat(v) || 0) - 0.5)))} className="flex items-center justify-center w-8 h-9 rounded-l-xl border border-r-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border hover:text-ink transition-colors active:scale-95">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    </button>
+                    <div className="relative flex-1">
+                      <input type="number" inputMode="decimal" value={newEmpTarif} min={0} step={0.5} placeholder="0" onChange={(e) => setNewEmpTarif(e.target.value)} className="w-full h-9 border border-surface-border bg-white text-center text-sm font-bold font-mono text-ink outline-none pr-8 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-muted text-xs pointer-events-none">€/h</span>
+                    </div>
+                    <button type="button" onClick={() => setNewEmpTarif((v) => String((parseFloat(v) || 0) + 0.5))} className="flex items-center justify-center w-8 h-9 rounded-r-xl border border-l-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border hover:text-ink transition-colors active:scale-95">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    </button>
+                  </div>
+                  <button onClick={handleAddEmployee} disabled={addingEmp || !newEmpNom.trim()} className="btn-primary px-3 h-9">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                   </button>
                 </div>
@@ -674,20 +699,33 @@ export default function ChargesPage() {
                 </div>
                 <div>
                   <label className="label">Ou nb heures (si pas d&apos;horaires)</label>
-                  <input type="number" inputMode="decimal" value={sessionForm.heures} min={0} step={0.5} placeholder="Ex : 3.5" onChange={(e) => setSessionForm((f) => ({ ...f, heures: e.target.value }))} className="input-field" />
+                  <div className="flex items-center gap-0">
+                    <button type="button" onClick={() => setSessionForm((f) => ({ ...f, heures: String(Math.max(0, Math.round(((parseFloat(f.heures) || 0) - 0.5) * 100) / 100)) }))} className="flex items-center justify-center w-9 h-9 rounded-l-xl border border-r-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border hover:text-ink transition-colors active:scale-95">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    </button>
+                    <div className="relative flex-1">
+                      <input type="number" inputMode="decimal" value={sessionForm.heures} min={0} step={0.5} placeholder="0" onChange={(e) => setSessionForm((f) => ({ ...f, heures: e.target.value }))} className="w-full h-9 border border-surface-border bg-white text-center text-sm font-bold font-mono text-ink outline-none pr-6 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-muted text-sm pointer-events-none">h</span>
+                    </div>
+                    <button type="button" onClick={() => setSessionForm((f) => ({ ...f, heures: String(Math.round(((parseFloat(f.heures) || 0) + 0.5) * 100) / 100) }))} className="flex items-center justify-center w-9 h-9 rounded-r-xl border border-l-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border hover:text-ink transition-colors active:scale-95">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    </button>
+                  </div>
                 </div>
                 <div>
                   <label className="label">Tarif horaire (€/h)</label>
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    value={sessionForm.tarif}
-                    min={0}
-                    step={0.5}
-                    placeholder={selectedEmp ? `${selectedEmp.tarif_horaire}€/h (défaut)` : "€/h"}
-                    onChange={(e) => setSessionForm((f) => ({ ...f, tarif: e.target.value }))}
-                    className="input-field font-mono"
-                  />
+                  <div className="flex items-center gap-0">
+                    <button type="button" onClick={() => setSessionForm((f) => ({ ...f, tarif: String(Math.max(0, Math.round(((parseFloat(f.tarif) || 0) - 0.5) * 100) / 100)) }))} className="flex items-center justify-center w-9 h-9 rounded-l-xl border border-r-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border hover:text-ink transition-colors active:scale-95">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    </button>
+                    <div className="relative flex-1">
+                      <input type="number" inputMode="decimal" value={sessionForm.tarif} min={0} step={0.5} placeholder={selectedEmp ? `${selectedEmp.tarif_horaire}` : "0"} onChange={(e) => setSessionForm((f) => ({ ...f, tarif: e.target.value }))} className="w-full h-9 border border-surface-border bg-white text-center text-sm font-bold font-mono text-ink outline-none pr-8 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-muted text-xs pointer-events-none">€/h</span>
+                    </div>
+                    <button type="button" onClick={() => setSessionForm((f) => ({ ...f, tarif: String(Math.round(((parseFloat(f.tarif) || 0) + 0.5) * 100) / 100) }))} className="flex items-center justify-center w-9 h-9 rounded-r-xl border border-l-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border hover:text-ink transition-colors active:scale-95">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    </button>
+                  </div>
                 </div>
                 <div>
                   <label className="label">Notes</label>
@@ -829,7 +867,18 @@ export default function ChargesPage() {
               </div>
               <div>
                 <label className="label">Montant (€)</label>
-                <input type="number" inputMode="decimal" value={editForm.montant} min={0} step={0.01} onChange={(e) => setEditForm((f) => ({ ...f, montant: e.target.value }))} className="input-field font-mono" />
+                <div className="flex items-center gap-0">
+                  <button type="button" onClick={() => setEditForm((f) => ({ ...f, montant: String(Math.max(0, (parseFloat(f.montant) || 0) - 1)) }))} className="flex items-center justify-center w-9 h-9 rounded-l-xl border border-r-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border hover:text-ink transition-colors active:scale-95">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  </button>
+                  <div className="relative flex-1">
+                    <input type="number" inputMode="decimal" value={editForm.montant} min={0} step={1} onChange={(e) => setEditForm((f) => ({ ...f, montant: e.target.value }))} className="w-full h-9 border border-surface-border bg-white text-center text-sm font-bold font-mono text-ink outline-none pr-6 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-muted text-sm pointer-events-none">€</span>
+                  </div>
+                  <button type="button" onClick={() => setEditForm((f) => ({ ...f, montant: String((parseFloat(f.montant) || 0) + 1) }))} className="flex items-center justify-center w-9 h-9 rounded-r-xl border border-l-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border hover:text-ink transition-colors active:scale-95">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  </button>
+                </div>
               </div>
             </div>
             <div>

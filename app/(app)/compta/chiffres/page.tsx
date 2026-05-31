@@ -279,16 +279,27 @@ export default function ChiffresPage() {
             </div>
             <div>
               <label className="label">CA du jour (€)</label>
-              <input
-                type="number"
-                inputMode="decimal"
-                value={form.montant}
-                min={0}
-                step={0.5}
-                placeholder="0.00"
-                onChange={(e) => setForm((f) => ({ ...f, montant: e.target.value }))}
-                className="input-field font-mono"
-              />
+              <div className="flex items-center gap-0">
+                <button type="button" onClick={() => setForm((f) => ({ ...f, montant: String(Math.max(0, (parseFloat(f.montant) || 0) - 10)) }))} className="flex items-center justify-center w-9 h-9 rounded-l-xl border border-r-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border hover:text-ink transition-colors active:scale-95">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                </button>
+                <div className="relative flex-1">
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    value={form.montant}
+                    min={0}
+                    step={10}
+                    placeholder="0"
+                    onChange={(e) => setForm((f) => ({ ...f, montant: e.target.value }))}
+                    className="w-full h-9 border border-surface-border bg-white text-center text-sm font-bold font-mono text-ink outline-none pr-6 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                  />
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-muted text-sm pointer-events-none">€</span>
+                </div>
+                <button type="button" onClick={() => setForm((f) => ({ ...f, montant: String((parseFloat(f.montant) || 0) + 10) }))} className="flex items-center justify-center w-9 h-9 rounded-r-xl border border-l-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border hover:text-ink transition-colors active:scale-95">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                </button>
+              </div>
             </div>
             <div>
               <label className="label">Notes (optionnel)</label>
@@ -322,16 +333,27 @@ export default function ChiffresPage() {
                   <div className="flex gap-2">
                     <div className="flex-1">
                       <label className="label">Montant acompte (€)</label>
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        value={form.acompteMontant}
-                        min={0}
-                        step={0.5}
-                        placeholder="0.00"
-                        onChange={(e) => setForm((f) => ({ ...f, acompteMontant: e.target.value }))}
-                        className="input-field font-mono"
-                      />
+                      <div className="flex items-center gap-0">
+                        <button type="button" onClick={() => setForm((f) => ({ ...f, acompteMontant: String(Math.max(0, (parseFloat(f.acompteMontant) || 0) - 10)) }))} className="flex items-center justify-center w-9 h-9 rounded-l-xl border border-r-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border hover:text-ink transition-colors active:scale-95">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        </button>
+                        <div className="relative flex-1">
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            value={form.acompteMontant}
+                            min={0}
+                            step={10}
+                            placeholder="0"
+                            onChange={(e) => setForm((f) => ({ ...f, acompteMontant: e.target.value }))}
+                            className="w-full h-9 border border-surface-border bg-white text-center text-sm font-bold font-mono text-ink outline-none pr-6 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-muted text-sm pointer-events-none">€</span>
+                        </div>
+                        <button type="button" onClick={() => setForm((f) => ({ ...f, acompteMontant: String((parseFloat(f.acompteMontant) || 0) + 10) }))} className="flex items-center justify-center w-9 h-9 rounded-r-xl border border-l-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border hover:text-ink transition-colors active:scale-95">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        </button>
+                      </div>
                     </div>
                     <div className="flex-1">
                       <label className="label">De qui</label>
@@ -614,16 +636,27 @@ export default function ChiffresPage() {
             </div>
             <div>
               <label className="label">Montant (€)</label>
-              <input
-                type="number"
-                inputMode="decimal"
-                value={editForm.montant}
-                min={0}
-                step={0.5}
-                autoFocus
-                onChange={(e) => setEditForm((f) => ({ ...f, montant: e.target.value }))}
-                className="input-field font-mono"
-              />
+              <div className="flex items-center gap-0">
+                <button type="button" onClick={() => setEditForm((f) => ({ ...f, montant: String(Math.max(0, (parseFloat(f.montant) || 0) - 1)) }))} className="flex items-center justify-center w-9 h-9 rounded-l-xl border border-r-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border hover:text-ink transition-colors active:scale-95">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                </button>
+                <div className="relative flex-1">
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    value={editForm.montant}
+                    min={0}
+                    step={1}
+                    autoFocus
+                    onChange={(e) => setEditForm((f) => ({ ...f, montant: e.target.value }))}
+                    className="w-full h-9 border border-surface-border bg-white text-center text-sm font-bold font-mono text-ink outline-none pr-6 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                  />
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-muted text-sm pointer-events-none">€</span>
+                </div>
+                <button type="button" onClick={() => setEditForm((f) => ({ ...f, montant: String((parseFloat(f.montant) || 0) + 1) }))} className="flex items-center justify-center w-9 h-9 rounded-r-xl border border-l-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border hover:text-ink transition-colors active:scale-95">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                </button>
+              </div>
             </div>
             <div>
               <label className="label">{editingEntry.source === "acompte" ? "De qui (client / groupe)" : "Notes (optionnel)"}</label>

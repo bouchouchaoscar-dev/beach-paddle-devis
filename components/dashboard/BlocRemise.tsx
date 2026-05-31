@@ -130,18 +130,9 @@ export function BlocRemise({ form, onChange }: Props) {
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
               </button>
-              <input
-                type="number"
-                inputMode="numeric"
-                value={discount.accompagnatorsCount}
-                min={0}
-                max={50}
-                onChange={(e) => {
-                  const v = parseInt(e.target.value);
-                  if (!isNaN(v) && v >= 0) patchDiscount({ accompagnatorsCount: v });
-                }}
-                className="w-14 h-8 border border-surface-border bg-white text-center text-sm font-bold text-ink outline-none font-mono"
-              />
+              <div className="w-14 h-8 border border-surface-border bg-white text-center flex items-center justify-center text-sm font-bold font-mono text-ink">
+                {discount.accompagnatorsCount}
+              </div>
               <button
                 type="button"
                 onClick={() => patchDiscount({ accompagnatorsCount: discount.accompagnatorsCount + 1 })}
