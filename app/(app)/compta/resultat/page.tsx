@@ -4,12 +4,14 @@ import { useState, useEffect, useCallback } from "react";
 import {
   ResponsiveContainer, PieChart, Pie, Cell, Tooltip,
 } from "recharts";
-import { getCaEntries, getCharges } from "@/lib/compta";
+import { getCaEntries, getCharges, getImmobilisations } from "@/lib/compta";
 import { formatPrice } from "@/lib/calculations";
 import {
   MOIS_LABELS, SAISONS,
   CHARGE_LABELS, CHARGE_COLORS,
   type CaEntry, type Charge, type ChargeCategory,
+  type Immobilisation,
+  getDotationForYear,
 } from "@/lib/compta-types";
 import { useComptaSaison } from "../ComptaSaisonProvider";
 
@@ -19,18 +21,21 @@ export default function ResultatPage() {
   const { saison, setSaison } = useComptaSaison();
   const [caEntries, setCaEntries] = useState<CaEntry[]>([]);
   const [charges, setCharges] = useState<Charge[]>([]);
+  const [immobilisations, setImmobilisations] = useState<Immobilisation[]>([]);
   const [loading, setLoading] = useState(true);
 
   const isAll = saison === "all";
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [ca, ch] = await Promise.all([
+    const [ca, ch, immo] = await Promise.all([
       getCaEntries(isAll ? undefined : saison),
       getCharges(isAll ? undefined : saison),
+      getImmobilisations(),
     ]);
     setCaEntries(ca);
     setCharges(ch);
+    setImmobilisations(immo);
     setLoading(false);
   }, [saison]);
 
@@ -39,21 +44,41 @@ export default function ResultatPage() {
   // ── Computed ──────────────────────────────────────────────────────────────
 
   const totalCA = caEntries.reduce((s, e) => s + e.montant, 0);
-  const totalCharges = charges.reduce((s, c) => s + c.montant, 0);
+  const totalChargesExploitation = charges.reduce((s, c) => s + c.montant, 0);
+
+  // Dotations amortissements — calculées par année sur toutes les immobilisations actives
+  const dotationForSaison = (yr: string): number =>
+    immobilisations.filter((i) => i.actif).reduce((s, i) => s + getDotationForYear(i, parseInt(yr)), 0);
+
+  const totalDotations = isAll
+    ? immobilisations.filter((i) => i.actif).reduce((sum, immo) => {
+        const maxYear = new Date().getFullYear();
+        const startYear = parseInt(immo.annee_achat);
+        let s = 0;
+        for (let y = startYear; y <= maxYear; y++) s += getDotationForYear(immo, y);
+        return sum + s;
+      }, 0)
+    : dotationForSaison(saison);
+
+  const totalCharges = totalChargesExploitation + totalDotations;
   const resultat = totalCA - totalCharges;
   const marge = totalCA > 0 ? (resultat / totalCA) * 100 : 0;
 
-  const chargesByCategory = CATEGORIES.map((cat) => ({
-    name: CHARGE_LABELS[cat],
-    value: charges.filter((c) => c.categorie === cat).reduce((s, c) => s + c.montant, 0),
-    color: CHARGE_COLORS[cat],
-  })).filter((c) => c.value > 0);
+  const chargesByCategory = [
+    ...CATEGORIES.map((cat) => ({
+      name: CHARGE_LABELS[cat],
+      value: charges.filter((c) => c.categorie === cat).reduce((s, c) => s + c.montant, 0),
+      color: CHARGE_COLORS[cat],
+    })),
+    ...(totalDotations > 0 ? [{ name: "Amortissements", value: totalDotations, color: "#6E6E73" }] : []),
+  ].filter((c) => c.value > 0);
 
   const monthlyData = MOIS_LABELS.map((label, i) => {
     const m = String(i + 1).padStart(2, "0");
     const prefix = `${saison}-${m}`;
     const ca = caEntries.filter((e) => e.date.startsWith(prefix)).reduce((s, e) => s + e.montant, 0);
-    const ch = charges.filter((c) => c.date.startsWith(prefix)).reduce((s, c) => s + c.montant, 0);
+    const chExp = charges.filter((c) => c.date.startsWith(prefix)).reduce((s, c) => s + c.montant, 0);
+    const ch = chExp;
     const res = ca - ch;
     const mg = ca > 0 ? (res / ca) * 100 : null;
     return { label, ca, charges: ch, resultat: res, marge: mg };
@@ -62,7 +87,9 @@ export default function ResultatPage() {
   // For "all" mode: per-season table
   const perSeasonData = SAISONS.map((yr) => {
     const ca = caEntries.filter((e) => e.saison === yr).reduce((s, e) => s + e.montant, 0);
-    const ch = charges.filter((c) => c.saison === yr).reduce((s, c) => s + c.montant, 0);
+    const chExp = charges.filter((c) => c.saison === yr).reduce((s, c) => s + c.montant, 0);
+    const dot = dotationForSaison(yr);
+    const ch = chExp + dot;
     const res = ca - ch;
     const mg = ca > 0 ? (res / ca) * 100 : null;
     return { yr, ca, charges: ch, resultat: res, marge: mg };
@@ -110,12 +137,13 @@ export default function ResultatPage() {
 
       {/* ── KPIs ── */}
       <div
-        className="grid grid-cols-2 lg:grid-cols-4 gap-3"
+        className="grid grid-cols-2 lg:grid-cols-5 gap-3"
         style={{ opacity: 0, animation: "slideUp 0.4s cubic-bezier(0.16,1,0.3,1) 0.1s forwards" }}
       >
         {[
           { label: "Chiffre d'affaires", value: formatPrice(totalCA), color: "#0071E3", icon: "M22 12 18 12 15 21 9 3 6 12 2 12" },
-          { label: "Charges totales", value: formatPrice(totalCharges), color: "#E03131", icon: "M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" },
+          { label: "Charges exploit.", value: formatPrice(totalChargesExploitation), color: "#E03131", icon: "M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" },
+          { label: "Amortissements", value: formatPrice(totalDotations), color: "#6E6E73", icon: "M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" },
           { label: "Résultat net", value: formatPrice(resultat), color: resultat >= 0 ? "#16A34A" : "#E03131", icon: "M12 1 12 23M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" },
           { label: "Marge nette", value: `${marge.toFixed(1)}%`, color: marge >= 20 ? "#16A34A" : marge >= 5 ? "#F59E0B" : "#E03131", icon: "M18 20V10M12 20V4M6 20v-6" },
         ].map((kpi) => (

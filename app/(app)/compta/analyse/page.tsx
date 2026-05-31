@@ -7,12 +7,14 @@ import {
   PieChart, Pie, Cell,
   CartesianGrid, XAxis, YAxis, Tooltip, Legend,
 } from "recharts";
-import { getCaEntries, getCharges } from "@/lib/compta";
+import { getCaEntries, getCharges, getImmobilisations } from "@/lib/compta";
 import { formatPrice } from "@/lib/calculations";
 import {
   MOIS_LABELS, SAISONS,
   CHARGE_LABELS, CHARGE_COLORS,
   type CaEntry, type Charge, type ChargeCategory,
+  type Immobilisation,
+  getDotationForYear, getVncTotal,
 } from "@/lib/compta-types";
 import { useComptaSaison } from "../ComptaSaisonProvider";
 
@@ -22,6 +24,7 @@ export default function AnalysePage() {
   const { saison, setSaison } = useComptaSaison();
   const [caEntries, setCaEntries] = useState<CaEntry[]>([]);
   const [charges, setCharges] = useState<Charge[]>([]);
+  const [immobilisations, setImmobilisations] = useState<Immobilisation[]>([]);
   const [loading, setLoading] = useState(true);
   const [insights, setInsights] = useState<string[]>([]);
   const [insightsLoading, setInsightsLoading] = useState(false);
@@ -32,12 +35,14 @@ export default function AnalysePage() {
   const load = useCallback(async () => {
     setLoading(true);
     setInsightsFetched(false);
-    const [ca, ch] = await Promise.all([
+    const [ca, ch, immo] = await Promise.all([
       getCaEntries(isAll ? undefined : saison),
       getCharges(isAll ? undefined : saison),
+      getImmobilisations(),
     ]);
     setCaEntries(ca);
     setCharges(ch);
+    setImmobilisations(immo);
     setLoading(false);
   }, [saison]);
 
@@ -46,7 +51,20 @@ export default function AnalysePage() {
   // ── Computed ──────────────────────────────────────────────────────────────
 
   const totalCA = caEntries.reduce((s, e) => s + e.montant, 0);
-  const totalCharges = charges.reduce((s, c) => s + c.montant, 0);
+  const totalChargesExploitation = charges.reduce((s, c) => s + c.montant, 0);
+  const currentYear = isAll ? new Date().getFullYear() : parseInt(saison);
+  const totalDotations = immobilisations.filter((i) => i.actif).reduce((s, i) => {
+    if (isAll) {
+      const maxYear = new Date().getFullYear();
+      const startYear = parseInt(i.annee_achat);
+      let d = 0;
+      for (let y = startYear; y <= maxYear; y++) d += getDotationForYear(i, y);
+      return s + d;
+    }
+    return s + getDotationForYear(i, currentYear);
+  }, 0);
+  const totalCharges = totalChargesExploitation + totalDotations;
+  const vncTotal = getVncTotal(immobilisations);
   const resultat = totalCA - totalCharges;
   const marge = totalCA > 0 ? (resultat / totalCA) * 100 : 0;
 
@@ -83,11 +101,14 @@ export default function AnalysePage() {
   }).filter((r) => recentSaisons.some((s) => (r[s] as number) > 0));
 
   // Charges by category
-  const chargesByCat = CATEGORIES.map((cat) => ({
-    name: CHARGE_LABELS[cat],
-    value: charges.filter((c) => c.categorie === cat).reduce((s, c) => s + c.montant, 0),
-    color: CHARGE_COLORS[cat],
-  })).filter((c) => c.value > 0);
+  const chargesByCat = [
+    ...CATEGORIES.map((cat) => ({
+      name: CHARGE_LABELS[cat],
+      value: charges.filter((c) => c.categorie === cat).reduce((s, c) => s + c.montant, 0),
+      color: CHARGE_COLORS[cat],
+    })),
+    ...(totalDotations > 0 ? [{ name: "Amortissements", value: totalDotations, color: "#6E6E73" }] : []),
+  ].filter((c) => c.value > 0);
 
   // Top 5 best days
   const top5Days = [...caEntries]
@@ -177,7 +198,7 @@ export default function AnalysePage() {
 
       {/* ── KPIs ── */}
       <div
-        className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3"
+        className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3"
         style={{ opacity: 0, animation: "slideUp 0.4s cubic-bezier(0.16,1,0.3,1) 0.1s forwards" }}
       >
         {[
@@ -187,6 +208,7 @@ export default function AnalysePage() {
           { label: "Marge", value: `${marge.toFixed(1)}%`, color: marge >= 20 ? "#16A34A" : marge >= 5 ? "#F59E0B" : "#E03131" },
           { label: isAll ? "Saisons actives" : "Jours ouverts", value: isAll ? String(monthlyCAvsCharges.length) : String(joursOuverts), color: "#8B5CF6" },
           { label: isAll ? "CA moyen / saison" : "CA / jour ouvert", value: formatPrice(isAll && monthlyCAvsCharges.length > 0 ? totalCA / monthlyCAvsCharges.length : caMoyen), color: "#0071E3" },
+          { label: "VNC parc matériel", value: formatPrice(vncTotal), color: "#F59E0B" },
         ].map((kpi) => (
           <div key={kpi.label} className="card p-4">
             <p className="text-[11px] text-ink-muted font-medium mb-1 leading-tight">{kpi.label}</p>

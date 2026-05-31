@@ -5,12 +5,15 @@ import {
   getCharges, saveCharge, updateCharge, deleteCharge,
   getEmployees, saveEmployee, updateEmployee,
   getWorkSessions, saveWorkSession, deleteWorkSession,
+  getImmobilisations, saveImmobilisation, updateImmobilisation, deleteImmobilisation,
 } from "@/lib/compta";
 import { formatPrice } from "@/lib/calculations";
 import {
   MOIS_FULL,
   CHARGE_LABELS, SAISONS,
   type Charge, type Employee, type WorkSession, type ChargeCategory,
+  type Immobilisation,
+  computeAmortissement,
 } from "@/lib/compta-types";
 import { useComptaSaison } from "../ComptaSaisonProvider";
 import { NumericInput } from "@/components/ui/NumericInput";
@@ -19,7 +22,7 @@ import { DatePicker } from "@/components/ui/DatePicker";
 const CATEGORIES: ChargeCategory[] = ["restauration_metro", "restauration_autre", "equipement", "salaire", "autre"];
 const MODES_PAIEMENT = ["CB", "Espèces", "Virement", "Chèque"];
 
-type Tab = "upload" | "manuel" | "employes";
+type Tab = "upload" | "manuel" | "employes" | "immobilisations";
 
 interface ExtractedData {
   date?: string;
@@ -46,6 +49,7 @@ export default function ChargesPage() {
   const [charges, setCharges] = useState<Charge[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [sessions, setSessions] = useState<WorkSession[]>([]);
+  const [immobilisations, setImmobilisations] = useState<Immobilisation[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [filterCat, setFilterCat] = useState<ChargeCategory | "all">("all");
@@ -77,18 +81,42 @@ export default function ChargesPage() {
   });
   const [viewingEmpId, setViewingEmpId] = useState<string | null>(null);
 
+  // Immobilisations
+  const [immoForm, setImmoForm] = useState({
+    nom: "",
+    date_achat: new Date().toISOString().split("T")[0],
+    montant_total: "",
+    duree_amortissement: "3",
+    fournisseur: "",
+    description: "",
+  });
+  const [immoSaving, setImmoSaving] = useState(false);
+  const [expandedImmoId, setExpandedImmoId] = useState<string | null>(null);
+  const [editingImmo, setEditingImmo] = useState<Immobilisation | null>(null);
+  const [editImmoForm, setEditImmoForm] = useState({
+    nom: "",
+    date_achat: "",
+    montant_total: "",
+    duree_amortissement: "3",
+    fournisseur: "",
+    description: "",
+  });
+  const [editImmoSaving, setEditImmoSaving] = useState(false);
+
   const isAll = saison === "all";
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [c, e, s] = await Promise.all([
+    const [c, e, s, immo] = await Promise.all([
       getCharges(isAll ? undefined : saison),
       getEmployees(),
       getWorkSessions(isAll ? undefined : saison),
+      getImmobilisations(),
     ]);
     setCharges(c);
     setEmployees(e);
     setSessions(s);
+    setImmobilisations(immo);
     setLoading(false);
   }, [saison]);
 
@@ -238,6 +266,60 @@ export default function ChargesPage() {
     }
   }
 
+  async function handleSaveImmo() {
+    const montant = parseFloat(immoForm.montant_total);
+    if (!immoForm.nom.trim() || !immoForm.date_achat || isNaN(montant)) return;
+    setImmoSaving(true);
+    try {
+      await saveImmobilisation({
+        nom: immoForm.nom.trim(),
+        date_achat: immoForm.date_achat,
+        montant_total: montant,
+        duree_amortissement: parseInt(immoForm.duree_amortissement),
+        methode: "lineaire",
+        fournisseur: immoForm.fournisseur || undefined,
+        description: immoForm.description || undefined,
+        annee_achat: immoForm.date_achat.slice(0, 4),
+        actif: true,
+        created_by: "",
+      });
+      setImmoForm({ nom: "", date_achat: new Date().toISOString().split("T")[0], montant_total: "", duree_amortissement: "3", fournisseur: "", description: "" });
+      await load();
+    } finally { setImmoSaving(false); }
+  }
+
+  function openEditImmo(immo: Immobilisation) {
+    setEditingImmo(immo);
+    setEditImmoForm({
+      nom: immo.nom,
+      date_achat: immo.date_achat,
+      montant_total: String(immo.montant_total),
+      duree_amortissement: String(immo.duree_amortissement),
+      fournisseur: immo.fournisseur ?? "",
+      description: immo.description ?? "",
+    });
+  }
+
+  async function handleUpdateImmo() {
+    if (!editingImmo) return;
+    const montant = parseFloat(editImmoForm.montant_total);
+    if (!editImmoForm.nom.trim() || !editImmoForm.date_achat || isNaN(montant)) return;
+    setEditImmoSaving(true);
+    try {
+      await updateImmobilisation(editingImmo.id, {
+        nom: editImmoForm.nom.trim(),
+        date_achat: editImmoForm.date_achat,
+        montant_total: montant,
+        duree_amortissement: parseInt(editImmoForm.duree_amortissement),
+        fournisseur: editImmoForm.fournisseur || undefined,
+        description: editImmoForm.description || undefined,
+        annee_achat: editImmoForm.date_achat.slice(0, 4),
+      });
+      setEditingImmo(null);
+      await load();
+    } finally { setEditImmoSaving(false); }
+  }
+
   function openEdit(c: typeof charges[0]) {
     setEditingCharge(c);
     setEditForm({ date: c.date, montant: String(c.montant), categorie: c.categorie, fournisseur: c.fournisseur ?? "", description: c.description ?? "" });
@@ -321,6 +403,7 @@ export default function ChargesPage() {
           { id: "upload", label: "Upload & IA" },
           { id: "manuel", label: "Saisie manuelle" },
           { id: "employes", label: "Employés" },
+          { id: "immobilisations", label: "Immobilisations" },
         ] as { id: Tab; label: string }[]).map((t) => (
           <button
             key={t.id}
@@ -773,6 +856,165 @@ export default function ChargesPage() {
             </div>
           </div>
         )}
+        {/* Immobilisations */}
+        {activeTab === "immobilisations" && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {/* Formulaire d'ajout */}
+            <div className="card p-5">
+              <h2 className="text-sm font-semibold text-ink mb-4">Ajouter une immobilisation</h2>
+              <div className="space-y-3">
+                <div>
+                  <label className="label">Nom du bien</label>
+                  <input type="text" value={immoForm.nom} placeholder="Flotte Kayak 2026" onChange={(e) => setImmoForm((f) => ({ ...f, nom: e.target.value }))} className="input-field" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="label">Date d&apos;achat</label>
+                    <DatePicker value={immoForm.date_achat} onChange={(v) => setImmoForm((f) => ({ ...f, date_achat: v }))} allowPast />
+                  </div>
+                  <div>
+                    <label className="label">Montant total (€)</label>
+                    <div className="flex items-center gap-0">
+                      <button type="button" onClick={() => setImmoForm((f) => ({ ...f, montant_total: String(Math.max(0, (parseFloat(f.montant_total) || 0) - 100)) }))} className="flex items-center justify-center w-9 h-9 rounded-l-xl border border-r-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border hover:text-ink transition-colors active:scale-95">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                      </button>
+                      <div className="relative flex-1">
+                        <NumericInput inputMode="decimal" value={immoForm.montant_total} min={0} step={100} placeholder="0" onChange={(e) => setImmoForm((f) => ({ ...f, montant_total: e.target.value }))} className="w-full h-9 border border-surface-border bg-white text-center text-sm font-bold font-mono text-ink outline-none pr-6 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-muted text-sm pointer-events-none">€</span>
+                      </div>
+                      <button type="button" onClick={() => setImmoForm((f) => ({ ...f, montant_total: String((parseFloat(f.montant_total) || 0) + 100) }))} className="flex items-center justify-center w-9 h-9 rounded-r-xl border border-l-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border hover:text-ink transition-colors active:scale-95">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <label className="label">Durée d&apos;amortissement</label>
+                  <select value={immoForm.duree_amortissement} onChange={(e) => setImmoForm((f) => ({ ...f, duree_amortissement: e.target.value }))} className="input-field">
+                    {[2, 3, 4, 5].map((d) => <option key={d} value={d}>{d} ans ({d} saison{d > 1 ? "s" : ""})</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Fournisseur (optionnel)</label>
+                  <input type="text" value={immoForm.fournisseur} placeholder="Décathlon, Amazon…" onChange={(e) => setImmoForm((f) => ({ ...f, fournisseur: e.target.value }))} className="input-field" />
+                </div>
+                <div>
+                  <label className="label">Description (optionnel)</label>
+                  <input type="text" value={immoForm.description} placeholder="Détail" onChange={(e) => setImmoForm((f) => ({ ...f, description: e.target.value }))} className="input-field" />
+                </div>
+                <button onClick={handleSaveImmo} disabled={immoSaving || !immoForm.nom.trim() || !immoForm.montant_total} className="btn-primary w-full">
+                  {immoSaving ? <svg className="animate-spin" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> : <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>}
+                  Ajouter l&apos;immobilisation
+                </button>
+              </div>
+            </div>
+
+            {/* Liste des immobilisations */}
+            <div className="card p-5">
+              <h2 className="text-sm font-semibold text-ink mb-4">
+                Parc matériel
+                {immobilisations.length > 0 && (
+                  <span className="ml-2 text-xs font-normal text-ink-muted">
+                    {immobilisations.filter((i) => i.actif).length} bien{immobilisations.filter((i) => i.actif).length > 1 ? "s" : ""}
+                  </span>
+                )}
+              </h2>
+              {loading ? (
+                <div className="space-y-2">{[...Array(3)].map((_, i) => <div key={i} className="h-14 rounded-xl bg-surface-muted animate-pulse" />)}</div>
+              ) : immobilisations.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                  <div className="w-10 h-10 rounded-xl bg-surface-muted flex items-center justify-center mb-3">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8E8E93" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                  </div>
+                  <p className="text-sm font-medium text-ink">Aucune immobilisation</p>
+                  <p className="text-xs text-ink-muted mt-0.5">Ajouter un équipement durable</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {immobilisations.map((immo) => {
+                    const schedule = computeAmortissement(immo);
+                    const currentYear = new Date().getFullYear();
+                    const lastLine = schedule.filter((l) => l.year <= currentYear).at(-1);
+                    const vnc = lastLine?.vnc ?? immo.montant_total;
+                    const isFullyAmortized = vnc < 0.01;
+                    const isExpanded = expandedImmoId === immo.id;
+
+                    return (
+                      <div key={immo.id} className="border border-surface-border rounded-xl overflow-hidden">
+                        <div
+                          className="flex items-center gap-3 px-3 py-3 cursor-pointer hover:bg-surface-muted/50 transition-colors"
+                          onClick={() => setExpandedImmoId(isExpanded ? null : immo.id)}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-sm font-semibold text-ink truncate">{immo.nom}</p>
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold ${isFullyAmortized ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
+                                {isFullyAmortized ? "Amorti" : "En cours"}
+                              </span>
+                            </div>
+                            <p className="text-xs text-ink-muted mt-0.5">
+                              {fmtDate(immo.date_achat)} · {formatPrice(immo.montant_total)} · {immo.duree_amortissement} an{immo.duree_amortissement > 1 ? "s" : ""}
+                              {immo.fournisseur ? ` · ${immo.fournisseur}` : ""}
+                            </p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className="text-xs text-ink-muted">VNC</p>
+                            <p className="text-sm font-bold font-mono text-ink">{formatPrice(vnc)}</p>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button onClick={(e) => { e.stopPropagation(); openEditImmo(immo); }} className="p-1.5 rounded-lg text-ink-muted hover:text-brand-teal hover:bg-brand-teal-light transition-colors">
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            </button>
+                            <button onClick={(e) => { e.stopPropagation(); deleteImmobilisation(immo.id).then(load); }} className="p-1.5 rounded-lg text-ink-muted hover:text-brand-red hover:bg-brand-red-light transition-colors">
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                            </button>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8E8E93" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}><polyline points="6 9 12 15 18 9"/></svg>
+                          </div>
+                        </div>
+
+                        {isExpanded && (
+                          <div className="border-t border-surface-border px-3 pb-3 pt-2 bg-surface-muted/30">
+                            <p className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider mb-2">Plan d&apos;amortissement</p>
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-xs">
+                                <thead>
+                                  <tr className="border-b border-surface-border">
+                                    <th className="text-left text-ink-muted font-semibold pb-1 pr-3">Année / Saison</th>
+                                    <th className="text-right text-ink-muted font-semibold pb-1 pr-3">Dotation</th>
+                                    <th className="text-right text-ink-muted font-semibold pb-1">VNC</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-surface-border">
+                                  {schedule.map((line) => (
+                                    <tr key={line.year} className={line.year === currentYear ? "bg-brand-teal-light/30" : ""}>
+                                      <td className="py-1.5 pr-3 font-mono font-semibold text-ink">
+                                        {line.year}
+                                        {line.year === currentYear && <span className="ml-1.5 text-[9px] text-brand-teal font-semibold">← actuel</span>}
+                                      </td>
+                                      <td className="py-1.5 pr-3 text-right font-mono text-brand-red">{formatPrice(line.dotation)}</td>
+                                      <td className="py-1.5 text-right font-mono font-semibold text-ink">{formatPrice(line.vnc)}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                                <tfoot>
+                                  <tr className="border-t-2 border-surface-border">
+                                    <td className="pt-1.5 pr-3 font-bold text-ink">Total</td>
+                                    <td className="pt-1.5 pr-3 text-right font-mono font-bold text-brand-red">{formatPrice(schedule.reduce((s, l) => s + l.dotation, 0))}</td>
+                                    <td className="pt-1.5 text-right font-mono font-bold text-ink">—</td>
+                                  </tr>
+                                </tfoot>
+                              </table>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Charges list ── */}
@@ -977,6 +1219,62 @@ export default function ChargesPage() {
                 ) : (
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                 )}
+                Sauvegarder
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit immobilisation modal ── */}
+      {editingImmo && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: "rgba(0,0,0,0.3)", backdropFilter: "blur(4px)" }}
+          onClick={() => setEditingImmo(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl w-full max-w-md p-5 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-ink">Modifier l&apos;immobilisation</h3>
+              <button onClick={() => setEditingImmo(null)} className="p-1 rounded-md text-ink-muted hover:text-ink hover:bg-surface-muted transition-colors">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div>
+              <label className="label">Nom du bien</label>
+              <input type="text" value={editImmoForm.nom} onChange={(e) => setEditImmoForm((f) => ({ ...f, nom: e.target.value }))} className="input-field" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="label">Date d&apos;achat</label>
+                <DatePicker value={editImmoForm.date_achat} onChange={(v) => setEditImmoForm((f) => ({ ...f, date_achat: v }))} allowPast />
+              </div>
+              <div>
+                <label className="label">Montant (€)</label>
+                <input type="number" value={editImmoForm.montant_total} onChange={(e) => setEditImmoForm((f) => ({ ...f, montant_total: e.target.value }))} className="input-field font-mono" />
+              </div>
+            </div>
+            <div>
+              <label className="label">Durée d&apos;amortissement</label>
+              <select value={editImmoForm.duree_amortissement} onChange={(e) => setEditImmoForm((f) => ({ ...f, duree_amortissement: e.target.value }))} className="input-field">
+                {[2, 3, 4, 5].map((d) => <option key={d} value={d}>{d} ans ({d} saison{d > 1 ? "s" : ""})</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">Fournisseur</label>
+              <input type="text" value={editImmoForm.fournisseur} onChange={(e) => setEditImmoForm((f) => ({ ...f, fournisseur: e.target.value }))} className="input-field" />
+            </div>
+            <div>
+              <label className="label">Description</label>
+              <input type="text" value={editImmoForm.description} onChange={(e) => setEditImmoForm((f) => ({ ...f, description: e.target.value }))} className="input-field" />
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => setEditingImmo(null)} className="btn-secondary flex-1">Annuler</button>
+              <button onClick={handleUpdateImmo} disabled={editImmoSaving || !editImmoForm.nom.trim() || !editImmoForm.montant_total} className="btn-primary flex-1">
+                {editImmoSaving ? <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
                 Sauvegarder
               </button>
             </div>

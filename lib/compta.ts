@@ -1,4 +1,4 @@
-import type { CaEntry, Charge, Employee, WorkSession } from "./compta-types";
+import type { CaEntry, Charge, Employee, WorkSession, Immobilisation } from "./compta-types";
 import { supabase } from "./supabase";
 import { getSession } from "./auth";
 
@@ -123,5 +123,34 @@ export async function saveWorkSession(session: Omit<WorkSession, "id" | "created
 
 export async function deleteWorkSession(id: string): Promise<void> {
   const { error } = await supabase.from("work_sessions").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+// ── Immobilisations ──────────────────────────────────────────────────────────
+
+export async function getImmobilisations(): Promise<Immobilisation[]> {
+  const { data, error } = await supabase
+    .from("immobilisations")
+    .select("*")
+    .order("date_achat", { ascending: false });
+  if (error) { console.warn("[compta] getImmobilisations error", error.message); return []; }
+  return (data ?? []) as Immobilisation[];
+}
+
+export async function saveImmobilisation(immo: Omit<Immobilisation, "id" | "created_at">): Promise<void> {
+  const { error } = await supabase.from("immobilisations").insert({
+    ...immo,
+    created_by: createdBy(),
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function updateImmobilisation(id: string, patch: Partial<Omit<Immobilisation, "id" | "created_at">>): Promise<void> {
+  const { error } = await supabase.from("immobilisations").update(patch).eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+export async function deleteImmobilisation(id: string): Promise<void> {
+  const { error } = await supabase.from("immobilisations").delete().eq("id", id);
   if (error) throw new Error(error.message);
 }

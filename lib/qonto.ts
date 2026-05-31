@@ -49,7 +49,7 @@ export interface QontoDbTransaction {
   date: string;
   montant: number;
   libelle: string;
-  statut: "inclus" | "exclu" | "en_attente";
+  statut: "inclus" | "exclu" | "en_attente" | "immobilise";
   categorie: string | null;
   fournisseur: string | null;
   auto_rule: string | null;

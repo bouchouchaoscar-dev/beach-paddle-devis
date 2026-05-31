@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { CHARGE_LABELS, type ChargeCategory } from "@/lib/compta-types";
 import { formatPrice } from "@/lib/calculations";
 import type { QontoDbTransaction, QontoRule } from "@/lib/qonto";
+import { saveImmobilisation } from "@/lib/compta";
 
 const CATEGORIES: ChargeCategory[] = [
   "restauration_metro", "restauration_autre", "equipement", "salaire", "autre",
@@ -12,10 +13,12 @@ const CATEGORIES: ChargeCategory[] = [
 
 type ExpandedState = {
   id: string;
-  action: "inclure" | "exclure";
+  action: "inclure" | "exclure" | "immobiliser";
   categorie: ChargeCategory;
   fournisseur: string;
   memoriser: boolean;
+  immoNom: string;
+  immoDuree: number;
 };
 
 function fmtDate(d: string) {
@@ -106,9 +109,16 @@ export default function QontoPage() {
   const someSelected = visibleTxs.some((t) => selectedIds.has(t.id)) && !allSelected;
   const selectedCount = Array.from(selectedIds).filter((id) => visibleTxs.some((t) => t.id === id)).length;
 
-  function openExpand(tx: QontoDbTransaction, action: "inclure" | "exclure") {
+  function openExpand(tx: QontoDbTransaction, action: "inclure" | "exclure" | "immobiliser") {
     if (expanded?.id === tx.id && expanded.action === action) { setExpanded(null); return; }
-    setExpanded({ id: tx.id, action, categorie: (tx.categorie as ChargeCategory) ?? "autre", fournisseur: tx.fournisseur ?? tx.libelle ?? "", memoriser: false });
+    setExpanded({
+      id: tx.id, action,
+      categorie: (tx.categorie as ChargeCategory) ?? "autre",
+      fournisseur: tx.fournisseur ?? tx.libelle ?? "",
+      memoriser: false,
+      immoNom: tx.libelle ?? "",
+      immoDuree: 3,
+    });
   }
 
   async function handleApprove() {
@@ -137,6 +147,31 @@ export default function QontoPage() {
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
+      setExpanded(null);
+      await load();
+    } finally { setProcessing(null); }
+  }
+
+  async function handleImmobiliser() {
+    if (!expanded || expanded.action !== "immobiliser") return;
+    if (!expanded.immoNom.trim()) return;
+    const tx = transactions.find((t) => t.id === expanded.id);
+    if (!tx) return;
+    setProcessing(expanded.id);
+    try {
+      await saveImmobilisation({
+        nom: expanded.immoNom.trim(),
+        date_achat: tx.date,
+        montant_total: tx.montant,
+        duree_amortissement: expanded.immoDuree,
+        methode: "lineaire",
+        fournisseur: expanded.fournisseur || undefined,
+        description: `Depuis Qonto : ${tx.libelle}`,
+        annee_achat: tx.date.slice(0, 4),
+        actif: true,
+        created_by: "",
+      });
+      await supabase.from("qonto_transactions").update({ statut: "immobilise" }).eq("id", expanded.id);
       setExpanded(null);
       await load();
     } finally { setProcessing(null); }
@@ -298,6 +333,14 @@ export default function QontoPage() {
                                   <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                                 </svg>
                               </button>
+                              <button onClick={() => openExpand(tx, "immobiliser")} disabled={isLoading}
+                                className={`w-9 h-9 flex items-center justify-center rounded-lg border transition-all ${
+                                  isExpandedHere && expanded?.action === "immobiliser"
+                                    ? "bg-amber-600 text-white border-amber-600"
+                                    : "bg-amber-50 text-amber-700 border-amber-200 active:bg-amber-100"
+                                }`}>
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                              </button>
                             </div>
                             {/* Desktop : icône + texte */}
                             <div className="hidden sm:flex items-center gap-1.5 shrink-0">
@@ -321,6 +364,15 @@ export default function QontoPage() {
                                 </svg>
                                 Exclure
                               </button>
+                              <button onClick={() => openExpand(tx, "immobiliser")} disabled={isLoading}
+                                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all ${
+                                  isExpandedHere && expanded?.action === "immobiliser"
+                                    ? "bg-amber-600 text-white border-amber-600"
+                                    : "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
+                                }`}>
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                                Immobiliser
+                              </button>
                             </div>
                           </>
                         ) : (
@@ -340,7 +392,28 @@ export default function QontoPage() {
                       {/* Formulaire inline (pending uniquement) */}
                       {isExpandedHere && expanded && activeTab === "pending" && (
                         <div className="px-3 sm:px-4 pb-4 pt-3 bg-surface-muted/40 border-t border-surface-border">
-                          {expanded.action === "inclure" ? (
+                          {expanded.action === "immobiliser" ? (
+                            <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-3">
+                              <div className="sm:flex-1 sm:min-w-[160px]">
+                                <label className="label">Nom du bien</label>
+                                <input type="text" value={expanded.immoNom} onChange={(e) => setExpanded((s) => s ? { ...s, immoNom: e.target.value } : s)} className="input-field !py-1.5 !text-sm w-full" placeholder="ex: Flotte Kayak" />
+                              </div>
+                              <div>
+                                <label className="label">Durée d&apos;amortissement</label>
+                                <select value={expanded.immoDuree} onChange={(e) => setExpanded((s) => s ? { ...s, immoDuree: parseInt(e.target.value) } : s)} className="input-field !py-1.5 !text-sm w-full sm:w-auto">
+                                  {[2, 3, 4, 5].map((d) => <option key={d} value={d}>{d} ans ({d} saisons)</option>)}
+                                </select>
+                              </div>
+                              <div className="flex items-center justify-end gap-2">
+                                <button onClick={handleImmobiliser} disabled={!!processing || !expanded.immoNom.trim()}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 disabled:opacity-50 transition-colors">
+                                  {processing === tx.id ? <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>}
+                                  Confirmer
+                                </button>
+                                <button onClick={() => setExpanded(null)} className="px-3 py-1.5 rounded-lg bg-surface-muted text-ink-secondary text-xs font-medium hover:bg-surface-border transition-colors">Annuler</button>
+                              </div>
+                            </div>
+                          ) : expanded.action === "inclure" ? (
                             <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-3">
                               <div>
                                 <label className="label">Catégorie</label>
