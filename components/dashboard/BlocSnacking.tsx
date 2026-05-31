@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import type { DevisFormData, SnackingItem, SnackingFormula, GuidedArticle } from "@/lib/types";
-import { SNACKING_PRICES, GUIDED_ARTICLES } from "@/lib/pricing";
+import { SNACKING_PRICES, GUIDED_ARTICLES, BIERE_SUPPLEMENT, DEJEUNER_DESC } from "@/lib/pricing";
 import { NumericInput } from "@/components/ui/NumericInput";
 import { formatPrice } from "@/lib/calculations";
 
@@ -24,7 +24,7 @@ const FORMULA_TEMPLATES: FormulaTemplate[] = [
   {
     formula: "dejeuner",
     label: "Formule Déjeuner",
-    description: "Panini ou Hot Dog ou Croque Monsieur + Crêpe ou Glace ou Cookie + 1 Boisson au choix (Soda, eau ou café)",
+    description: DEJEUNER_DESC.sansBiere,
     price: SNACKING_PRICES.dejeuner,
     badge: "Populaire",
   },
@@ -587,6 +587,38 @@ export function BlocSnacking({ form, onChange }: Props) {
                       </button>
                     </div>
                   </div>
+                )}
+                {item.formula === "dejeuner" && (
+                  <label className="flex items-center gap-2.5 cursor-pointer select-none group w-fit">
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={!!item.biereIncluse}
+                      onClick={() => {
+                        const next = !item.biereIncluse;
+                        updateItem(item.id, {
+                          biereIncluse: next,
+                          pricePerPerson: next
+                            ? SNACKING_PRICES.dejeuner + BIERE_SUPPLEMENT
+                            : SNACKING_PRICES.dejeuner,
+                          description: next ? DEJEUNER_DESC.avecBiere : DEJEUNER_DESC.sansBiere,
+                        });
+                      }}
+                      className={`relative w-9 h-5 rounded-full transition-colors duration-200 shrink-0 focus:outline-none ${
+                        item.biereIncluse ? "bg-amber-500" : "bg-surface-border group-hover:bg-surface-border/80"
+                      }`}
+                    >
+                      <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${
+                        item.biereIncluse ? "translate-x-4" : "translate-x-0.5"
+                      }`} />
+                    </button>
+                    <span className="text-xs font-medium text-ink">
+                      Bière incluse{" "}
+                      <span className={`font-mono font-semibold ${item.biereIncluse ? "text-amber-600" : "text-ink-muted"}`}>
+                        +{formatPrice(BIERE_SUPPLEMENT)}/pers.
+                      </span>
+                    </span>
+                  </label>
                 )}
                 {item.pricePerPerson !== null && (
                   <span className="text-xs text-ink-secondary">

@@ -26,6 +26,7 @@ export interface SnackingItem {
   manualPrice?: number;
   manualLabel?: string;
   guidedArticles?: GuidedArticle[];
+  biereIncluse?: boolean;
 }
 
 export interface CoachOption {

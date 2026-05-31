@@ -31,6 +31,13 @@ export const SNACKING_PRICES = {
   gouter: 7.0,
 } as const;
 
+export const BIERE_SUPPLEMENT = 2.5;
+
+export const DEJEUNER_DESC = {
+  sansBiere: "Panini ou Hot Dog ou Croque Monsieur + Crêpe ou Glace ou Cookie + 1 Boisson au choix (Soda, eau ou café)",
+  avecBiere: "Panini ou Hot Dog ou Croque Monsieur + Crêpe ou Glace ou Cookie + 1 Boisson au choix (Soda, eau, café ou Bière)",
+} as const;
+
 export type GuidedArticleTemplate = { name: string; price: number };
 
 export const GUIDED_ARTICLES: Record<string, GuidedArticleTemplate[]> = {

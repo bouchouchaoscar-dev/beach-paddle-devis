@@ -64,7 +64,8 @@ function buildAutoDescription(form: DevisFormData): string {
 
   for (const item of form.snackingItems) {
     const prefix = item.label.startsWith("Formule") ? "" : "Formule ";
-    parts.push(`+ ${prefix}${item.label} incluse.`);
+    const biereSuffix = item.formula === "dejeuner" && item.biereIncluse ? " (avec bière)" : "";
+    parts.push(`+ ${prefix}${item.label} incluse${biereSuffix}.`);
   }
 
   if (form.coach.enabled) {
