@@ -687,14 +687,14 @@ export default function ChargesPage() {
                   <label className="label">Date</label>
                   <DatePicker value={sessionForm.date} onChange={(v) => setSessionForm((f) => ({ ...f, date: v }))} allowPast />
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="flex flex-col gap-3">
                   <div>
                     <label className="label">Heure début</label>
-                    <input type="time" value={sessionForm.heureDebut} onChange={(e) => setSessionForm((f) => ({ ...f, heureDebut: e.target.value }))} className="input-field w-full" />
+                    <input type="time" value={sessionForm.heureDebut} onChange={(e) => setSessionForm((f) => ({ ...f, heureDebut: e.target.value }))} className="input-field w-full box-border" />
                   </div>
                   <div>
                     <label className="label">Heure fin</label>
-                    <input type="time" value={sessionForm.heureFin} onChange={(e) => setSessionForm((f) => ({ ...f, heureFin: e.target.value }))} className="input-field w-full" />
+                    <input type="time" value={sessionForm.heureFin} onChange={(e) => setSessionForm((f) => ({ ...f, heureFin: e.target.value }))} className="input-field w-full box-border" />
                   </div>
                 </div>
                 <div>
