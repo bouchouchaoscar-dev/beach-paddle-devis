@@ -59,7 +59,6 @@ export default function ChargesPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [extracted, setExtracted] = useState<ExtractedData | null>(null);
-  const [debugRaw, setDebugRaw] = useState<string | null>(null);
   const [chargeForm, setChargeForm] = useState(emptyChargeForm());
 
   // Employee management
@@ -99,13 +98,11 @@ export default function ChargesPage() {
   async function handleFileSelect(file: File) {
     setSelectedFile(file);
     setExtracted(null);
-    setDebugRaw(null);
   }
 
   async function handleAnalyze() {
     if (!selectedFile) return;
     setAnalyzing(true);
-    setDebugRaw(null);
     try {
       const reader = new FileReader();
       const base64: string = await new Promise((res) => {
@@ -118,9 +115,6 @@ export default function ChargesPage() {
         body: JSON.stringify({ data: base64, mimeType: selectedFile.type }),
       });
       const result = await response.json();
-
-      // Always capture raw response for debug
-      if (result._raw) setDebugRaw(result._raw);
 
       if (result.error) throw new Error(result.error);
 
@@ -419,15 +413,6 @@ export default function ChargesPage() {
                 </div>
               )}
 
-              {/* Debug panel — réponse brute Claude */}
-              {debugRaw && (
-                <details className="rounded-lg bg-zinc-900 border border-zinc-700 text-xs">
-                  <summary className="px-3 py-2 cursor-pointer text-zinc-400 select-none hover:text-zinc-200 transition-colors">
-                    Réponse brute Claude (debug)
-                  </summary>
-                  <pre className="px-3 pb-3 pt-1 text-green-400 overflow-auto max-h-48 whitespace-pre-wrap break-all font-mono text-[11px]">{debugRaw}</pre>
-                </details>
-              )}
             </div>
 
             {/* Pre-filled form */}
