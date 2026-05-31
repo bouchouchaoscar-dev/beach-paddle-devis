@@ -23,22 +23,15 @@ const FORMULA_TEMPLATES: FormulaTemplate[] = [
   {
     formula: "dejeuner",
     label: "Formule Déjeuner",
-    description: "Panini ou Croque Monsieur ou Hot Dog + boisson froide + boisson chaude",
+    description: "Panini ou Hot Dog ou Croque Monsieur + Crêpe ou Glace ou Cookie + 1 Boisson au choix (Soda, eau ou café)",
     price: SNACKING_PRICES.dejeuner,
     badge: "Populaire",
   },
   {
     formula: "gouter",
     label: "Formule Goûter",
-    description: "Crêpe sucrée maison ou Glace ou Cookie maison + boisson froide + boisson chaude",
+    description: "Crêpe ou Glace ou Cookie + 1 Boisson au choix (Soda, eau ou café)",
     price: SNACKING_PRICES.gouter,
-  },
-  {
-    formula: "dejeuner-gouter",
-    label: "Formule Déjeuner + Goûter",
-    description: "Les deux formules combinées",
-    price: SNACKING_PRICES.dejeuner + SNACKING_PRICES.gouter,
-    badge: "Combiné",
   },
   {
     formula: "guidee",

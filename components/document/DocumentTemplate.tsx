@@ -343,7 +343,7 @@ export function DocumentTemplate({
               : (item.manualPrice ?? 0);
           const subtotal = price * n;
           const sectionTitle =
-            item.formula === "dejeuner" || item.formula === "dejeuner-gouter"
+            item.formula === "dejeuner"
               ? "DÉJEUNER"
               : item.formula === "gouter"
               ? "GOÛTER"

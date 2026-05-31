@@ -27,9 +27,8 @@ export function getActivityPrice(
 }
 
 export const SNACKING_PRICES = {
-  dejeuner: 12.0,
-  gouter: 10.0,
-  "dejeuner-gouter": 22.0, // dejeuner + gouter
+  dejeuner: 13.0,
+  gouter: 7.0,
 } as const;
 
 export type GuidedArticleTemplate = { name: string; price: number };

@@ -448,7 +448,7 @@ export function DevisDocument({
           const price = item.pricePerPerson !== null ? item.pricePerPerson : (item.manualPrice ?? 0);
           const subtotal = price * n;
           const title =
-            item.formula === "dejeuner" || item.formula === "dejeuner-gouter" ? "DÉJEUNER" :
+            item.formula === "dejeuner" ? "DÉJEUNER" :
             item.formula === "gouter" ? "GOÛTER" :
             item.formula === "apero" ? "APÉRITIF" : "PRESTATION COMPLÉMENTAIRE";
           return (

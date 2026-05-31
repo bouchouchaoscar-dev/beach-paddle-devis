@@ -6,7 +6,6 @@ export type DocumentType = "devis" | "facture";
 export type SnackingFormula =
   | "dejeuner"
   | "gouter"
-  | "dejeuner-gouter"
   | "apero"
   | "guidee"
   | "personnalise";
