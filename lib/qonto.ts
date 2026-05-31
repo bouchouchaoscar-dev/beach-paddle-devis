@@ -161,8 +161,8 @@ export function applyDefaultRules(tx: QontoTransaction): RuleResult {
   if (label.includes("PANEM")) {
     return { statut: "inclus", categorie: "restauration_autre", auto_rule: "inclus:PANEM" };
   }
-  if (label.includes("METRO") && date >= "2026-05-31") {
-    return { statut: "inclus", categorie: "restauration_metro", auto_rule: "inclus:METRO" };
+  if (label.includes("METRO FRANCE") && date >= "2026-05-31") {
+    return { statut: "inclus", categorie: "restauration_metro", auto_rule: "inclus:METRO_FRANCE" };
   }
 
   return { statut: "en_attente" };

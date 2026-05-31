@@ -534,7 +534,7 @@ export default function QontoPage() {
                 { label: "CARREFOUR ORMESS", action: "inclus", cat: "Restauration autre" },
                 { label: "LIDL CHENNEVIERES", action: "inclus", cat: "Restauration autre" },
                 { label: "PANEM", action: "inclus", cat: "Restauration autre" },
-                { label: "METRO (≥ 31/05/2026)", action: "inclus", cat: "Restauration Métro" },
+                { label: "METRO FRANCE (≥ 31/05/2026)", action: "inclus", cat: "Restauration Métro" },
                 { label: "Virements reçus", action: "exclu", cat: null },
                 { label: "NETFLIX / SPOTIFY / SFR…", action: "exclu", cat: null },
               ].map((r, i) => (
