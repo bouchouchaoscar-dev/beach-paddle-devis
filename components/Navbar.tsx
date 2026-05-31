@@ -1,9 +1,36 @@
 "use client";
 
 import { useRouter, usePathname } from "next/navigation";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { logout, getSession } from "@/lib/auth";
+import { supabase } from "@/lib/supabase";
+
+function QontoPendingBadge() {
+  const [count, setCount] = useState<number>(0);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { count: c } = await supabase
+          .from("qonto_transactions")
+          .select("*", { count: "exact", head: true })
+          .eq("statut", "en_attente");
+        if (c != null) setCount(c);
+      } catch {
+        // table may not exist yet
+      }
+    })();
+  }, []);
+
+  if (count === 0) return null;
+  return (
+    <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-bold leading-none">
+      {count > 9 ? "9+" : count}
+    </span>
+  );
+}
 
 export function Navbar() {
   const router = useRouter();
@@ -84,6 +111,18 @@ export function Navbar() {
         </svg>
       ),
     },
+    {
+      href: "/compta/qonto",
+      label: "Qonto",
+      icon: (
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="2" y="5" width="20" height="14" rx="2"/>
+          <line x1="2" y1="10" x2="22" y2="10"/>
+          <line x1="6" y1="15" x2="10" y2="15"/>
+          <line x1="14" y1="15" x2="16" y2="15"/>
+        </svg>
+      ),
+    },
   ];
 
   return (
@@ -148,6 +187,7 @@ export function Navbar() {
                     {link.icon}
                   </span>
                   {link.label}
+                  {link.href === "/compta/qonto" && <QontoPendingBadge />}
                 </Link>
               );
             })}
