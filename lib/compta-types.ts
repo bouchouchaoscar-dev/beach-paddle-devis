@@ -100,23 +100,18 @@ export interface AmortissementLine {
 }
 
 export function computeAmortissement(immo: Immobilisation): AmortissementLine[] {
-  const annuel = immo.montant_total / immo.duree_amortissement;
+  const annuel = Math.round((immo.montant_total / immo.duree_amortissement) * 100) / 100;
   const purchaseYear = parseInt(immo.date_achat.slice(0, 4));
-  const purchaseMonth = parseInt(immo.date_achat.slice(5, 7));
-  const prorata = (12 - purchaseMonth + 1) / 12;
 
   const lines: AmortissementLine[] = [];
   let remaining = immo.montant_total;
 
-  for (let i = 0; i <= immo.duree_amortissement && remaining > 0.005; i++) {
+  for (let i = 0; i < immo.duree_amortissement; i++) {
     const year = purchaseYear + i;
-    let dotation: number;
-    if (i === 0) {
-      dotation = Math.round(annuel * prorata * 100) / 100;
-    } else {
-      dotation = Math.round(Math.min(annuel, remaining) * 100) / 100;
-    }
-    dotation = Math.min(dotation, remaining);
+    // Last year gets the remaining balance to absorb any rounding difference
+    const dotation = i < immo.duree_amortissement - 1
+      ? Math.min(annuel, remaining)
+      : Math.round(remaining * 100) / 100;
     remaining = Math.round((remaining - dotation) * 100) / 100;
     lines.push({ year, dotation, vnc: remaining });
   }

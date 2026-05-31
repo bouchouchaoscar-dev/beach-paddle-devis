@@ -71,11 +71,15 @@ export default function AnalysePage() {
   const joursOuverts = caEntries.filter((e) => e.montant > 0).length;
   const caMoyen = joursOuverts > 0 ? totalCA / joursOuverts : 0;
 
+  const dotationMensuelle = isAll ? 0 : totalDotations / 12;
+
   // Monthly CA vs Charges (single season) / Yearly (all seasons)
   const monthlyCAvsCharges = isAll
     ? SAISONS.map((yr) => {
         const ca = caEntries.filter((e) => e.saison === yr).reduce((s, e) => s + e.montant, 0);
-        const ch = charges.filter((c) => c.saison === yr).reduce((s, c) => s + c.montant, 0);
+        const chExp = charges.filter((c) => c.saison === yr).reduce((s, c) => s + c.montant, 0);
+        const dot = immobilisations.filter((i) => i.actif).reduce((s, i) => s + getDotationForYear(i, parseInt(yr)), 0);
+        const ch = chExp + dot;
         const res = ca - ch;
         return { label: yr, ca, charges: ch, resultat: res };
       }).filter((r) => r.ca > 0 || r.charges > 0)
@@ -83,7 +87,8 @@ export default function AnalysePage() {
         const m = String(i + 1).padStart(2, "0");
         const prefix = `${saison}-${m}`;
         const ca = caEntries.filter((e) => e.date.startsWith(prefix)).reduce((s, e) => s + e.montant, 0);
-        const ch = charges.filter((c) => c.date.startsWith(prefix)).reduce((s, c) => s + c.montant, 0);
+        const chExp = charges.filter((c) => c.date.startsWith(prefix)).reduce((s, c) => s + c.montant, 0);
+        const ch = Math.round((chExp + dotationMensuelle) * 100) / 100;
         const res = ca - ch;
         return { label, ca, charges: ch, resultat: res };
       }).filter((m) => m.ca > 0 || m.charges > 0);
@@ -100,15 +105,13 @@ export default function AnalysePage() {
     return row;
   }).filter((r) => recentSaisons.some((s) => (r[s] as number) > 0));
 
-  // Charges by category
-  const chargesByCat = [
-    ...CATEGORIES.map((cat) => ({
-      name: CHARGE_LABELS[cat],
-      value: charges.filter((c) => c.categorie === cat).reduce((s, c) => s + c.montant, 0),
-      color: CHARGE_COLORS[cat],
-    })),
-    ...(totalDotations > 0 ? [{ name: "Amortissements", value: totalDotations, color: "#6E6E73" }] : []),
-  ].filter((c) => c.value > 0);
+  // Charges by category — dotations fusionnées dans Équipement
+  const chargesByCat = CATEGORIES.map((cat) => ({
+    name: CHARGE_LABELS[cat],
+    value: charges.filter((c) => c.categorie === cat).reduce((s, c) => s + c.montant, 0)
+      + (cat === "equipement" ? totalDotations : 0),
+    color: CHARGE_COLORS[cat],
+  })).filter((c) => c.value > 0);
 
   // Top 5 best days
   const top5Days = [...caEntries]
