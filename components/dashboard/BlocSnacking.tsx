@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import type { DevisFormData, SnackingItem, SnackingFormula, GuidedArticle } from "@/lib/types";
 import { SNACKING_PRICES, GUIDED_ARTICLES } from "@/lib/pricing";
+import { NumericInput } from "@/components/ui/NumericInput";
 import { formatPrice } from "@/lib/calculations";
 
 interface Props {
@@ -406,16 +407,11 @@ function GuidedBuilder({
               </svg>
             </button>
             <div className="relative">
-              <input
-                type="number"
+              <NumericInput
                 inputMode="decimal"
                 value={item.manualPrice ?? 0}
                 min={0}
                 step={0.5}
-                autoComplete="off"
-                autoCorrect="off"
-                autoCapitalize="off"
-                spellCheck={false}
                 onChange={(e) => onUpdate({ manualPrice: parseFloat(e.target.value) || 0 })}
                 className="w-20 h-9 border border-surface-border bg-white text-center text-sm font-bold font-mono text-ink outline-none pr-5 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
               />
@@ -572,16 +568,11 @@ export function BlocSnacking({ form, onChange }: Props) {
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
                       </button>
                       <div className="relative">
-                        <input
-                          type="number"
+                        <NumericInput
                           inputMode="decimal"
                           value={item.manualPrice ?? 0}
                           min={0}
                           step={0.5}
-                          autoComplete="off"
-                          autoCorrect="off"
-                          autoCapitalize="off"
-                          spellCheck={false}
                           onChange={(e) => updateItem(item.id, { manualPrice: parseFloat(e.target.value) || 0 })}
                           className="w-20 h-9 border border-surface-border bg-white text-center text-sm font-bold font-mono text-ink outline-none pr-5 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                         />

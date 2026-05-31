@@ -3,6 +3,7 @@
 import type { DevisFormData, ClientType } from "@/lib/types";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { DatePicker } from "@/components/ui/DatePicker";
+import { NumericInput } from "@/components/ui/NumericInput";
 
 
 interface Props {
@@ -168,16 +169,11 @@ export function BlocClient({ form, onChange }: Props) {
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
             </button>
-            <input
-              type="number"
+            <NumericInput
               inputMode="numeric"
               value={form.participantsCount}
               min={1}
               max={500}
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="off"
-              spellCheck={false}
               onChange={(e) => {
                 const v = parseInt(e.target.value);
                 if (!isNaN(v) && v >= 1) onChange({ participantsCount: v });

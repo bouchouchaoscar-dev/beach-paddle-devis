@@ -6,6 +6,7 @@ import { DocumentTemplate } from "./DocumentTemplate";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { calculateDevis, formatPrice } from "@/lib/calculations";
 import { saveDevis, generateNumero, generateId } from "@/lib/storage";
+import { NumericInput } from "@/components/ui/NumericInput";
 import type { DevisRecord } from "@/lib/types";
 
 // 210mm at 96 dpi
@@ -227,17 +228,12 @@ export function DocumentPreview({ form, calc, onClose, onFormChange, readOnly, e
           </button>
         )}
         <div className="relative">
-          <input
-            type="number"
+          <NumericInput
             inputMode="decimal"
             value={acompteVerse}
             min={0}
             step={10}
             placeholder="0"
-            autoComplete="off"
-            autoCorrect="off"
-            autoCapitalize="off"
-            spellCheck={false}
             onChange={(e) => setAcompteVerse(e.target.value)}
             className={`${compact ? "w-20 rounded-lg" : "w-24"} h-9 border border-surface-border bg-white text-center text-sm font-bold text-ink outline-none font-mono pr-6 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
           />

@@ -14,6 +14,8 @@ export default function RootLayout({
   return (
     <html lang="fr">
       <head>
+        <meta name="format-detection" content="telephone=no,date=no,address=no,email=no,url=no" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       </head>

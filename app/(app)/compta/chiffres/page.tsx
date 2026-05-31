@@ -8,6 +8,7 @@ import {
 import { getCaEntries, saveCaEntry, updateCaEntry, deleteCaEntry } from "@/lib/compta";
 import { formatPrice } from "@/lib/calculations";
 import { MOIS_FULL, MOIS_LABELS, SAISONS, type CaEntry } from "@/lib/compta-types";
+import { NumericInput } from "@/components/ui/NumericInput";
 import { DatePicker } from "@/components/ui/DatePicker";
 import { useComptaSaison } from "../ComptaSaisonProvider";
 
@@ -284,17 +285,12 @@ export default function ChiffresPage() {
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 </button>
                 <div className="relative flex-1">
-                  <input
-                    type="number"
+                  <NumericInput
                     inputMode="decimal"
                     value={form.montant}
                     min={0}
                     step={10}
                     placeholder="0"
-                    autoComplete="off"
-                    autoCorrect="off"
-                    autoCapitalize="off"
-                    spellCheck={false}
                     onChange={(e) => setForm((f) => ({ ...f, montant: e.target.value }))}
                     className="w-full h-9 border border-surface-border bg-white text-center text-sm font-bold font-mono text-ink outline-none pr-6 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                   />
@@ -342,17 +338,12 @@ export default function ChiffresPage() {
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
                         </button>
                         <div className="relative flex-1">
-                          <input
-                            type="number"
+                          <NumericInput
                             inputMode="decimal"
                             value={form.acompteMontant}
                             min={0}
                             step={10}
                             placeholder="0"
-                            autoComplete="off"
-                            autoCorrect="off"
-                            autoCapitalize="off"
-                            spellCheck={false}
                             onChange={(e) => setForm((f) => ({ ...f, acompteMontant: e.target.value }))}
                             className="w-full h-9 border border-surface-border bg-white text-center text-sm font-bold font-mono text-ink outline-none pr-6 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                           />
@@ -649,17 +640,12 @@ export default function ChiffresPage() {
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 </button>
                 <div className="relative flex-1">
-                  <input
-                    type="number"
+                  <NumericInput
                     inputMode="decimal"
                     value={editForm.montant}
                     min={0}
                     step={1}
                     autoFocus
-                    autoComplete="off"
-                    autoCorrect="off"
-                    autoCapitalize="off"
-                    spellCheck={false}
                     onChange={(e) => setEditForm((f) => ({ ...f, montant: e.target.value }))}
                     className="w-full h-9 border border-surface-border bg-white text-center text-sm font-bold font-mono text-ink outline-none pr-6 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                   />
