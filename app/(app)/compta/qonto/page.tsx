@@ -10,14 +10,6 @@ const CATEGORIES: ChargeCategory[] = [
   "restauration_metro", "restauration_autre", "equipement", "salaire", "autre",
 ];
 
-interface SyncReport {
-  nouveau: number;
-  total_fetched: number;
-  inclus: number;
-  exclu: number;
-  en_attente: number;
-}
-
 type ExpandedState = {
   id: string;
   action: "inclure" | "exclure";
@@ -30,15 +22,6 @@ function fmtDate(d: string) {
   return new Date(d + "T12:00:00").toLocaleDateString("fr-FR", {
     day: "2-digit", month: "short",
   });
-}
-
-function StatBadge({ label, value, color }: { label: string; value: number; color: string }) {
-  return (
-    <div className={`flex flex-col items-center px-4 py-2.5 rounded-xl border ${color}`}>
-      <span className="text-lg font-bold tabular-nums">{value}</span>
-      <span className="text-[11px] font-medium mt-0.5">{label}</span>
-    </div>
-  );
 }
 
 // ── Checkbox ────────────────────────────────────────────────────────────────
@@ -68,9 +51,6 @@ export default function QontoPage() {
   const [transactions, setTransactions] = useState<QontoDbTransaction[]>([]);
   const [rules, setRules] = useState<QontoRule[]>([]);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
-  const [syncReport, setSyncReport] = useState<SyncReport | null>(null);
-  const [syncError, setSyncError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<ExpandedState | null>(null);
   const [processing, setProcessing] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"pending" | "inclus" | "regles">("pending");
@@ -129,22 +109,6 @@ export default function QontoPage() {
   const selectedCount = Array.from(selectedIds).filter((id) => visibleTxs.some((t) => t.id === id)).length;
 
   // ── API calls ────────────────────────────────────────────────────────────
-  async function handleSync() {
-    setSyncing(true);
-    setSyncReport(null);
-    setSyncError(null);
-    try {
-      const res = await fetch("/api/qonto-sync", { method: "POST" });
-      const data = await res.json();
-      if (data.error) { setSyncError(data.error); } else { setSyncReport(data as SyncReport); await load(); }
-    } catch (err) {
-      setSyncError(err instanceof Error ? err.message : "Erreur réseau");
-    } finally {
-      setSyncing(false);
-    }
-  }
-
-
   function openExpand(tx: QontoDbTransaction, action: "inclure" | "exclure") {
     if (expanded?.id === tx.id && expanded.action === action) { setExpanded(null); return; }
     setExpanded({ id: tx.id, action, categorie: (tx.categorie as ChargeCategory) ?? "autre", fournisseur: tx.fournisseur ?? tx.libelle ?? "", memoriser: false });
@@ -238,34 +202,7 @@ export default function QontoPage() {
           <p className="text-sm text-ink-secondary mt-0.5">Transactions bancaires — synchronisation automatique</p>
         </div>
 
-        {syncing && (
-          <div className="flex items-center gap-2 text-xs text-ink-secondary">
-            <svg className="animate-spin" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-            Synchronisation…
-          </div>
-        )}
       </div>
-
-      {/* Sync error */}
-      {syncError && (
-        <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
-          <strong>Erreur :</strong> {syncError}
-        </div>
-      )}
-
-      {/* Sync report */}
-      {syncReport && (
-        <div className="card p-4" style={{ opacity: 0, animation: "slideUp 0.3s cubic-bezier(0.16,1,0.3,1) forwards" }}>
-          <p className="text-xs font-semibold text-ink-secondary mb-3 uppercase tracking-wider">
-            Rapport — {syncReport.nouveau} nouvelle{syncReport.nouveau !== 1 ? "s" : ""} transaction{syncReport.nouveau !== 1 ? "s" : ""} sur {syncReport.total_fetched} récupérées
-          </p>
-          <div className="flex flex-wrap gap-3">
-            <StatBadge label="Incluses auto" value={syncReport.inclus} color="bg-green-50 border-green-200 text-green-700" />
-            <StatBadge label="Exclues auto" value={syncReport.exclu} color="bg-zinc-50 border-zinc-200 text-zinc-500" />
-            <StatBadge label="En attente" value={syncReport.en_attente} color="bg-orange-50 border-orange-200 text-orange-600" />
-          </div>
-        </div>
-      )}
 
       {/* Tabs */}
       <div
