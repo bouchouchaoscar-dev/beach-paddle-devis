@@ -93,8 +93,7 @@ export default function QontoPage() {
     setLoading(false);
   }, []);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { handleSync(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   const pendingTxs = transactions.filter((t) => t.statut === "en_attente");
   const inclusTxs = transactions.filter((t) => t.statut === "inclus");
