@@ -59,6 +59,7 @@ export default function ChargesPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [extracted, setExtracted] = useState<ExtractedData | null>(null);
+  const [debugRaw, setDebugRaw] = useState<string | null>(null);
   const [chargeForm, setChargeForm] = useState(emptyChargeForm());
 
   // Employee management
@@ -98,11 +99,13 @@ export default function ChargesPage() {
   async function handleFileSelect(file: File) {
     setSelectedFile(file);
     setExtracted(null);
+    setDebugRaw(null);
   }
 
   async function handleAnalyze() {
     if (!selectedFile) return;
     setAnalyzing(true);
+    setDebugRaw(null);
     try {
       const reader = new FileReader();
       const base64: string = await new Promise((res) => {
@@ -115,11 +118,22 @@ export default function ChargesPage() {
         body: JSON.stringify({ data: base64, mimeType: selectedFile.type }),
       });
       const result = await response.json();
+
+      // Always capture raw response for debug
+      if (result._raw) setDebugRaw(result._raw);
+
       if (result.error) throw new Error(result.error);
 
-      // Handle single or array result
-      const item = Array.isArray(result) ? result[0] : result;
-      setExtracted(result);
+      // Route now returns { data: parsed, _raw: text }
+      const parsed = result.data ?? result;
+      const item = Array.isArray(parsed) ? parsed[0] : parsed;
+
+      // Validate that at least some fields were extracted
+      if (!item || (!item.montant_total && !item.fournisseur && !item.date)) {
+        throw new Error("L'IA n'a pas pu extraire les données — vérifier la réponse brute ci-dessous");
+      }
+
+      setExtracted(parsed);
       setChargeForm({
         date: item.date ?? new Date().toISOString().split("T")[0],
         montant: String(item.montant_total ?? ""),
@@ -129,8 +143,8 @@ export default function ChargesPage() {
         mode_paiement: "CB",
         statut_paiement: "paye",
       });
-    } catch {
-      setExtracted({ description: "Erreur d'analyse — remplir manuellement" });
+    } catch (err) {
+      setExtracted({ description: err instanceof Error ? err.message : "Erreur d'analyse — remplir manuellement" });
     } finally {
       setAnalyzing(false);
     }
@@ -404,16 +418,36 @@ export default function ChargesPage() {
                   {extracted.length} tickets détectés — seul le premier est pré-rempli.
                 </div>
               )}
+
+              {/* Debug panel — réponse brute Claude */}
+              {debugRaw && (
+                <details className="rounded-lg bg-zinc-900 border border-zinc-700 text-xs">
+                  <summary className="px-3 py-2 cursor-pointer text-zinc-400 select-none hover:text-zinc-200 transition-colors">
+                    Réponse brute Claude (debug)
+                  </summary>
+                  <pre className="px-3 pb-3 pt-1 text-green-400 overflow-auto max-h-48 whitespace-pre-wrap break-all font-mono text-[11px]">{debugRaw}</pre>
+                </details>
+              )}
             </div>
 
             {/* Pre-filled form */}
             <div className="card p-5 space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <h2 className="text-sm font-semibold text-ink">
-                  {extracted ? "Données extraites — vérifier avant sauvegarde" : "Données de la dépense"}
+                  {extracted
+                    ? (extracted.description?.startsWith("L'IA") || extracted.description?.startsWith("Erreur")
+                      ? extracted.description
+                      : "Données extraites — vérifier avant sauvegarde")
+                    : "Données de la dépense"}
                 </h2>
                 {extracted && (
-                  <span className="badge bg-green-100 text-green-700 text-[10px]">IA</span>
+                  <span className={`badge text-[10px] shrink-0 ${
+                    extracted.description?.startsWith("L'IA") || extracted.description?.startsWith("Erreur")
+                      ? "bg-red-100 text-red-700"
+                      : "bg-green-100 text-green-700"
+                  }`}>
+                    IA
+                  </span>
                 )}
               </div>
 
