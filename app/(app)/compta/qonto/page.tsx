@@ -58,6 +58,8 @@ export default function QontoPage() {
   const [processing, setProcessing] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"pending" | "inclus" | "regles">("pending");
 
+  const [searchQuery, setSearchQuery] = useState("");
+
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkCategorie, setBulkCategorie] = useState<ChargeCategory>("autre");
@@ -80,13 +82,23 @@ export default function QontoPage() {
 
   const pendingTxs = transactions.filter((t) => t.statut === "en_attente");
   const inclusTxs = transactions.filter((t) => t.statut === "inclus");
-  const visibleTxs = activeTab === "pending" ? pendingTxs : inclusTxs;
+  const allVisibleTxs = activeTab === "pending" ? pendingTxs : inclusTxs;
+  const visibleTxs = (() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return allVisibleTxs;
+    return allVisibleTxs.filter((t) =>
+      t.libelle.toLowerCase().includes(q) ||
+      String(t.montant).includes(q) ||
+      (t.fournisseur ?? "").toLowerCase().includes(q)
+    );
+  })();
 
   function switchTab(tab: typeof activeTab) {
     setActiveTab(tab);
     setSelectedIds(new Set());
     setExpanded(null);
     setShowBulkInclude(false);
+    setSearchQuery("");
   }
 
   function toggleSelect(id: string) {
@@ -256,16 +268,44 @@ export default function QontoPage() {
 
       {/* ── Tab: En attente + Incluses ── */}
       {(activeTab === "pending" || activeTab === "inclus") && (
-        <div style={{ opacity: 0, animation: "slideUp 0.4s cubic-bezier(0.16,1,0.3,1) 0.15s forwards" }}>
+        <div className="space-y-3" style={{ opacity: 0, animation: "slideUp 0.4s cubic-bezier(0.16,1,0.3,1) 0.15s forwards" }}>
+          {/* Search bar */}
+          <div className="relative w-full">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-ink-muted" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Rechercher une transaction..."
+              className="input-field !pl-9 !py-1.5 text-sm w-full"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink transition-colors"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            )}
+          </div>
+
           {visibleTxs.length === 0 ? (
             <div className="card p-10 text-center">
-              <div className="w-12 h-12 rounded-2xl bg-green-50 flex items-center justify-center mx-auto mb-3">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#16A34A" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3 ${searchQuery.trim() ? "bg-surface-muted" : "bg-green-50"}`}>
+                {searchQuery.trim() ? (
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#8E8E93" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                ) : (
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#16A34A" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                )}
               </div>
               <p className="text-sm font-semibold text-ink">
-                {activeTab === "pending" ? "Aucune transaction en attente" : "Aucune transaction incluse"}
+                {searchQuery.trim() ? "Aucune transaction trouvée" : (activeTab === "pending" ? "Aucune transaction en attente" : "Aucune transaction incluse")}
               </p>
-              <p className="text-xs text-ink-secondary mt-1">Synchronisez pour importer les dernières transactions</p>
+              <p className="text-xs text-ink-secondary mt-1">
+                {searchQuery.trim() ? `Aucun résultat pour "${searchQuery.trim()}"` : "Synchronisez pour importer les dernières transactions"}
+              </p>
             </div>
           ) : (
             <div className="card overflow-hidden">
