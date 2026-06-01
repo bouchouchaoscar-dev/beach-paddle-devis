@@ -116,10 +116,11 @@ export default function QontoPage() {
   const SYNC_COOLDOWN_MS = 10 * 60 * 1000;
   const hasMountedRef = useRef(false);
 
-  const handleSync = useCallback(async () => {
+  const handleSync = useCallback(async (full = false) => {
     setSyncing(true);
     try {
-      const res = await fetch("/api/qonto-sync", { method: "POST" });
+      const url = full ? "/api/qonto-sync?full=true" : "/api/qonto-sync";
+      const res = await fetch(url, { method: "POST" });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       localStorage.setItem("qonto_last_sync", String(Date.now()));
@@ -312,6 +313,19 @@ export default function QontoPage() {
             {syncing ? "Synchronisation en cours…" : "Synchronisation automatique à l'ouverture"}
           </p>
         </div>
+        {/* Reset sync — discreet button, full re-import from 2026-03-01 */}
+        <button
+          onClick={() => { if (confirm("Relancer une synchronisation complète depuis le 1er mars 2026 ?")) handleSync(true); }}
+          disabled={syncing}
+          title="Réinitialiser la synchronisation (import complet)"
+          className="text-ink-muted hover:text-ink-secondary transition-colors p-1.5 rounded-lg hover:bg-surface-muted disabled:opacity-40"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/>
+            <path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>
+          </svg>
+        </button>
       </div>
 
       {/* Tabs — full width on mobile */}
