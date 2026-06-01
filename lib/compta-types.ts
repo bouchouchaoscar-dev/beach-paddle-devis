@@ -124,6 +124,32 @@ export function getDotationForYear(immo: Immobilisation, year: number): number {
   return line?.dotation ?? 0;
 }
 
+// Saison ouverte : mars (3) à octobre (10)
+const SEASON_START = 3;
+const SEASON_END = 10;
+
+function getOpenMonthsInYear(immo: Immobilisation, year: number): number {
+  const purchaseYear = parseInt(immo.date_achat.slice(0, 4));
+  const purchaseMonth = parseInt(immo.date_achat.slice(5, 7));
+  if (year > purchaseYear) return SEASON_END - SEASON_START + 1; // 8 mois pleins
+  // Année d'achat : on part du max(moisAchat, mars) jusqu'à octobre
+  const firstMonth = Math.max(purchaseMonth, SEASON_START);
+  return Math.max(0, SEASON_END - firstMonth + 1);
+}
+
+export function getMonthlyDotation(immo: Immobilisation, year: number, month: number): number {
+  if (month < SEASON_START || month > SEASON_END) return 0;
+  const purchaseYear = parseInt(immo.date_achat.slice(0, 4));
+  const purchaseMonth = parseInt(immo.date_achat.slice(5, 7));
+  if (year < purchaseYear) return 0;
+  if (year === purchaseYear && month < Math.max(purchaseMonth, SEASON_START)) return 0;
+  const annual = getDotationForYear(immo, year);
+  if (annual === 0) return 0;
+  const openMonths = getOpenMonthsInYear(immo, year);
+  if (openMonths === 0) return 0;
+  return Math.round((annual / openMonths) * 100) / 100;
+}
+
 export function getVncTotal(immobilisations: Immobilisation[]): number {
   const currentYear = new Date().getFullYear();
   return immobilisations

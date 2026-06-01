@@ -13,7 +13,7 @@ import {
   CHARGE_LABELS, SAISONS,
   type Charge, type Employee, type WorkSession, type ChargeCategory,
   type Immobilisation,
-  computeAmortissement,
+  computeAmortissement, getDotationForYear, getMonthlyDotation,
 } from "@/lib/compta-types";
 import { useComptaSaison } from "../ComptaSaisonProvider";
 import { NumericInput } from "@/components/ui/NumericInput";
@@ -23,6 +23,16 @@ const CATEGORIES: ChargeCategory[] = ["restauration_metro", "restauration_autre"
 const MODES_PAIEMENT = ["CB", "Espèces", "Virement", "Chèque"];
 
 type Tab = "upload" | "manuel" | "employes" | "immobilisations";
+
+type VirtualChargeRow = {
+  id: string;
+  isVirtual: true;
+  immoNom: string;
+  montant: number;
+  date: string;
+  categorie: "equipement";
+  description: string;
+};
 
 interface ExtractedData {
   date?: string;
@@ -357,7 +367,45 @@ export default function ChargesPage() {
     );
     return matchCat && matchMois && matchSearch;
   });
-  const totalFiltered = filteredCharges.reduce((s, c) => s + c.montant, 0);
+
+  const virtualAmortRows: VirtualChargeRow[] = (() => {
+    if (filterCat !== "all" && filterCat !== "equipement") return [];
+    const activeImmos = immobilisations.filter((i) => i.actif);
+    const q = searchQuery.trim().toLowerCase();
+
+    return activeImmos.flatMap((immo): VirtualChargeRow[] => {
+      if (q) {
+        const matchSearch =
+          immo.nom.toLowerCase().includes(q) ||
+          (immo.fournisseur ?? "").toLowerCase().includes(q) ||
+          "amortissement".includes(q) ||
+          "équipement".includes(q) ||
+          CHARGE_LABELS.equipement.toLowerCase().includes(q);
+        if (!matchSearch) return [];
+      }
+
+      if (filterMois !== "all") {
+        const year = parseInt(filterMois.slice(0, 4));
+        const month = parseInt(filterMois.slice(5, 7));
+        const monthly = getMonthlyDotation(immo, year, month);
+        if (monthly === 0) return [];
+        return [{ id: `virtual-${immo.id}-${filterMois}`, isVirtual: true, immoNom: immo.nom, montant: monthly, date: `${filterMois}-01`, categorie: "equipement", description: "Dotation mensuelle" }];
+      } else if (!isAll) {
+        const annual = getDotationForYear(immo, parseInt(saison));
+        if (annual === 0) return [];
+        return [{ id: `virtual-${immo.id}-${saison}`, isVirtual: true, immoNom: immo.nom, montant: annual, date: `${saison}-12-31`, categorie: "equipement", description: "Dotation annuelle" }];
+      } else {
+        const maxYear = new Date().getFullYear();
+        let total = 0;
+        for (let y = parseInt(immo.annee_achat); y <= maxYear; y++) total += getDotationForYear(immo, y);
+        if (total === 0) return [];
+        return [{ id: `virtual-${immo.id}-all`, isVirtual: true, immoNom: immo.nom, montant: total, date: `${maxYear}-06-01`, categorie: "equipement", description: "Amortissements cumulés" }];
+      }
+    });
+  })();
+
+  const displayCharges: (Charge | VirtualChargeRow)[] = [...filteredCharges, ...virtualAmortRows];
+  const totalFiltered = displayCharges.reduce((s, c) => s + c.montant, 0);
 
   const sessionsByEmp = viewingEmpId
     ? sessions.filter((s) => s.employee_id === viewingEmpId)
@@ -1035,7 +1083,7 @@ export default function ChargesPage() {
             <div>
               <h2 className="text-sm font-semibold text-ink">Liste des charges</h2>
               <p className="text-xs text-ink-muted mt-0.5">
-                {filteredCharges.length} dépense{filteredCharges.length !== 1 ? "s" : ""} — Total : <span className="font-mono font-bold text-brand-red">{formatPrice(totalFiltered)}</span>
+                {filteredCharges.length} dépense{filteredCharges.length !== 1 ? "s" : ""}{virtualAmortRows.length > 0 ? ` + ${virtualAmortRows.length} amort.` : ""} — Total : <span className="font-mono font-bold text-brand-red">{formatPrice(totalFiltered)}</span>
               </p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
@@ -1089,7 +1137,7 @@ export default function ChargesPage() {
           <div className="p-5 space-y-2">
             {[...Array(4)].map((_, i) => <div key={i} className="h-10 rounded-lg bg-surface-muted animate-pulse" />)}
           </div>
-        ) : filteredCharges.length === 0 ? (
+        ) : displayCharges.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <div className="w-10 h-10 rounded-xl bg-surface-muted flex items-center justify-center mb-3">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8E8E93" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
@@ -1099,6 +1147,45 @@ export default function ChargesPage() {
           </div>
         ) : (
           <div className="divide-y divide-surface-border">
+            {virtualAmortRows.map((c) => {
+              const amberDot = <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: "#F59E0B" }} />;
+              return (
+                <div key={c.id} className="bg-amber-50/40 hover:bg-amber-50/70 transition-colors">
+                  {/* Mobile */}
+                  <div className="sm:hidden px-4 py-3 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        {amberDot}
+                        <span className="text-xs font-mono text-ink-muted">{fmtDate(c.date)}</span>
+                      </div>
+                      <span className="text-sm font-bold font-mono" style={{ color: "#F59E0B" }}>{formatPrice(c.montant)}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-ink truncate">{c.immoNom}</p>
+                        <p className="text-xs text-ink-muted truncate">Équipement · {c.description}</p>
+                      </div>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-700 shrink-0">Amortissement</span>
+                    </div>
+                  </div>
+                  {/* Desktop */}
+                  <div className="hidden sm:flex items-center gap-4 px-5 py-3">
+                    {amberDot}
+                    <div className="w-14 shrink-0">
+                      <span className="text-xs font-mono text-ink-muted">{fmtDate(c.date)}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-ink truncate">{c.immoNom}</p>
+                      <p className="text-xs text-ink-muted truncate">{c.description}</p>
+                    </div>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold bg-amber-100 text-amber-700 shrink-0">Amortissement</span>
+                    <span className="text-sm font-bold font-mono shrink-0" style={{ color: "#F59E0B" }}>
+                      {formatPrice(c.montant)}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
             {filteredCharges.map((c) => {
               const dot = <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: c.categorie === "restauration_metro" ? "#0071E3" : c.categorie === "restauration_autre" ? "#16A34A" : c.categorie === "equipement" ? "#F59E0B" : c.categorie === "salaire" ? "#8B5CF6" : "#8E8E93" }} />;
               return (

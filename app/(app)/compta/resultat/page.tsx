@@ -12,6 +12,7 @@ import {
   type CaEntry, type Charge, type ChargeCategory,
   type Immobilisation,
   getDotationForYear,
+  getMonthlyDotation,
 } from "@/lib/compta-types";
 import { useComptaSaison } from "../ComptaSaisonProvider";
 
@@ -64,9 +65,6 @@ export default function ResultatPage() {
   const resultat = totalCA - totalCharges;
   const marge = totalCA > 0 ? (resultat / totalCA) * 100 : 0;
 
-  // Dotation mensuelle : dotation annuelle / 12 (répartie uniformément)
-  const dotationMensuelle = isAll ? 0 : dotationForSaison(saison) / 12;
-
   const chargesByCategory = CATEGORIES.map((cat) => ({
     name: CHARGE_LABELS[cat],
     value: charges.filter((c) => c.categorie === cat).reduce((s, c) => s + c.montant, 0)
@@ -75,15 +73,19 @@ export default function ResultatPage() {
   })).filter((c) => c.value > 0);
 
   const monthlyData = MOIS_LABELS.map((label, i) => {
-    const m = String(i + 1).padStart(2, "0");
+    const month = i + 1;
+    const m = String(month).padStart(2, "0");
     const prefix = `${saison}-${m}`;
     const ca = caEntries.filter((e) => e.date.startsWith(prefix)).reduce((s, e) => s + e.montant, 0);
     const chExp = charges.filter((c) => c.date.startsWith(prefix)).reduce((s, c) => s + c.montant, 0);
-    const ch = Math.round((chExp + dotationMensuelle) * 100) / 100;
+    const dotMonth = isAll ? 0 : immobilisations
+      .filter((ii) => ii.actif)
+      .reduce((s, immo) => s + getMonthlyDotation(immo, parseInt(saison), month), 0);
+    const ch = Math.round((chExp + dotMonth) * 100) / 100;
     const res = ca - ch;
     const mg = ca > 0 ? (res / ca) * 100 : null;
-    return { label, ca, charges: ch, resultat: res, marge: mg };
-  }).filter((m) => m.ca > 0 || m.charges > 0);
+    return { label, ca, chExp, charges: ch, resultat: res, marge: mg };
+  }).filter((m) => m.ca > 0 || m.chExp > 0);
 
   // For "all" mode: per-season table
   const perSeasonData = SAISONS.map((yr) => {

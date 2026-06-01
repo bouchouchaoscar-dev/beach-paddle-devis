@@ -14,7 +14,7 @@ import {
   CHARGE_LABELS, CHARGE_COLORS,
   type CaEntry, type Charge, type ChargeCategory,
   type Immobilisation,
-  getDotationForYear, getVncTotal,
+  getDotationForYear, getVncTotal, getMonthlyDotation,
 } from "@/lib/compta-types";
 import { useComptaSaison } from "../ComptaSaisonProvider";
 
@@ -71,8 +71,6 @@ export default function AnalysePage() {
   const joursOuverts = caEntries.filter((e) => e.montant > 0).length;
   const caMoyen = joursOuverts > 0 ? totalCA / joursOuverts : 0;
 
-  const dotationMensuelle = isAll ? 0 : totalDotations / 12;
-
   // Monthly CA vs Charges (single season) / Yearly (all seasons)
   const monthlyCAvsCharges = isAll
     ? SAISONS.map((yr) => {
@@ -84,11 +82,15 @@ export default function AnalysePage() {
         return { label: yr, ca, charges: ch, resultat: res };
       }).filter((r) => r.ca > 0 || r.charges > 0)
     : MOIS_LABELS.map((label, i) => {
-        const m = String(i + 1).padStart(2, "0");
+        const month = i + 1;
+        const m = String(month).padStart(2, "0");
         const prefix = `${saison}-${m}`;
         const ca = caEntries.filter((e) => e.date.startsWith(prefix)).reduce((s, e) => s + e.montant, 0);
         const chExp = charges.filter((c) => c.date.startsWith(prefix)).reduce((s, c) => s + c.montant, 0);
-        const ch = Math.round((chExp + dotationMensuelle) * 100) / 100;
+        const dotMonth = immobilisations
+          .filter((ii) => ii.actif)
+          .reduce((s, immo) => s + getMonthlyDotation(immo, parseInt(saison), month), 0);
+        const ch = Math.round((chExp + dotMonth) * 100) / 100;
         const res = ca - ch;
         return { label, ca, charges: ch, resultat: res };
       }).filter((m) => m.ca > 0 || m.charges > 0);
