@@ -59,6 +59,8 @@ export default function QontoPage() {
   const [activeTab, setActiveTab] = useState<"pending" | "inclus" | "regles">("pending");
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<{ nouveau: number } | null>(null);
 
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -77,6 +79,22 @@ export default function QontoPage() {
     setRules((r ?? []) as QontoRule[]);
     setLoading(false);
   }, []);
+
+  async function handleSync() {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const res = await fetch("/api/qonto-sync", { method: "POST" });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setSyncResult({ nouveau: data.nouveau ?? 0 });
+      await load();
+    } catch {
+      setSyncResult({ nouveau: -1 });
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   useEffect(() => { load(); }, [load]);
 
@@ -230,15 +248,47 @@ export default function QontoPage() {
     <div className="max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6 pb-32">
 
       {/* Header */}
-      <div style={{ opacity: 0, animation: "slideUp 0.4s cubic-bezier(0.16,1,0.3,1) 0.05s forwards" }}>
-        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-ink flex items-center gap-2.5">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0071E3" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>
-            <line x1="6" y1="15" x2="10" y2="15"/><line x1="14" y1="15" x2="16" y2="15"/>
+      <div className="flex items-center justify-between gap-3 flex-wrap" style={{ opacity: 0, animation: "slideUp 0.4s cubic-bezier(0.16,1,0.3,1) 0.05s forwards" }}>
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-ink flex items-center gap-2.5">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0071E3" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>
+              <line x1="6" y1="15" x2="10" y2="15"/><line x1="14" y1="15" x2="16" y2="15"/>
+            </svg>
+            Qonto
+          </h1>
+          <p className="text-xs sm:text-sm text-ink-secondary mt-0.5">
+            {syncResult === null
+              ? "Cliquer sur Synchroniser pour importer les nouvelles transactions"
+              : syncResult.nouveau === -1
+              ? "Erreur de synchronisation — vérifier la clé API"
+              : syncResult.nouveau === 0
+              ? "Déjà à jour — aucune nouvelle transaction"
+              : `${syncResult.nouveau} nouvelle${syncResult.nouveau > 1 ? "s" : ""} transaction${syncResult.nouveau > 1 ? "s" : ""} importée${syncResult.nouveau > 1 ? "s" : ""}`}
+          </p>
+        </div>
+        <button
+          onClick={handleSync}
+          disabled={syncing}
+          className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold border transition-all active:scale-95"
+          style={{
+            backgroundColor: syncing ? "#f0f4ff" : "#0071E3",
+            borderColor: syncing ? "#c7d7ff" : "#0071E3",
+            color: syncing ? "#0071E3" : "white",
+          }}
+        >
+          <svg
+            width="14" height="14" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+            className={syncing ? "animate-spin" : ""}
+          >
+            {syncing
+              ? <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+              : <><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></>
+            }
           </svg>
-          Qonto
-        </h1>
-        <p className="text-xs sm:text-sm text-ink-secondary mt-0.5">Transactions bancaires — synchronisation automatique</p>
+          {syncing ? "Sync…" : "Synchroniser"}
+        </button>
       </div>
 
       {/* Tabs — full width on mobile */}
