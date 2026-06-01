@@ -61,12 +61,46 @@ export default function QontoPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [syncing, setSyncing] = useState(false);
 
+  // "Nouveau" badge: transactions created after seenBefore are new until clicked
+  const [seenBefore, setSeenBefore] = useState<string>("");
+  const [seenIds, setSeenIds] = useState<Set<string>>(new Set());
+
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkCategorie, setBulkCategorie] = useState<ChargeCategory>("autre");
   const [showBulkInclude, setShowBulkInclude] = useState(false);
   const [bulkProcessing, setBulkProcessing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Initialize "seen" state from localStorage (runs once on mount)
+  useEffect(() => {
+    const stored = localStorage.getItem("qonto_seen_before");
+    if (!stored) {
+      const now = new Date().toISOString();
+      localStorage.setItem("qonto_seen_before", now);
+      setSeenBefore(now);
+    } else {
+      setSeenBefore(stored);
+      try {
+        setSeenIds(new Set(JSON.parse(localStorage.getItem("qonto_seen_ids") ?? "[]") as string[]));
+      } catch { /* ignore */ }
+    }
+  }, []);
+
+  function isNew(tx: QontoDbTransaction) {
+    if (!seenBefore) return false;
+    return tx.created_at > seenBefore && !seenIds.has(tx.id);
+  }
+
+  function markSeen(id: string) {
+    setSeenIds((prev) => {
+      if (prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.add(id);
+      localStorage.setItem("qonto_seen_ids", JSON.stringify(Array.from(next)));
+      return next;
+    });
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -130,6 +164,7 @@ export default function QontoPage() {
   }
 
   function toggleSelect(id: string) {
+    markSeen(id);
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
@@ -150,6 +185,7 @@ export default function QontoPage() {
   const selectedCount = Array.from(selectedIds).filter((id) => visibleTxs.some((t) => t.id === id)).length;
 
   function openExpand(tx: QontoDbTransaction, action: "inclure" | "exclure" | "immobiliser") {
+    markSeen(tx.id);
     if (expanded?.id === tx.id && expanded.action === action) { setExpanded(null); return; }
     setExpanded({
       id: tx.id, action,
@@ -375,7 +411,14 @@ export default function QontoPage() {
 
                         {/* Libellé + date sous le libellé sur mobile */}
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-ink truncate">{tx.libelle}</p>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <p className="text-sm font-medium text-ink truncate">{tx.libelle}</p>
+                            {isNew(tx) && (
+                              <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-blue-500 text-white uppercase tracking-wide leading-none">
+                                Nouveau
+                              </span>
+                            )}
+                          </div>
                           <p className="text-[11px] text-ink-muted font-mono mt-0.5 sm:hidden">{fmtDate(tx.date)}</p>
                           {activeTab === "inclus" && tx.categorie && (
                             <p className="text-[11px] text-ink-muted mt-0.5">{CHARGE_LABELS[tx.categorie as ChargeCategory] ?? tx.categorie}</p>
