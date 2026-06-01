@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { CHARGE_LABELS, type ChargeCategory } from "@/lib/compta-types";
 import { formatPrice } from "@/lib/calculations";
@@ -80,13 +80,17 @@ export default function QontoPage() {
     setLoading(false);
   }, []);
 
-  async function handleSync() {
+  const SYNC_COOLDOWN_MS = 10 * 60 * 1000;
+  const hasMountedRef = useRef(false);
+
+  const handleSync = useCallback(async () => {
     setSyncing(true);
     setSyncResult(null);
     try {
       const res = await fetch("/api/qonto-sync", { method: "POST" });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
+      localStorage.setItem("qonto_last_sync", String(Date.now()));
       setSyncResult({ nouveau: data.nouveau ?? 0 });
       await load();
     } catch {
@@ -94,9 +98,18 @@ export default function QontoPage() {
     } finally {
       setSyncing(false);
     }
-  }
+  }, [load]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    if (!hasMountedRef.current) {
+      hasMountedRef.current = true;
+      const lastSync = parseInt(localStorage.getItem("qonto_last_sync") ?? "0");
+      if (Date.now() - lastSync > SYNC_COOLDOWN_MS) {
+        handleSync();
+      }
+    }
+  }, [load, handleSync]);
 
   const pendingTxs = transactions.filter((t) => t.statut === "en_attente");
   const inclusTxs = transactions.filter((t) => t.statut === "inclus");
