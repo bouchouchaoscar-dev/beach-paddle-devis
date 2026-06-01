@@ -60,7 +60,6 @@ export default function QontoPage() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [syncing, setSyncing] = useState(false);
-  const [syncResult, setSyncResult] = useState<{ nouveau: number } | null>(null);
 
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -85,16 +84,14 @@ export default function QontoPage() {
 
   const handleSync = useCallback(async () => {
     setSyncing(true);
-    setSyncResult(null);
     try {
       const res = await fetch("/api/qonto-sync", { method: "POST" });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       localStorage.setItem("qonto_last_sync", String(Date.now()));
-      setSyncResult({ nouveau: data.nouveau ?? 0 });
       await load();
     } catch {
-      setSyncResult({ nouveau: -1 });
+      // silent failure — will retry next page open
     } finally {
       setSyncing(false);
     }
@@ -270,38 +267,15 @@ export default function QontoPage() {
             </svg>
             Qonto
           </h1>
-          <p className="text-xs sm:text-sm text-ink-secondary mt-0.5">
-            {syncResult === null
-              ? "Cliquer sur Synchroniser pour importer les nouvelles transactions"
-              : syncResult.nouveau === -1
-              ? "Erreur de synchronisation — vérifier la clé API"
-              : syncResult.nouveau === 0
-              ? "Déjà à jour — aucune nouvelle transaction"
-              : `${syncResult.nouveau} nouvelle${syncResult.nouveau > 1 ? "s" : ""} transaction${syncResult.nouveau > 1 ? "s" : ""} importée${syncResult.nouveau > 1 ? "s" : ""}`}
+          <p className="text-xs sm:text-sm text-ink-secondary mt-0.5 flex items-center gap-1.5">
+            {syncing && (
+              <svg className="animate-spin shrink-0" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+              </svg>
+            )}
+            {syncing ? "Synchronisation en cours…" : "Synchronisation automatique à l'ouverture"}
           </p>
         </div>
-        <button
-          onClick={handleSync}
-          disabled={syncing}
-          className="flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-semibold border transition-all active:scale-95"
-          style={{
-            backgroundColor: syncing ? "#f0f4ff" : "#0071E3",
-            borderColor: syncing ? "#c7d7ff" : "#0071E3",
-            color: syncing ? "#0071E3" : "white",
-          }}
-        >
-          <svg
-            width="14" height="14" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-            className={syncing ? "animate-spin" : ""}
-          >
-            {syncing
-              ? <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
-              : <><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></>
-            }
-          </svg>
-          {syncing ? "Sync…" : "Synchroniser"}
-        </button>
       </div>
 
       {/* Tabs — full width on mobile */}
