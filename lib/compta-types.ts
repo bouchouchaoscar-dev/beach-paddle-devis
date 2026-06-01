@@ -150,13 +150,14 @@ export function getMonthlyDotation(immo: Immobilisation, year: number, month: nu
   return Math.round((annual / openMonths) * 100) / 100;
 }
 
-export function getVncTotal(immobilisations: Immobilisation[]): number {
-  const currentYear = new Date().getFullYear();
+export function getVncTotal(immobilisations: Immobilisation[], year?: number): number {
+  const targetYear = year ?? new Date().getFullYear();
   return immobilisations
     .filter((i) => i.actif)
     .reduce((sum, immo) => {
+      if (parseInt(immo.annee_achat) > targetYear) return sum; // pas encore acheté
       const lines = computeAmortissement(immo);
-      const last = lines.filter((l) => l.year <= currentYear).at(-1);
+      const last = lines.filter((l) => l.year <= targetYear).at(-1);
       return sum + (last?.vnc ?? immo.montant_total);
     }, 0);
 }

@@ -64,7 +64,7 @@ export default function AnalysePage() {
     return s + getDotationForYear(i, currentYear);
   }, 0);
   const totalCharges = totalChargesExploitation + totalDotations;
-  const vncTotal = getVncTotal(immobilisations);
+  const vncTotal = getVncTotal(immobilisations, isAll ? undefined : parseInt(saison));
   const resultat = totalCA - totalCharges;
   const marge = totalCA > 0 ? (resultat / totalCA) * 100 : 0;
 
