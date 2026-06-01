@@ -451,19 +451,19 @@ export default function ChargesPage() {
 
       {/* ── Tabs ── */}
       <div
-        className="flex items-center gap-1 p-1 bg-surface-muted rounded-xl border border-surface-border w-fit"
+        className="flex items-center gap-0.5 p-1 bg-surface-muted rounded-xl border border-surface-border w-full sm:w-fit overflow-x-auto"
         style={{ opacity: 0, animation: "slideUp 0.4s cubic-bezier(0.16,1,0.3,1) 0.1s forwards" }}
       >
         {([
           { id: "upload", label: "Upload & IA" },
-          { id: "manuel", label: "Saisie manuelle" },
+          { id: "manuel", label: "Manuel" },
           { id: "employes", label: "Employés" },
-          { id: "immobilisations", label: "Immobilisations" },
+          { id: "immobilisations", label: "Immo." },
         ] as { id: Tab; label: string }[]).map((t) => (
           <button
             key={t.id}
             onClick={() => setActiveTab(t.id)}
-            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+            className={`flex-1 sm:flex-none whitespace-nowrap px-2.5 sm:px-4 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200 ${
               activeTab === t.id
                 ? "bg-white shadow-soft text-brand-teal"
                 : "text-ink-secondary hover:text-ink"
