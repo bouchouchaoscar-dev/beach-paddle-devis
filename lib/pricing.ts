@@ -14,15 +14,20 @@ export const KAYAK_PRICES: Record<Duration, number> = {
   "2h": 24.0,
 };
 
+export const HYBRIDE_PRICES: Record<Duration, number> = {
+  "30min": 8.75,
+  "1h": 15.0,
+  "1h30": 22.5,
+  "2h": 27.0,
+};
+
 export function getActivityPrice(
   activity: ActivityType,
   duration: Duration
 ): number {
   if (activity === "paddle") return PADDLE_PRICES[duration];
   if (activity === "kayak") return KAYAK_PRICES[duration];
-  if (activity === "hybride") {
-    return (PADDLE_PRICES[duration] + KAYAK_PRICES[duration]) / 2;
-  }
+  if (activity === "hybride") return HYBRIDE_PRICES[duration];
   return 0;
 }
 
