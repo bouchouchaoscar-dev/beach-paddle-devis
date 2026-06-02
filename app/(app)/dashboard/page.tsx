@@ -49,17 +49,11 @@ function buildAutoDescription(form: DevisFormData): string {
   const parts: string[] = [];
 
   if (form.activity === "paddle") {
-    parts.push(
-      `Location de Paddles, leash, pagaies et gilets de sauvetage ${group} — ${durationLabel}${dateTime}.`
-    );
+    parts.push(`Location de Paddle ${group} — ${durationLabel}${dateTime}.`);
   } else if (form.activity === "kayak") {
-    parts.push(
-      `Location de Kayaks, pagaies et gilets de sauvetage ${group} — ${durationLabel}${dateTime}.`
-    );
+    parts.push(`Location de Kayak ${group} — ${durationLabel}${dateTime}.`);
   } else if (form.activity === "hybride") {
-    parts.push(
-      `Location de Paddles et Kayaks, leash, pagaies et gilets de sauvetage ${group} — ${durationLabel}${dateTime}.`
-    );
+    parts.push(`Location de Paddle et Kayak ${group} — ${durationLabel}${dateTime}.`);
   }
 
   for (const item of form.snackingItems) {

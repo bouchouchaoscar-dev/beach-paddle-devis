@@ -139,7 +139,11 @@ export function DocumentPreview({ form, calc, onClose, onFormChange, readOnly, e
         form.activity === "kayak" ? "Kayak" :
         form.activity === "hybride" ? "Paddle-Kayak" : "";
       const safeClient = form.clientName.replace(/[/\\:*?"<>|]/g, " ").trim();
-      const fileName = [documentType === "facture" ? "Facture" : "Devis", activityLabel, safeClient]
+      const datePart = (!form.dateADefinir && form.date) ? (() => {
+        const [y, m, d] = form.date.split("-");
+        return `${d}-${m}-${y.slice(2)}`;
+      })() : "";
+      const fileName = [documentType === "facture" ? "Facture" : "Devis", activityLabel, safeClient, datePart]
         .filter(Boolean)
         .join(" ") + ".pdf";
 
