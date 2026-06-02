@@ -12,6 +12,10 @@ import {
   getClientStyle,
 } from "@/lib/calendar";
 import { getSession } from "@/lib/auth";
+import { getDevisById } from "@/lib/storage";
+import { calculateDevis } from "@/lib/calculations";
+import { DocumentPreview } from "@/components/document/DocumentPreview";
+import type { DevisRecord } from "@/lib/types";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -29,6 +33,13 @@ const ACT_LABELS: Record<string, string> = {
   paddle: "Paddle",
   kayak: "Kayak",
   hybride: "Paddle + Kayak",
+};
+
+const TYPE_SHORT: Record<string, string> = {
+  entreprise: "Entr.",
+  scolaire: "École",
+  loisirs: "S.J.",
+  service_jeunesse: "S.J.",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -238,32 +249,44 @@ function EventPill({
   const pillBg = payment?.cas === 2 ? "rgba(21,128,61,0.13)" : cs.bg;
   const pillColor = payment?.cas === 2 ? "#15803d" : cs.text;
 
+  const typeLabel = event.type_client ? (TYPE_SHORT[event.type_client] ?? null) : null;
+
   return (
     <button
       onClick={(e) => { e.stopPropagation(); onClick(); }}
-      className="w-full text-left px-1.5 py-[2px] rounded-[5px] text-[11px] font-semibold flex items-center gap-1 hover:brightness-95 transition-all truncate"
+      className="w-full text-left px-2 py-1 rounded-[6px] text-[13px] font-semibold flex items-center gap-1 hover:brightness-95 transition-all min-h-[28px] overflow-hidden"
       style={{ backgroundColor: pillBg, color: pillColor }}
     >
-      <ActivityIcon activite={event.activite} s={10} />
-      <span className="truncate flex-1">
-        {event.heure_debut ? `${formatH(event.heure_debut)} ` : ""}
+      {/* Type client badge */}
+      {typeLabel && (
+        <span className="shrink-0 text-[9px] font-bold opacity-60 uppercase tracking-wide leading-none border rounded px-[3px] py-[1px]" style={{ borderColor: "currentColor" }}>
+          {typeLabel}
+        </span>
+      )}
+      <ActivityIcon activite={event.activite} s={11} />
+      {/* Client name — truncated, takes all available space */}
+      <span className="truncate flex-1 text-[12px] font-semibold leading-tight">
         {event.nom_client || event.titre}
       </span>
+      {/* Heure — small, right-aligned */}
+      {event.heure_debut && (
+        <span className="shrink-0 text-[10px] opacity-60 font-medium ml-0.5">{formatH(event.heure_debut)}</span>
+      )}
       {/* Payment indicators */}
       {payment?.cas === 2 && (
-        <span className="shrink-0" style={{ color: "#15803d" }}><IcoCheckFull s={10}/></span>
+        <span className="shrink-0 ml-0.5" style={{ color: "#15803d" }}><IcoCheckFull s={10}/></span>
       )}
       {payment?.cas === 1 && (
-        <span className="shrink-0" style={{ color: "#16A34A" }}><IcoCheck s={9}/></span>
+        <span className="shrink-0 ml-0.5" style={{ color: "#16A34A" }}><IcoCheck s={9}/></span>
       )}
       {payment?.cas === 3 && (
-        <span className="shrink-0" style={{ color: "#D97706" }}><IcoCheck s={9}/></span>
+        <span className="shrink-0 ml-0.5" style={{ color: "#D97706" }}><IcoCheck s={9}/></span>
       )}
       {(!payment || payment.cas === 4) && event.acompte_recu && (
-        <span className="shrink-0 opacity-70"><IcoCheck s={9}/></span>
+        <span className="shrink-0 opacity-70 ml-0.5"><IcoCheck s={9}/></span>
       )}
       {warn && (
-        <span className="shrink-0" style={{ color: "#EA580C" }}><IcoWarn s={9}/></span>
+        <span className="shrink-0 ml-0.5" style={{ color: "#EA580C" }}><IcoWarn s={9}/></span>
       )}
     </button>
   );
@@ -694,12 +717,25 @@ function EventModal({
   const [acompteMontant, setAcompteMontant] = useState(event.acompte_montant?.toString() ?? "");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [previewRecord, setPreviewRecord] = useState<DevisRecord | null>(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
 
   // manual edit fields
   const [titre, setTitre] = useState(event.titre);
   const [date, setDate] = useState(event.date_event);
   const [heure, setHeure] = useState(event.heure_debut ?? "");
   const [notes, setNotes] = useState(event.notes ?? "");
+
+  async function openPreview() {
+    if (!event.devis_id) return;
+    setLoadingPreview(true);
+    try {
+      const record = await getDevisById(event.devis_id);
+      if (record) setPreviewRecord(record);
+    } finally {
+      setLoadingPreview(false);
+    }
+  }
 
   async function toggleAcompte(val: boolean) {
     setAcompte(val);
@@ -979,50 +1015,79 @@ function EventModal({
           )}
 
           {/* Actions */}
-          <div className="flex items-center gap-2 pt-1">
-            {event.manuel ? (
-              <>
-                <button
-                  onClick={saveManual}
-                  disabled={saving}
-                  className="flex-1 h-10 rounded-xl text-sm font-bold text-white transition-opacity disabled:opacity-50 hover:opacity-90"
-                  style={{ backgroundColor: "#0071E3" }}
-                >
-                  {saving ? "Sauvegarde..." : "Enregistrer"}
-                </button>
-                <button
-                  onClick={handleDelete}
-                  disabled={deleting}
-                  className="h-10 px-3 rounded-xl text-sm font-medium flex items-center gap-1.5 transition-colors hover:bg-red-50 disabled:opacity-50"
-                  style={{ color: "#E03131" }}
-                >
-                  <IcoTrash s={14} />
-                  Supprimer
-                </button>
-              </>
-            ) : (
-              <>
-                <a
-                  href="/historique"
-                  className="flex-1 h-10 flex items-center justify-center rounded-xl text-sm font-bold transition-colors hover:bg-blue-100"
-                  style={{ color: "#0071E3", backgroundColor: "#EBF4FF" }}
-                >
-                  Voir dans Archives
-                </a>
-                <button
-                  onClick={handleDelete}
-                  disabled={deleting}
-                  className="h-10 px-3 rounded-xl text-sm font-medium flex items-center gap-1.5 transition-colors hover:bg-red-50 disabled:opacity-50"
-                  style={{ color: "#E03131" }}
-                >
-                  <IcoTrash s={14} />
-                  <span className="hidden sm:inline">Retirer</span>
-                </button>
-              </>
+          <div className="flex flex-col gap-2 pt-1">
+            {/* Aperçu du devis button — only for devis-linked events */}
+            {!event.manuel && event.devis_id && (
+              <button
+                onClick={openPreview}
+                disabled={loadingPreview}
+                className="w-full h-10 flex items-center justify-center gap-2 rounded-xl text-sm font-bold transition-all hover:opacity-90 disabled:opacity-50"
+                style={{ backgroundColor: "#0071E3", color: "#fff" }}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+                {loadingPreview ? "Chargement..." : "Aperçu du devis"}
+              </button>
             )}
+            <div className="flex items-center gap-2">
+              {event.manuel ? (
+                <>
+                  <button
+                    onClick={saveManual}
+                    disabled={saving}
+                    className="flex-1 h-10 rounded-xl text-sm font-bold text-white transition-opacity disabled:opacity-50 hover:opacity-90"
+                    style={{ backgroundColor: "#0071E3" }}
+                  >
+                    {saving ? "Sauvegarde..." : "Enregistrer"}
+                  </button>
+                  <button
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    className="h-10 px-3 rounded-xl text-sm font-medium flex items-center gap-1.5 transition-colors hover:bg-red-50 disabled:opacity-50"
+                    style={{ color: "#E03131" }}
+                  >
+                    <IcoTrash s={14} />
+                    Supprimer
+                  </button>
+                </>
+              ) : (
+                <>
+                  <a
+                    href="/historique"
+                    className="flex-1 h-10 flex items-center justify-center rounded-xl text-sm font-bold transition-colors hover:bg-blue-100"
+                    style={{ color: "#0071E3", backgroundColor: "#EBF4FF" }}
+                  >
+                    Voir dans Archives
+                  </a>
+                  <button
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    className="h-10 px-3 rounded-xl text-sm font-medium flex items-center gap-1.5 transition-colors hover:bg-red-50 disabled:opacity-50"
+                    style={{ color: "#E03131" }}
+                  >
+                    <IcoTrash s={14} />
+                    <span className="hidden sm:inline">Retirer</span>
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>
+
+      {/* DocumentPreview overlay */}
+      {previewRecord && (
+        <DocumentPreview
+          form={previewRecord.formData}
+          calc={calculateDevis(previewRecord.formData)}
+          onClose={() => setPreviewRecord(null)}
+          onFormChange={() => {}}
+          readOnly
+          existingNumero={previewRecord.numero}
+        />
+      )}
     </div>
   );
 }
