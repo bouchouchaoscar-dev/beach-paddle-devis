@@ -1198,11 +1198,6 @@ export default function CalendarPage() {
   const today = useMemo(todayDate, []);
   const mountedRef = useRef(false);
 
-  // Default to semaine on mobile
-  useEffect(() => {
-    if (window.innerWidth < 640) setView("semaine");
-  }, []);
-
   // Compute fetch range
   const fetchRange = useMemo(() => {
     if (view === "annee") {
