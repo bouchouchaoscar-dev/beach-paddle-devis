@@ -6,6 +6,7 @@ import { Toggle } from "@/components/ui/Toggle";
 import {
   PADDLE_PRICES,
   KAYAK_PRICES,
+  HYBRIDE_PRICES,
   DURATIONS,
   DURATION_LABELS,
   getActivityPrice,
@@ -72,13 +73,12 @@ export function BlocActivite({ form, onChange }: Props) {
           {DURATIONS.map((dur) => {
             const paddleP = PADDLE_PRICES[dur];
             const kayakP = KAYAK_PRICES[dur];
-            const hybP = (paddleP + kayakP) / 2;
             const displayPrice =
               form.activity === "paddle"
                 ? paddleP
                 : form.activity === "kayak"
                 ? kayakP
-                : hybP;
+                : HYBRIDE_PRICES[dur];
             const active = form.duration === dur;
 
             return (
