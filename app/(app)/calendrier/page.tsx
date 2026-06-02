@@ -3,7 +3,9 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   type CalendarEvent,
+  type AcompteEntry,
   getCalendarEventsInRange,
+  getAcompteEntries,
   updateCalendarEvent,
   createCalendarEvent,
   deleteCalendarEvent,
@@ -28,6 +30,39 @@ const ACT_LABELS: Record<string, string> = {
   kayak: "Kayak",
   hybride: "Paddle + Kayak",
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Payment detection
+// ─────────────────────────────────────────────────────────────────────────────
+
+type PaymentCas = 1 | 2 | 3 | 4;
+interface PaymentDetection {
+  cas: PaymentCas;
+  montant?: number;
+}
+
+function detectPayment(
+  eventMontant: number | null | undefined,
+  entries: AcompteEntry[]
+): PaymentDetection {
+  if (!eventMontant || eventMontant <= 0 || entries.length === 0) return { cas: 4 };
+  const TOL = 2;
+  const expected30 = eventMontant * 0.3;
+
+  // Full payment (highest priority)
+  for (const e of entries) {
+    if (Math.abs(e.montant - eventMontant) <= TOL) return { cas: 2, montant: e.montant };
+  }
+  // 30% acompte
+  for (const e of entries) {
+    if (Math.abs(e.montant - expected30) <= TOL) return { cas: 1, montant: e.montant };
+  }
+  // Any partial payment
+  for (const e of entries) {
+    if (e.montant > 0 && e.montant < eventMontant + TOL) return { cas: 3, montant: e.montant };
+  }
+  return { cas: 4 };
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -90,6 +125,10 @@ function formatPrice(n: number) {
   return n.toLocaleString("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
 }
 
+function formatPriceExact(n: number) {
+  return n.toLocaleString("fr-FR", { style: "currency", currency: "EUR", minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 function daysUntil(dateStr: string) {
   const d = new Date(dateStr + "T12:00:00");
   const now = todayDate();
@@ -102,7 +141,7 @@ function longDateLabel(dateStr: string) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SVG Icons (inline, no emoji)
+// SVG Icons
 // ─────────────────────────────────────────────────────────────────────────────
 
 const IcoChevL = ({ s = 16 }: { s?: number }) => (
@@ -160,6 +199,12 @@ const IcoUsers = ({ s = 11 }: { s?: number }) => (
     <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
   </svg>
 );
+// Filled circle check — "payé en intégralité"
+const IcoCheckFull = ({ s = 11 }: { s?: number }) => (
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="currentColor" stroke="none">
+    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5-4-4 1.41-1.41L10 13.67l6.59-6.59L18 8.5l-8 8z"/>
+  </svg>
+);
 
 function ActivityIcon({ activite, s = 11 }: { activite?: string | null; s?: number }) {
   if (activite === "paddle")
@@ -172,26 +217,54 @@ function ActivityIcon({ activite, s = 11 }: { activite?: string | null; s?: numb
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// EventPill — compact pill for month / week / day views
+// EventPill
 // ─────────────────────────────────────────────────────────────────────────────
 
-function EventPill({ event, onClick }: { event: CalendarEvent; onClick: () => void }) {
+function EventPill({
+  event,
+  payment,
+  onClick,
+}: {
+  event: CalendarEvent;
+  payment?: PaymentDetection;
+  onClick: () => void;
+}) {
   const cs = getClientStyle(event.type_client);
   const days = daysUntil(event.date_event);
-  const warn = !event.acompte_recu && days >= 0 && days < 7;
+  const isPaymentDetected = payment && payment.cas !== 4;
+  const warn = !event.acompte_recu && !isPaymentDetected && days >= 0 && days < 7;
+
+  // Override pill color for fully paid events
+  const pillBg = payment?.cas === 2 ? "rgba(21,128,61,0.13)" : cs.bg;
+  const pillColor = payment?.cas === 2 ? "#15803d" : cs.text;
+
   return (
     <button
       onClick={(e) => { e.stopPropagation(); onClick(); }}
       className="w-full text-left px-1.5 py-[2px] rounded-[5px] text-[11px] font-semibold flex items-center gap-1 hover:brightness-95 transition-all truncate"
-      style={{ backgroundColor: cs.bg, color: cs.text }}
+      style={{ backgroundColor: pillBg, color: pillColor }}
     >
       <ActivityIcon activite={event.activite} s={10} />
       <span className="truncate flex-1">
         {event.heure_debut ? `${formatH(event.heure_debut)} ` : ""}
         {event.nom_client || event.titre}
       </span>
-      {event.acompte_recu && <span className="shrink-0 opacity-80"><IcoCheck s={9}/></span>}
-      {warn && <span className="shrink-0" style={{ color: "#EA580C" }}><IcoWarn s={9}/></span>}
+      {/* Payment indicators */}
+      {payment?.cas === 2 && (
+        <span className="shrink-0" style={{ color: "#15803d" }}><IcoCheckFull s={10}/></span>
+      )}
+      {payment?.cas === 1 && (
+        <span className="shrink-0" style={{ color: "#16A34A" }}><IcoCheck s={9}/></span>
+      )}
+      {payment?.cas === 3 && (
+        <span className="shrink-0" style={{ color: "#D97706" }}><IcoCheck s={9}/></span>
+      )}
+      {(!payment || payment.cas === 4) && event.acompte_recu && (
+        <span className="shrink-0 opacity-70"><IcoCheck s={9}/></span>
+      )}
+      {warn && (
+        <span className="shrink-0" style={{ color: "#EA580C" }}><IcoWarn s={9}/></span>
+      )}
     </button>
   );
 }
@@ -204,12 +277,14 @@ function MonthView({
   currentDate,
   today,
   eventsByDate,
+  paymentByEventId,
   onEventClick,
   onDayClick,
 }: {
   currentDate: Date;
   today: Date;
   eventsByDate: Map<string, CalendarEvent[]>;
+  paymentByEventId: Map<string, PaymentDetection>;
   onEventClick: (ev: CalendarEvent) => void;
   onDayClick: (d: Date) => void;
 }) {
@@ -221,7 +296,6 @@ function MonthView({
 
   return (
     <div className="flex flex-col h-full select-none">
-      {/* Day headers */}
       <div className="grid grid-cols-7 border-b border-gray-100 shrink-0">
         {JOURS_COURTS.map((j) => (
           <div key={j} className="py-2 text-center text-[10px] font-bold text-gray-400 uppercase tracking-widest">
@@ -229,7 +303,6 @@ function MonthView({
           </div>
         ))}
       </div>
-      {/* Grid */}
       <div className="grid grid-cols-7 flex-1" style={{ gridTemplateRows: "repeat(6, minmax(0, 1fr))" }}>
         {grid.map((day, idx) => {
           const iso = toISO(day);
@@ -260,7 +333,12 @@ function MonthView({
               </div>
               <div className="flex flex-col gap-[2px]">
                 {dayEvs.slice(0, MAX).map((ev) => (
-                  <EventPill key={ev.id} event={ev} onClick={() => onEventClick(ev)} />
+                  <EventPill
+                    key={ev.id}
+                    event={ev}
+                    payment={paymentByEventId.get(ev.id)}
+                    onClick={() => onEventClick(ev)}
+                  />
                 ))}
                 {overflow > 0 && (
                   <button
@@ -287,12 +365,14 @@ function WeekView({
   currentDate,
   today,
   eventsByDate,
+  paymentByEventId,
   onEventClick,
   onDayClick,
 }: {
   currentDate: Date;
   today: Date;
   eventsByDate: Map<string, CalendarEvent[]>;
+  paymentByEventId: Map<string, PaymentDetection>;
   onEventClick: (ev: CalendarEvent) => void;
   onDayClick: (d: Date) => void;
 }) {
@@ -300,7 +380,6 @@ function WeekView({
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Day headers */}
       <div className="flex shrink-0 border-b border-gray-100 bg-white">
         <div className="w-10 sm:w-14 shrink-0" />
         {days.map((day, i) => {
@@ -325,9 +404,7 @@ function WeekView({
           );
         })}
       </div>
-      {/* Time grid */}
       <div className="flex flex-1 overflow-y-auto">
-        {/* Hour labels */}
         <div className="w-10 sm:w-14 shrink-0 relative" style={{ height: `${HOURS.length * SLOT_PX}px` }}>
           {HOURS.map((h) => (
             <div
@@ -339,7 +416,6 @@ function WeekView({
             </div>
           ))}
         </div>
-        {/* Day columns */}
         {days.map((day, di) => {
           const iso = toISO(day);
           const dayEvs = eventsByDate.get(iso) ?? [];
@@ -363,23 +439,32 @@ function WeekView({
                   const [hh, mm] = ev.heure_debut.split(":").map(Number);
                   top = Math.max(0, hh - 7 + (mm || 0) / 60) * SLOT_PX;
                 }
+                const payment = paymentByEventId.get(ev.id);
                 const cs = getClientStyle(ev.type_client);
+                const cardBg = payment?.cas === 2 ? "rgba(21,128,61,0.13)" : cs.bg;
+                const cardColor = payment?.cas === 2 ? "#15803d" : cs.text;
+                const borderColor = payment?.cas === 2 ? "#15803d" : cs.text;
                 return (
                   <button
                     key={ev.id}
                     onClick={() => onEventClick(ev)}
-                    className="absolute left-0.5 right-0.5 rounded-lg px-1.5 sm:px-2 py-1 text-left hover:brightness-95 transition-all overflow-hidden group"
+                    className="absolute left-0.5 right-0.5 rounded-lg px-1.5 sm:px-2 py-1 text-left hover:brightness-95 transition-all overflow-hidden"
                     style={{
                       top: `${top + 2}px`,
                       minHeight: "40px",
-                      backgroundColor: cs.bg,
-                      color: cs.text,
-                      borderLeft: `2.5px solid ${cs.text}`,
+                      backgroundColor: cardBg,
+                      color: cardColor,
+                      borderLeft: `2.5px solid ${borderColor}`,
                     }}
                   >
                     <div className="text-[11px] font-bold truncate leading-tight">{ev.nom_client || ev.titre}</div>
                     {ev.heure_debut && (
-                      <div className="text-[10px] opacity-75 mt-0.5">{formatH(ev.heure_debut)}</div>
+                      <div className="text-[10px] opacity-75 mt-0.5 flex items-center gap-1">
+                        {formatH(ev.heure_debut)}
+                        {payment?.cas === 2 && <IcoCheckFull s={8}/>}
+                        {payment?.cas === 1 && <IcoCheck s={8}/>}
+                        {payment?.cas === 3 && <span style={{ color: "#D97706" }}><IcoCheck s={8}/></span>}
+                      </div>
                     )}
                   </button>
                 );
@@ -400,11 +485,13 @@ function DayView({
   currentDate,
   today,
   eventsByDate,
+  paymentByEventId,
   onEventClick,
 }: {
   currentDate: Date;
   today: Date;
   eventsByDate: Map<string, CalendarEvent[]>;
+  paymentByEventId: Map<string, PaymentDetection>;
   onEventClick: (ev: CalendarEvent) => void;
 }) {
   const iso = toISO(currentDate);
@@ -429,7 +516,12 @@ function DayView({
       {noTime.length > 0 && (
         <div className="px-4 py-2 border-b border-gray-100 flex flex-wrap gap-1.5 shrink-0">
           {noTime.map((ev) => (
-            <EventPill key={ev.id} event={ev} onClick={() => onEventClick(ev)} />
+            <EventPill
+              key={ev.id}
+              event={ev}
+              payment={paymentByEventId.get(ev.id)}
+              onClick={() => onEventClick(ev)}
+            />
           ))}
         </div>
       )}
@@ -455,7 +547,11 @@ function DayView({
           {withTime.map((ev) => {
             const [hh, mm] = (ev.heure_debut || "8:00").split(":").map(Number);
             const top = Math.max(0, hh - 7 + (mm || 0) / 60) * SLOT_PX;
+            const payment = paymentByEventId.get(ev.id);
             const cs = getClientStyle(ev.type_client);
+            const cardBg = payment?.cas === 2 ? "rgba(21,128,61,0.13)" : cs.bg;
+            const cardColor = payment?.cas === 2 ? "#15803d" : cs.text;
+            const borderColor = payment?.cas === 2 ? "#15803d" : cs.text;
             return (
               <button
                 key={ev.id}
@@ -464,9 +560,9 @@ function DayView({
                 style={{
                   top: `${top + 2}px`,
                   minHeight: "52px",
-                  backgroundColor: cs.bg,
-                  color: cs.text,
-                  borderLeft: `3px solid ${cs.text}`,
+                  backgroundColor: cardBg,
+                  color: cardColor,
+                  borderLeft: `3px solid ${borderColor}`,
                 }}
               >
                 <div className="flex items-center gap-1.5">
@@ -477,7 +573,24 @@ function DayView({
                   {ev.heure_debut && <span>{formatH(ev.heure_debut)}</span>}
                   {ev.nb_personnes != null && <span>{ev.nb_personnes} pers.</span>}
                   {ev.montant != null && <span>{formatPrice(ev.montant)}</span>}
-                  {ev.acompte_recu && <span className="flex items-center gap-1"><IcoCheck s={10}/> Acompte OK</span>}
+                  {payment?.cas === 2 && (
+                    <span className="flex items-center gap-1" style={{ color: "#15803d" }}>
+                      <IcoCheckFull s={10}/> Payé intégralement
+                    </span>
+                  )}
+                  {payment?.cas === 1 && (
+                    <span className="flex items-center gap-1" style={{ color: "#16A34A" }}>
+                      <IcoCheck s={10}/> Acompte reçu
+                    </span>
+                  )}
+                  {payment?.cas === 3 && (
+                    <span className="flex items-center gap-1" style={{ color: "#D97706" }}>
+                      <IcoCheck s={10}/> Partiel
+                    </span>
+                  )}
+                  {(!payment || payment.cas === 4) && ev.acompte_recu && (
+                    <span className="flex items-center gap-1"><IcoCheck s={10}/> Acompte OK</span>
+                  )}
                 </div>
               </button>
             );
@@ -562,18 +675,21 @@ function YearView({
 
 function EventModal({
   event,
+  payment,
   onClose,
   onUpdate,
   onDelete,
 }: {
   event: CalendarEvent;
+  payment?: PaymentDetection;
   onClose: () => void;
   onUpdate: (id: string, patch: Partial<CalendarEvent>) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
 }) {
   const cs = getClientStyle(event.type_client);
   const days = daysUntil(event.date_event);
-  const warn = !event.acompte_recu && days >= 0 && days < 7;
+  const isPaymentDetected = payment && payment.cas !== 4;
+  const warn = !event.acompte_recu && !isPaymentDetected && days >= 0 && days < 7;
   const [acompte, setAcompte] = useState(event.acompte_recu);
   const [acompteMontant, setAcompteMontant] = useState(event.acompte_montant?.toString() ?? "");
   const [saving, setSaving] = useState(false);
@@ -629,7 +745,7 @@ function EventModal({
         style={{ animation: "slideUp 0.28s cubic-bezier(0.16,1,0.3,1) forwards" }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="h-[3px] w-full" style={{ backgroundColor: cs.solid }} />
+        <div className="h-[3px] w-full" style={{ backgroundColor: payment?.cas === 2 ? "#15803d" : cs.solid }} />
 
         {/* Handle bar (mobile) */}
         <div className="flex justify-center pt-2 pb-0 sm:hidden">
@@ -700,13 +816,89 @@ function EventModal({
                 </div>
               )}
 
-              {/* Acompte block */}
+              {/* Payment detection block */}
               <div className="rounded-2xl border border-gray-100 overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-3">
+                {/* Auto-detection result */}
+                <div className={`px-4 py-3 flex items-start gap-3 ${
+                  payment?.cas === 2 ? "bg-green-50" :
+                  payment?.cas === 1 ? "bg-emerald-50/70" :
+                  payment?.cas === 3 ? "bg-amber-50/60" :
+                  "bg-gray-50"
+                }`}>
+                  {payment?.cas === 2 && (
+                    <>
+                      <div className="w-7 h-7 rounded-full bg-green-700 flex items-center justify-center shrink-0 mt-0.5 text-white">
+                        <IcoCheckFull s={14}/>
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold text-green-800">Payé en intégralité</div>
+                        <div className="text-xs text-green-700 mt-0.5">
+                          {formatPriceExact(payment.montant!)} — détecté automatiquement
+                        </div>
+                      </div>
+                    </>
+                  )}
+                  {payment?.cas === 1 && (
+                    <>
+                      <div className="w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center shrink-0 mt-0.5 text-white">
+                        <IcoCheck s={13}/>
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold text-emerald-800">Acompte 30% reçu</div>
+                        <div className="text-xs text-emerald-700 mt-0.5">
+                          {formatPriceExact(payment.montant!)} — détecté automatiquement
+                          {event.montant != null && (
+                            <span className="text-emerald-500"> (attendu {formatPriceExact(event.montant * 0.3)})</span>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                  {payment?.cas === 3 && (
+                    <>
+                      <div className="w-7 h-7 rounded-full bg-amber-400 flex items-center justify-center shrink-0 mt-0.5 text-white">
+                        <IcoCheck s={13}/>
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold text-amber-700">Paiement partiel</div>
+                        <div className="text-xs text-amber-600 mt-0.5">
+                          {formatPriceExact(payment.montant!)} — à valider manuellement
+                        </div>
+                      </div>
+                    </>
+                  )}
+                  {(!payment || payment.cas === 4) && (
+                    <>
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-white ${warn ? "bg-orange-400" : "bg-gray-300"}`}>
+                        <IcoWarn s={13}/>
+                      </div>
+                      <div>
+                        <div className={`text-sm font-semibold ${warn ? "text-orange-700" : "text-gray-500"}`}>
+                          Aucun paiement détecté
+                        </div>
+                        {warn && (
+                          <div className="text-xs mt-0.5" style={{ color: "#EA580C" }}>
+                            Prestation dans {days === 0 ? "aujourd'hui" : `${days} jour${days > 1 ? "s" : ""}`}
+                          </div>
+                        )}
+                        {!warn && event.montant != null && (
+                          <div className="text-xs text-gray-400 mt-0.5">
+                            Acompte attendu : {formatPriceExact(event.montant * 0.3)}
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Manual override toggle */}
+                <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
                   <div>
-                    <div className="text-sm font-semibold text-gray-800">Acompte</div>
+                    <div className="text-xs font-semibold text-gray-600">
+                      {isPaymentDetected ? "Confirmer manuellement" : "Valider manuellement"}
+                    </div>
                     {acompte && event.acompte_montant && (
-                      <div className="text-xs text-gray-500 mt-0.5">{formatPrice(event.acompte_montant)} reçu</div>
+                      <div className="text-xs text-gray-400 mt-0.5">{formatPrice(event.acompte_montant)} enregistré</div>
                     )}
                   </div>
                   <button
@@ -721,15 +913,13 @@ function EventModal({
                     />
                   </button>
                 </div>
-                {warn && !acompte && (
-                  <div className="flex items-center gap-2 text-[11px] font-medium px-4 py-2.5 bg-orange-50 border-t border-orange-100" style={{ color: "#EA580C" }}>
-                    <IcoWarn s={12} />
-                    Acompte non reçu — prestation dans {days === 0 ? "aujourd'hui" : `${days}j`}
-                  </div>
-                )}
+
+                {/* Amount input */}
                 {acompte && (
                   <div className="px-4 pb-3 border-t border-gray-100 pt-3">
-                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1.5">Montant reçu</label>
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1.5">
+                      Montant confirmé
+                    </label>
                     <div className="flex items-center gap-2">
                       <input
                         type="number"
@@ -960,6 +1150,7 @@ export default function CalendarPage() {
   const [view, setView] = useState<ViewType>("mois");
   const [currentDate, setCurrentDate] = useState(todayDate);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [acompteEntries, setAcompteEntries] = useState<AcompteEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
@@ -1003,20 +1194,26 @@ export default function CalendarPage() {
     setSyncing(true);
     try {
       await fetch("/api/calendar-sync", { method: "POST" });
-      await loadEvents();
+      const [eventsData, acomptes] = await Promise.all([
+        getCalendarEventsInRange(fetchRange.from, fetchRange.to),
+        getAcompteEntries(),
+      ]);
+      setEvents(eventsData);
+      setAcompteEntries(acomptes);
     } finally {
       setSyncing(false);
+      setLoading(false);
     }
-  }, [loadEvents]);
+  }, [fetchRange]);
 
-  // On mount: auto-sync
+  // On mount: auto-sync (loads both events and acompte entries)
   useEffect(() => {
     handleSync();
     mountedRef.current = true;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // On range change after mount: reload
+  // On range change after mount: reload events only
   useEffect(() => {
     if (mountedRef.current) loadEvents();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1031,6 +1228,17 @@ export default function CalendarPage() {
     }
     return map;
   }, [events]);
+
+  // Pre-compute payment detection for all non-manual events
+  const paymentByEventId = useMemo(() => {
+    const map = new Map<string, PaymentDetection>();
+    for (const ev of events) {
+      if (!ev.manuel && ev.montant) {
+        map.set(ev.id, detectPayment(ev.montant, acompteEntries));
+      }
+    }
+    return map;
+  }, [events, acompteEntries]);
 
   function navigate(delta: number) {
     setCurrentDate((prev) => {
@@ -1147,7 +1355,7 @@ export default function CalendarPage() {
           ))}
         </div>
 
-        {/* View switcher — mobile (icon) */}
+        {/* View switcher — mobile */}
         <div className="flex sm:hidden items-center rounded-xl border border-gray-200 p-0.5 gap-0.5 bg-gray-50">
           {VIEW_OPTS.map(({ key, short }) => (
             <button
@@ -1201,6 +1409,7 @@ export default function CalendarPage() {
             currentDate={currentDate}
             today={today}
             eventsByDate={eventsByDate}
+            paymentByEventId={paymentByEventId}
             onEventClick={setSelectedEvent}
             onDayClick={(day) => { setCurrentDate(day); setView("jour"); }}
           />
@@ -1210,6 +1419,7 @@ export default function CalendarPage() {
             currentDate={currentDate}
             today={today}
             eventsByDate={eventsByDate}
+            paymentByEventId={paymentByEventId}
             onEventClick={setSelectedEvent}
             onDayClick={(day) => { setCurrentDate(day); setView("jour"); }}
           />
@@ -1219,6 +1429,7 @@ export default function CalendarPage() {
             currentDate={currentDate}
             today={today}
             eventsByDate={eventsByDate}
+            paymentByEventId={paymentByEventId}
             onEventClick={setSelectedEvent}
           />
         )}
@@ -1241,6 +1452,7 @@ export default function CalendarPage() {
       {selectedEvent && (
         <EventModal
           event={selectedEvent}
+          payment={paymentByEventId.get(selectedEvent.id)}
           onClose={() => setSelectedEvent(null)}
           onUpdate={handleUpdateEvent}
           onDelete={handleDeleteEvent}

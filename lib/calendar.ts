@@ -66,6 +66,27 @@ export async function deleteCalendarEvent(id: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+export interface AcompteEntry {
+  id: string;
+  montant: number;
+  date: string;
+  notes?: string;
+}
+
+export async function getAcompteEntries(): Promise<AcompteEntry[]> {
+  try {
+    const { data, error } = await supabase
+      .from("ca_entries")
+      .select("id, montant, date, notes")
+      .eq("source", "acompte")
+      .order("date", { ascending: false });
+    if (error) { console.warn("[calendar] acompte entries error", error.message); return []; }
+    return (data ?? []) as AcompteEntry[];
+  } catch {
+    return [];
+  }
+}
+
 export async function getTodayEventCount(): Promise<number> {
   const today = new Date().toISOString().slice(0, 10);
   try {
