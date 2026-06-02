@@ -19,6 +19,7 @@ type ExpandedState = {
   categorie: ChargeCategory;
   fournisseur: string;
   memoriser: boolean;
+  keyword: string;
   immoNom: string;
   immoDuree: number;
 };
@@ -35,6 +36,15 @@ function fmtDate(d: string) {
   return new Date(d + "T12:00:00").toLocaleDateString("fr-FR", {
     day: "2-digit", month: "short",
   });
+}
+
+function extractKeyword(libelle: string): string {
+  const words = libelle
+    .toUpperCase()
+    .replace(/[^A-Z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !/^\d+$/.test(w));
+  return words[0] ?? libelle.toUpperCase().slice(0, 20);
 }
 
 function raisonExclusion(tx: QontoDbTransaction): string {
@@ -264,6 +274,7 @@ export default function QontoPage() {
       categorie: (tx.categorie as ChargeCategory) ?? "autre",
       fournisseur: tx.fournisseur ?? tx.libelle ?? "",
       memoriser: false,
+      keyword: extractKeyword(tx.libelle ?? ""),
       immoNom: tx.libelle ?? "",
       immoDuree: 3,
     });
@@ -276,7 +287,7 @@ export default function QontoPage() {
       const res = await fetch("/api/qonto-approve", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transaction_id: expanded.id, categorie: expanded.categorie, fournisseur: expanded.fournisseur, memoriser: expanded.memoriser }),
+        body: JSON.stringify({ transaction_id: expanded.id, categorie: expanded.categorie, fournisseur: expanded.fournisseur, memoriser: expanded.memoriser, keyword: expanded.keyword }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
@@ -285,13 +296,13 @@ export default function QontoPage() {
     } finally { setProcessing(null); }
   }
 
-  async function handleReject(txId: string, memoriser = false) {
+  async function handleReject(txId: string, memoriser = false, keyword = "") {
     setProcessing(txId);
     try {
       const res = await fetch("/api/qonto-reject", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transaction_id: txId, memoriser }),
+        body: JSON.stringify({ transaction_id: txId, memoriser, keyword }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
@@ -691,43 +702,75 @@ export default function QontoPage() {
                               </div>
                             </div>
                           ) : expanded.action === "inclure" ? (
-                            <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-3">
-                              <div>
-                                <label className="label">Catégorie</label>
-                                <select value={expanded.categorie} onChange={(e) => setExpanded((s) => s ? { ...s, categorie: e.target.value as ChargeCategory } : s)} className="input-field !py-1.5 !text-sm w-full sm:w-auto">
-                                  {CATEGORIES.map((c) => <option key={c} value={c}>{CHARGE_LABELS[c]}</option>)}
-                                </select>
+                            <div className="flex flex-col gap-3">
+                              <div className="flex flex-wrap gap-3">
+                                <div>
+                                  <label className="label">Catégorie</label>
+                                  <select value={expanded.categorie} onChange={(e) => setExpanded((s) => s ? { ...s, categorie: e.target.value as ChargeCategory } : s)} className="input-field !py-1.5 !text-sm w-full sm:w-auto">
+                                    {CATEGORIES.map((c) => <option key={c} value={c}>{CHARGE_LABELS[c]}</option>)}
+                                  </select>
+                                </div>
+                                <div className="flex-1 min-w-[140px]">
+                                  <label className="label">Fournisseur</label>
+                                  <input type="text" value={expanded.fournisseur} onChange={(e) => setExpanded((s) => s ? { ...s, fournisseur: e.target.value } : s)} className="input-field !py-1.5 !text-sm w-full" />
+                                </div>
                               </div>
-                              <div className="sm:flex-1 sm:min-w-[160px]">
-                                <label className="label">Fournisseur</label>
-                                <input type="text" value={expanded.fournisseur} onChange={(e) => setExpanded((s) => s ? { ...s, fournisseur: e.target.value } : s)} className="input-field !py-1.5 !text-sm w-full" />
-                              </div>
-                              <div className="flex items-center justify-between sm:justify-start sm:items-end gap-3">
+                              {/* Mémoriser */}
+                              <div className="flex flex-col gap-2 p-3 rounded-xl border border-surface-border bg-white">
                                 <label className="flex items-center gap-2 text-xs text-ink cursor-pointer">
                                   <input type="checkbox" checked={expanded.memoriser} onChange={(e) => setExpanded((s) => s ? { ...s, memoriser: e.target.checked } : s)} className="w-3.5 h-3.5 rounded accent-brand-teal" />
-                                  Mémoriser
+                                  <span className="font-medium">Mémoriser</span>
+                                  <span className="text-ink-secondary">— inclure automatiquement les prochaines transactions similaires</span>
                                 </label>
-                                <div className="flex gap-2">
-                                  <button onClick={handleApprove} disabled={!!processing}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-semibold hover:bg-green-700 disabled:opacity-50 transition-colors">
-                                    {processing === tx.id ? <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
-                                    Confirmer
-                                  </button>
-                                  <button onClick={() => setExpanded(null)} className="px-3 py-1.5 rounded-lg bg-surface-muted text-ink-secondary text-xs font-medium hover:bg-surface-border transition-colors">Annuler</button>
-                                </div>
+                                {expanded.memoriser && (
+                                  <div className="flex items-center gap-2 pl-5">
+                                    <span className="text-xs text-ink-secondary shrink-0">Mot clé :</span>
+                                    <input
+                                      type="text"
+                                      value={expanded.keyword}
+                                      onChange={(e) => setExpanded((s) => s ? { ...s, keyword: e.target.value.toUpperCase() } : s)}
+                                      className="input-field !py-1 !text-xs font-mono w-36"
+                                      placeholder="ex: AMAZON"
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex justify-end gap-2">
+                                <button onClick={handleApprove} disabled={!!processing}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-semibold hover:bg-green-700 disabled:opacity-50 transition-colors">
+                                  {processing === tx.id ? <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                                  {expanded.memoriser ? "Inclure et mémoriser" : "Inclure"}
+                                </button>
+                                <button onClick={() => setExpanded(null)} className="px-3 py-1.5 rounded-lg bg-surface-muted text-ink-secondary text-xs font-medium hover:bg-surface-border transition-colors">Annuler</button>
                               </div>
                             </div>
                           ) : (
-                            <div className="flex flex-wrap items-center justify-between gap-3">
-                              <label className="flex items-center gap-2 text-xs text-ink cursor-pointer">
-                                <input type="checkbox" checked={expanded.memoriser} onChange={(e) => setExpanded((s) => s ? { ...s, memoriser: e.target.checked } : s)} className="w-3.5 h-3.5 rounded accent-red-500" />
-                                Mémoriser cette exclusion
-                              </label>
-                              <div className="flex gap-2">
-                                <button onClick={() => handleReject(tx.id, expanded.memoriser)} disabled={!!processing}
+                            <div className="flex flex-col gap-3">
+                              {/* Mémoriser */}
+                              <div className="flex flex-col gap-2 p-3 rounded-xl border border-surface-border bg-white">
+                                <label className="flex items-center gap-2 text-xs text-ink cursor-pointer">
+                                  <input type="checkbox" checked={expanded.memoriser} onChange={(e) => setExpanded((s) => s ? { ...s, memoriser: e.target.checked } : s)} className="w-3.5 h-3.5 rounded accent-red-500" />
+                                  <span className="font-medium">Mémoriser</span>
+                                  <span className="text-ink-secondary">— exclure automatiquement les prochaines transactions similaires</span>
+                                </label>
+                                {expanded.memoriser && (
+                                  <div className="flex items-center gap-2 pl-5">
+                                    <span className="text-xs text-ink-secondary shrink-0">Mot clé :</span>
+                                    <input
+                                      type="text"
+                                      value={expanded.keyword}
+                                      onChange={(e) => setExpanded((s) => s ? { ...s, keyword: e.target.value.toUpperCase() } : s)}
+                                      className="input-field !py-1 !text-xs font-mono w-36"
+                                      placeholder="ex: NETFLIX"
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex justify-end gap-2">
+                                <button onClick={() => handleReject(tx.id, expanded.memoriser, expanded.keyword)} disabled={!!processing}
                                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-semibold hover:bg-red-700 disabled:opacity-50 transition-colors">
                                   {processing === tx.id ? <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg> : <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>}
-                                  Confirmer l&apos;exclusion
+                                  {expanded.memoriser ? "Exclure et mémoriser" : "Exclure"}
                                 </button>
                                 <button onClick={() => setExpanded(null)} className="px-3 py-1.5 rounded-lg bg-surface-muted text-ink-secondary text-xs font-medium hover:bg-surface-border transition-colors">Annuler</button>
                               </div>

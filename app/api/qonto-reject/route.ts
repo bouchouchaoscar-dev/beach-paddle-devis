@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 
 export async function POST(request: NextRequest) {
-  let body: { transaction_id: string; memoriser: boolean };
+  let body: { transaction_id: string; memoriser: boolean; keyword?: string };
 
   try {
     body = await request.json();
@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Body JSON invalide" }, { status: 400 });
   }
 
-  const { transaction_id, memoriser } = body;
+  const { transaction_id, memoriser, keyword } = body;
   if (!transaction_id) {
     return NextResponse.json({ error: "transaction_id requis" }, { status: 400 });
   }
@@ -36,14 +36,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: updateErr.message }, { status: 500 });
   }
 
-  // Memorize exclusion rule if requested
-  if (memoriser && tx.libelle) {
-    const keyword = tx.libelle.split(" ").slice(0, 3).join(" ").toUpperCase();
-    await supabase.from("qonto_rules").insert({
-      libelle_contains: keyword,
-      action: "exclu",
-      categorie: null,
-    });
+  // Memorize exclusion rule if requested — utilise le mot clé fourni par l'UI
+  if (memoriser) {
+    const kw = keyword?.trim()
+      || tx.libelle?.replace(/[^A-Z0-9\s]/gi, " ").trim().split(/\s+/).find((w: string) => w.length > 2)
+      || tx.libelle;
+    if (kw) {
+      await supabase.from("qonto_rules").insert({
+        libelle_contains: kw.toUpperCase(),
+        action: "exclu",
+        categorie: null,
+      });
+    }
   }
 
   return NextResponse.json({ ok: true });
