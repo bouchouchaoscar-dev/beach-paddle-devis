@@ -279,16 +279,16 @@ export default function HistoriquePage() {
                     <span className="text-xs text-ink-muted font-mono ml-auto shrink-0">{record.numero}</span>
                   </div>
 
-                  {/* ── Ligne 2 : chips activité / durée / personnes / date / heure — 1 seule ligne ── */}
-                  <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto mb-3" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
+                  {/* ── Ligne 2 : chips — 1 seule ligne, inline styles pour bypasser le cache CSS ── */}
+                  <div style={{ display: "flex", flexWrap: "nowrap", alignItems: "center", gap: "6px", overflowX: "auto", marginBottom: "12px", scrollbarWidth: "none" }}>
                     {activityLabel && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-semibold shrink-0 whitespace-nowrap" style={{ backgroundColor: "rgba(0,113,227,0.10)", color: "#0071E3" }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "2px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: 600, flexShrink: 0, whiteSpace: "nowrap", backgroundColor: "rgba(0,113,227,0.10)", color: "#0071E3" }}>
                         <ActivityIcon activity={fd?.activity} />
                         {activityLabel}
                       </span>
                     )}
                     {durationLabel && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-semibold shrink-0 whitespace-nowrap" style={{ backgroundColor: "rgba(232,130,12,0.12)", color: "#B45309" }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "2px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: 600, flexShrink: 0, whiteSpace: "nowrap", backgroundColor: "rgba(232,130,12,0.12)", color: "#B45309" }}>
                         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
                         </svg>
@@ -296,18 +296,16 @@ export default function HistoriquePage() {
                       </span>
                     )}
                     {record.participantsCount > 0 && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-semibold shrink-0 whitespace-nowrap" style={{ backgroundColor: "rgba(22,163,74,0.10)", color: "#16A34A" }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "2px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: 600, flexShrink: 0, whiteSpace: "nowrap", backgroundColor: "rgba(22,163,74,0.10)", color: "#16A34A" }}>
                         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
                           <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
                         </svg>
-                        {isGroupeAccomp
-                          ? `${nbEleves} élèves + ${nbAccomp} acc.`
-                          : `${record.participantsCount} pers.`}
+                        {isGroupeAccomp ? `${nbEleves} élèves + ${nbAccomp} acc.` : `${record.participantsCount} pers.`}
                       </span>
                     )}
                     {prestationDate && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-semibold shrink-0 whitespace-nowrap" style={{ backgroundColor: "rgba(124,58,237,0.10)", color: "#7C3AED" }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "2px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: 600, flexShrink: 0, whiteSpace: "nowrap", backgroundColor: "rgba(124,58,237,0.10)", color: "#7C3AED" }}>
                         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
                         </svg>
