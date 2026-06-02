@@ -78,6 +78,8 @@ function Checkbox({ checked, indeterminate, onChange }: { checked: boolean; inde
   );
 }
 
+const SYNC_COOLDOWN_MS = 10 * 60 * 1000;
+
 export default function QontoPage() {
   const [transactions, setTransactions] = useState<QontoDbTransaction[]>([]);
   const [rules, setRules] = useState<QontoRule[]>([]);
@@ -149,7 +151,6 @@ export default function QontoPage() {
     setLoading(false);
   }, []);
 
-  const SYNC_COOLDOWN_MS = 10 * 60 * 1000;
   const hasMountedRef = useRef(false);
 
   const handleSync = useCallback(async (full = false) => {

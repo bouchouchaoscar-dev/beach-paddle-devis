@@ -44,7 +44,7 @@ export default function AnalysePage() {
     setCharges(ch);
     setImmobilisations(immo);
     setLoading(false);
-  }, [saison]);
+  }, [saison, isAll]);
 
   useEffect(() => { load(); }, [load]);
 

@@ -61,8 +61,6 @@ export async function POST() {
       const saison = txSaison(tx.settled_at, tx.emitted_at || undefined);
       const montant = Math.round(tx.amount * 100) / 100;
 
-      console.log(`[full-sync] ${tx.transaction_id} | emitted=${tx.emitted_at?.slice(0,10) ?? "n/a"} | settled=${tx.settled_at?.slice(0,10)} | date_used=${date} | statut=${result.statut}`);
-
       const fournisseurFinal = result.statut === "inclus"
         ? (result.fournisseur ?? tx.label)
         : null;

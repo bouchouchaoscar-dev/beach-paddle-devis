@@ -38,7 +38,7 @@ export default function ResultatPage() {
     setCharges(ch);
     setImmobilisations(immo);
     setLoading(false);
-  }, [saison]);
+  }, [saison, isAll]);
 
   useEffect(() => { load(); }, [load]);
 

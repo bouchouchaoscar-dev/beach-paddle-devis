@@ -130,7 +130,7 @@ export default function ChargesPage() {
     setSessions(s);
     setImmobilisations(immo);
     setLoading(false);
-  }, [saison]);
+  }, [saison, isAll]);
 
   useEffect(() => { load(); }, [load]);
 

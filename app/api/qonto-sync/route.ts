@@ -87,8 +87,6 @@ export async function POST(req: Request) {
       const saison = txSaison(tx.settled_at, tx.emitted_at || undefined);
       const montant = Math.round(tx.amount * 100) / 100;
 
-      console.log(`[qonto-sync] ${tx.transaction_id} | label="${tx.label}" | emitted=${tx.emitted_at?.slice(0,10) ?? "n/a"} → Paris=${dateEmis ?? "n/a"} | settled=${tx.settled_at?.slice(0,10)} → Paris=${dateRegle} | date_used=${date} | statut=${result.statut}`);
-
       // Fournisseur propre : depuis les règles si auto-inclus, sinon libellé brut
       const fournisseurFinal = result.statut === "inclus"
         ? (result.fournisseur ?? tx.label)

@@ -59,7 +59,7 @@ export default function ChiffresPage() {
     const data = await getCaEntries(isAll ? undefined : saison);
     setEntries(data);
     setLoading(false);
-  }, [saison]);
+  }, [saison, isAll]);
 
   useEffect(() => { load(); }, [load]);
 
