@@ -5,16 +5,57 @@ import { useRouter } from "next/navigation";
 import type { DevisRecord } from "@/lib/types";
 import { getDevisList, deleteDevis, saveDevis, generateId, generateNumero, clearLocalCache, localCacheCount } from "@/lib/storage";
 import { formatPrice, calculateDevis } from "@/lib/calculations";
-import { CLIENT_TYPE_LABELS } from "@/lib/pricing";
+import { CLIENT_TYPE_LABELS, DURATION_LABELS } from "@/lib/pricing";
 import { DocumentPreview } from "@/components/document/DocumentPreview";
 
 type FilterType = "all" | "devis" | "facture";
 
-const CLIENT_TYPE_COLORS: Record<string, { bg: string; color: string }> = {
-  entreprise: { bg: "rgba(0,113,227,0.08)", color: "#0071E3" },
-  scolaire: { bg: "rgba(0,113,227,0.08)", color: "#0071E3" },
-  loisirs: { bg: "rgba(0,113,227,0.08)", color: "#0071E3" },
+// ── Badge styles ─────────────────────────────────────────────────────────────
+const CLIENT_BADGE: Record<string, { bg: string; color: string; label: string }> = {
+  entreprise: { bg: "rgba(0,113,227,0.10)", color: "#0071E3", label: "Entreprise" },
+  scolaire: { bg: "rgba(22,163,74,0.10)", color: "#16A34A", label: "Établissement scolaire" },
+  loisirs: { bg: "rgba(232,130,12,0.12)", color: "#B45309", label: "Service Jeunesse" },
 };
+
+function formatHeure(h: string): string {
+  if (!h) return "";
+  const [hh, mm] = h.split(":");
+  return mm === "00" ? `${parseInt(hh)}h` : `${parseInt(hh)}h${mm}`;
+}
+
+function formatPrestationDate(dateStr: string): string {
+  if (!dateStr) return "";
+  const [y, m, d] = dateStr.split("-");
+  if (!y || !m || !d) return "";
+  return `${d}/${m}/${y.slice(2)}`;
+}
+
+function ActivityIcon({ activity }: { activity?: string }) {
+  if (activity === "paddle") {
+    return (
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M2 12 C5 8, 9 8, 12 12 C15 16, 19 16, 22 12"/>
+        <path d="M2 17 C5 13, 9 13, 12 17 C15 21, 19 21, 22 17"/>
+      </svg>
+    );
+  }
+  if (activity === "kayak") {
+    return (
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="2" y1="12" x2="22" y2="12"/>
+        <path d="M2 12 L6 8 M22 12 L18 8"/>
+        <circle cx="12" cy="12" r="2"/>
+      </svg>
+    );
+  }
+  // hybride
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 9 C5 6, 9 6, 12 9 C15 12, 19 12, 22 9"/>
+      <line x1="2" y1="15" x2="22" y2="15"/>
+    </svg>
+  );
+}
 
 export default function HistoriquePage() {
   const router = useRouter();
@@ -78,16 +119,8 @@ export default function HistoriquePage() {
     return matchSearch && matchFilter;
   });
 
-  const formatDate = (dateStr: string) => {
-    try {
-      return new Date(dateStr + "T12:00:00").toLocaleDateString("fr-FR", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      });
-    } catch {
-      return dateStr;
-    }
+  const formatCreatedAt = (ts: number) => {
+    return new Date(ts).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
   };
 
   return (
@@ -194,162 +227,173 @@ export default function HistoriquePage() {
             </p>
           </div>
         ) : (
-          <div className="space-y-2">
-            {filtered.map((record, idx) => (
-              <div
-                key={record.id}
-                className="card p-4 hover:shadow-elevated transition-all duration-200 group"
-                style={{ opacity: 0, animation: `slideUp 0.35s cubic-bezier(0.16,1,0.3,1) ${idx * 40 + 200}ms forwards` }}
-              >
-                {/* Ligne principale : icône + info + montant + actions desktop */}
-                <div className="flex items-center gap-3">
-                  {/* Icône document — desktop seulement */}
-                  <div
-                    className="w-10 h-10 rounded-xl hidden sm:flex items-center justify-center shrink-0"
-                    style={{ backgroundColor: "rgba(0,113,227,0.1)" }}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0071E3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" />
-                    </svg>
+          <div className="space-y-3">
+            {filtered.map((record, idx) => {
+              const fd = record.formData;
+              const clientBadge = CLIENT_BADGE[record.clientType] ?? CLIENT_BADGE.entreprise;
+              const isFacture = record.documentType === "facture";
+              const hasRemise = record.totalNet !== record.totalBrut;
+
+              // Ligne 2 — infos activité
+              const activityLabel =
+                fd?.activity === "paddle" ? "Paddle" :
+                fd?.activity === "kayak" ? "Kayak" :
+                fd?.activity === "hybride" ? "Paddle + Kayak" : null;
+              const durationLabel = fd?.duration ? DURATION_LABELS[fd.duration] : null;
+
+              const isGroupeAccomp =
+                (record.clientType === "scolaire" || record.clientType === "loisirs") &&
+                fd?.discount?.accompagnatorsEnabled &&
+                (fd?.discount?.accompagnatorsCount ?? 0) > 0;
+              const nbAccomp = fd?.discount?.accompagnatorsCount ?? 0;
+              const nbEleves = Math.max(0, (record.participantsCount ?? 0) - nbAccomp);
+
+              const prestationDate = (!fd?.dateADefinir && record.date) ? formatPrestationDate(record.date) : null;
+              const heureLabel = (!fd?.dateADefinir && fd?.heureDebut) ? formatHeure(fd.heureDebut) : null;
+
+              return (
+                <div
+                  key={record.id}
+                  className="card p-4 hover:shadow-elevated transition-all duration-200 group"
+                  style={{ opacity: 0, animation: `slideUp 0.35s cubic-bezier(0.16,1,0.3,1) ${idx * 40 + 200}ms forwards` }}
+                >
+                  {/* ── Ligne 1 : badges + nom + numéro ── */}
+                  <div className="flex items-start gap-2 flex-wrap mb-2.5">
+                    <span
+                      className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0"
+                      style={{ backgroundColor: clientBadge.bg, color: clientBadge.color }}
+                    >
+                      {clientBadge.label}
+                    </span>
+                    <span className="text-sm font-bold text-ink leading-tight">{record.clientName}</span>
+                    <span
+                      className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0"
+                      style={
+                        isFacture
+                          ? { backgroundColor: "rgba(124,58,237,0.10)", color: "#7C3AED" }
+                          : { backgroundColor: "rgba(110,110,115,0.10)", color: "#6E6E73" }
+                      }
+                    >
+                      {isFacture ? "Facture" : "Devis"}
+                    </span>
+                    <span className="text-xs text-ink-muted font-mono ml-auto shrink-0">{record.numero}</span>
                   </div>
 
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-bold text-ink">{record.clientName}</span>
-                      <span className="badge text-xs" style={CLIENT_TYPE_COLORS[record.clientType]}>
-                        {CLIENT_TYPE_LABELS[record.clientType]}
+                  {/* ── Ligne 2 : chips activité / durée / personnes / date / heure ── */}
+                  <div className="flex items-center gap-1.5 flex-wrap mb-3">
+                    {activityLabel && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium bg-surface-muted text-ink-secondary">
+                        <ActivityIcon activity={fd?.activity} />
+                        {activityLabel}
                       </span>
-                      <span className={`badge text-xs ${record.documentType === "facture" ? "bg-brand-teal-light text-brand-teal" : "bg-brand-orange-light text-brand-orange"}`}>
-                        {record.documentType === "facture" ? "Facture" : "Devis"}
+                    )}
+                    {durationLabel && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium bg-surface-muted text-ink-secondary">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                        </svg>
+                        {durationLabel}
                       </span>
-                    </div>
-                    <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-                      <span className="text-xs text-ink-muted font-mono">{record.numero}</span>
-                      <span className="text-xs text-ink-muted">·</span>
-                      <span className="text-xs text-ink-muted">
-                        {record.formData?.dateADefinir || !record.date
-                          ? <span className="italic">Date à définir</span>
-                          : formatDate(record.date)}
+                    )}
+                    {record.participantsCount > 0 && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium bg-surface-muted text-ink-secondary">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+                          <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                        </svg>
+                        {isGroupeAccomp
+                          ? `${nbEleves} élèves + ${nbAccomp} acc.`
+                          : `${record.participantsCount} pers.`}
                       </span>
-                      {record.participantsCount > 0 && (
-                        <>
-                          <span className="text-xs text-ink-muted">·</span>
-                          <span className="text-xs text-ink-muted">{record.participantsCount} pers.</span>
-                        </>
+                    )}
+                    {prestationDate && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium bg-surface-muted text-ink-secondary">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+                        </svg>
+                        {prestationDate}
+                        {heureLabel && <span className="ml-0.5 text-ink-muted">· {heureLabel}</span>}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* ── Ligne 3 : montant + date création + actions desktop ── */}
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-base font-bold font-mono" style={{ color: "#0071E3" }}>
+                        {formatPrice(record.totalNet)}
+                      </span>
+                      {hasRemise && (
+                        <span className="text-xs text-ink-muted line-through font-mono">
+                          {formatPrice(record.totalBrut)}
+                        </span>
                       )}
                     </div>
-                    {record.prestationDescription && (
-                      <p className="text-xs text-ink-muted mt-0.5 truncate max-w-md">
-                        {record.prestationDescription}
-                      </p>
-                    )}
-                  </div>
+                    <span className="text-xs text-ink-muted">
+                      Créé le {formatCreatedAt(record.createdAt)}
+                    </span>
 
-                  {/* Montant */}
-                  <div className="text-right shrink-0">
-                    <div className="text-base font-bold font-mono" style={{ color: "#0071E3" }}>
-                      {formatPrice(record.totalNet)}
+                    {/* Actions desktop — hover */}
+                    <div className="hidden sm:flex items-center gap-1 ml-auto opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                      <button onClick={() => setSelectedRecord(record)} className="p-2 rounded-lg text-ink-muted hover:text-brand-teal hover:bg-brand-teal-light transition-colors" title="Voir / Télécharger">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                        </svg>
+                      </button>
+                      {record.documentType === "devis" && (
+                        <button onClick={() => handleConvertToFacture(record)} className="p-2 rounded-lg text-ink-muted hover:text-brand-teal hover:bg-brand-teal-light transition-colors" title="Convertir en facture">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+                            <polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+                          </svg>
+                        </button>
+                      )}
+                      <button onClick={() => handleDuplicate(record)} className="p-2 rounded-lg text-ink-muted hover:text-brand-orange hover:bg-brand-orange-light transition-colors" title="Dupliquer">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                        </svg>
+                      </button>
+                      <button onClick={() => setConfirmDelete(record.id)} className="p-2 rounded-lg text-ink-muted hover:text-brand-red hover:bg-brand-red-light transition-colors" title="Supprimer">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="3 6 5 6 21 6"/>
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                        </svg>
+                      </button>
                     </div>
-                    {record.totalNet !== record.totalBrut && (
-                      <div className="text-xs text-ink-muted line-through font-mono">
-                        {formatPrice(record.totalBrut)}
-                      </div>
-                    )}
                   </div>
 
-                  {/* Actions desktop — apparaît au hover */}
-                  <div className="hidden sm:flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                    <button
-                      onClick={() => setSelectedRecord(record)}
-                      className="p-2 rounded-lg text-ink-muted hover:text-brand-teal hover:bg-brand-teal-light transition-colors"
-                      title="Voir / Télécharger"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
+                  {/* ── Actions mobile ── */}
+                  <div className="flex sm:hidden items-center gap-2 mt-3 pt-3 border-t border-surface-border">
+                    <button onClick={() => setSelectedRecord(record)} className="flex-1 flex items-center justify-center h-10 rounded-xl bg-surface-muted text-ink-muted active:text-brand-teal active:bg-brand-teal-light transition-colors" title="Voir">
+                      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
                       </svg>
                     </button>
                     {record.documentType === "devis" && (
-                      <button
-                        onClick={() => handleConvertToFacture(record)}
-                        className="p-2 rounded-lg text-ink-muted hover:text-brand-teal hover:bg-brand-teal-light transition-colors"
-                        title="Convertir en facture"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="17 1 21 5 17 9" /><path d="M3 11V9a4 4 0 0 1 4-4h14" />
-                          <polyline points="7 23 3 19 7 15" /><path d="M21 13v2a4 4 0 0 1-4 4H3" />
+                      <button onClick={() => handleConvertToFacture(record)} className="flex-1 flex items-center justify-center h-10 rounded-xl bg-surface-muted text-ink-muted active:text-brand-teal active:bg-brand-teal-light transition-colors" title="→ Facture">
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+                          <polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>
                         </svg>
                       </button>
                     )}
-                    <button
-                      onClick={() => handleDuplicate(record)}
-                      className="p-2 rounded-lg text-ink-muted hover:text-brand-orange hover:bg-brand-orange-light transition-colors"
-                      title="Dupliquer"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                    <button onClick={() => handleDuplicate(record)} className="flex-1 flex items-center justify-center h-10 rounded-xl bg-surface-muted text-ink-muted active:text-brand-orange active:bg-brand-orange-light transition-colors" title="Dupliquer">
+                      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
                       </svg>
                     </button>
-                    <button
-                      onClick={() => setConfirmDelete(record.id)}
-                      className="p-2 rounded-lg text-ink-muted hover:text-brand-red hover:bg-brand-red-light transition-colors"
-                      title="Supprimer"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="3 6 5 6 21 6" />
-                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                    <button onClick={() => setConfirmDelete(record.id)} className="flex-1 flex items-center justify-center h-10 rounded-xl bg-surface-muted text-ink-muted active:text-brand-red active:bg-brand-red-light transition-colors" title="Supprimer">
+                      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6"/>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
                       </svg>
                     </button>
                   </div>
                 </div>
-
-                {/* Actions mobile — rangée séparée sous les infos, toujours visible */}
-                <div className="flex sm:hidden items-center gap-2 mt-3 pt-3 border-t border-surface-border">
-                  <button
-                    onClick={() => setSelectedRecord(record)}
-                    className="flex-1 flex items-center justify-center h-11 rounded-xl bg-surface-muted text-ink-muted active:text-brand-teal active:bg-brand-teal-light transition-colors"
-                    title="Voir / Télécharger"
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
-                    </svg>
-                  </button>
-                  {record.documentType === "devis" && (
-                    <button
-                      onClick={() => handleConvertToFacture(record)}
-                      className="flex-1 flex items-center justify-center h-11 rounded-xl bg-surface-muted text-ink-muted active:text-brand-teal active:bg-brand-teal-light transition-colors"
-                      title="Convertir en facture"
-                    >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="17 1 21 5 17 9" /><path d="M3 11V9a4 4 0 0 1 4-4h14" />
-                        <polyline points="7 23 3 19 7 15" /><path d="M21 13v2a4 4 0 0 1-4 4H3" />
-                      </svg>
-                    </button>
-                  )}
-                  <button
-                    onClick={() => handleDuplicate(record)}
-                    className="flex-1 flex items-center justify-center h-11 rounded-xl bg-surface-muted text-ink-muted active:text-brand-orange active:bg-brand-orange-light transition-colors"
-                    title="Dupliquer"
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={() => setConfirmDelete(record.id)}
-                    className="flex-1 flex items-center justify-center h-11 rounded-xl bg-surface-muted text-ink-muted active:text-brand-red active:bg-brand-red-light transition-colors"
-                    title="Supprimer"
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="3 6 5 6 21 6" />
-                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
