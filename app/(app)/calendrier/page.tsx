@@ -1123,7 +1123,7 @@ export default function CalendarPage() {
               className="text-[11px] font-semibold shrink-0 hidden sm:block transition-colors hover:underline"
               style={{ color: "#0071E3" }}
             >
-              Aujourd'hui
+              {"Aujourd'hui"}
             </button>
           )}
         </div>
