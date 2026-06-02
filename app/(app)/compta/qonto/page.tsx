@@ -24,13 +24,6 @@ type ExpandedState = {
   immoDuree: number;
 };
 
-type FullSyncReport = {
-  total_fetched: number;
-  inclus: number;
-  exclu: number;
-  en_attente: number;
-  sync_from: string;
-};
 
 function fmtDate(d: string) {
   return new Date(d + "T12:00:00").toLocaleDateString("fr-FR", {
@@ -101,11 +94,6 @@ export default function QontoPage() {
   const [showBulkInclude, setShowBulkInclude] = useState(false);
   const [bulkProcessing, setBulkProcessing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-
-  // Full sync (reset + reimport)
-  const [fullSyncing, setFullSyncing] = useState(false);
-  const [fullSyncReport, setFullSyncReport] = useState<FullSyncReport | null>(null);
-  const [showFullSyncConfirm, setShowFullSyncConfirm] = useState(false);
 
   // Récupérer une transaction exclue
   const [recoveringId, setRecoveringId] = useState<string | null>(null);
@@ -180,25 +168,6 @@ export default function QontoPage() {
     }
   }, [load, handleSync]);
 
-  // Full reset + réimport depuis mars 2026
-  async function handleFullSync() {
-    setShowFullSyncConfirm(false);
-    setFullSyncing(true);
-    setFullSyncReport(null);
-    try {
-      const res = await fetch("/api/qonto-full-sync", { method: "POST" });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      setFullSyncReport(data as FullSyncReport);
-      localStorage.setItem("qonto_last_sync", String(Date.now()));
-      await load();
-    } catch (err) {
-      console.error("[full-sync]", err);
-    } finally {
-      setFullSyncing(false);
-    }
-  }
-
   // Récupérer une transaction exclue → repasse en_attente
   async function handleRecover(txId: string) {
     setRecoveringId(txId);
@@ -243,7 +212,6 @@ export default function QontoPage() {
     setExpanded(null);
     setShowBulkInclude(false);
     setSearchQuery("");
-    setFullSyncReport(null);
   }
 
   function toggleSelect(id: string) {
@@ -397,95 +365,19 @@ export default function QontoPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Sync incrémentale */}
-          <button
-            onClick={() => handleSync(true)}
-            disabled={syncing || fullSyncing}
-            title="Synchronisation complète (sans reset)"
-            className="text-ink-muted hover:text-ink-secondary transition-colors p-1.5 rounded-lg hover:bg-surface-muted disabled:opacity-40"
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3"/>
-              <path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/>
-              <path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>
-            </svg>
-          </button>
-
-          {/* Réimport complet */}
-          <button
-            onClick={() => setShowFullSyncConfirm(true)}
-            disabled={syncing || fullSyncing}
-            title="Réimport complet — reset + reimport depuis mars 2026"
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 disabled:opacity-40 transition-colors"
-          >
-            {fullSyncing ? (
-              <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-            ) : (
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/>
-              </svg>
-            )}
-            <span className="hidden sm:inline">{fullSyncing ? "Réimport…" : "Réimport complet"}</span>
-          </button>
-        </div>
+        <button
+          onClick={() => handleSync(true)}
+          disabled={syncing}
+          title="Synchronisation complète (sans reset)"
+          className="text-ink-muted hover:text-ink-secondary transition-colors p-1.5 rounded-lg hover:bg-surface-muted disabled:opacity-40"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/>
+            <path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>
+          </svg>
+        </button>
       </div>
-
-      {/* Confirmation réimport complet */}
-      {showFullSyncConfirm && (
-        <div className="card border-red-200 bg-red-50/50 p-4 flex flex-wrap items-start gap-3" style={{ opacity: 0, animation: "slideUp 0.3s cubic-bezier(0.16,1,0.3,1) forwards" }}>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-red-700">Réimport complet depuis mars 2026</p>
-            <p className="text-xs text-red-600 mt-0.5">
-              Toutes les transactions Qonto et les charges Qonto 2026 seront supprimées puis réimportées avec les nouvelles règles.
-              Les charges manuelles et PDF ne sont pas touchées.
-            </p>
-          </div>
-          <div className="flex gap-2 shrink-0">
-            <button
-              onClick={handleFullSync}
-              className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-semibold hover:bg-red-700 transition-colors"
-            >
-              Confirmer
-            </button>
-            <button
-              onClick={() => setShowFullSyncConfirm(false)}
-              className="px-3 py-1.5 rounded-lg bg-surface-muted text-ink-secondary text-xs font-medium hover:bg-surface-border transition-colors"
-            >
-              Annuler
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Rapport réimport complet */}
-      {fullSyncReport && (
-        <div className="card border-green-200 bg-green-50/50 p-4" style={{ opacity: 0, animation: "slideUp 0.3s cubic-bezier(0.16,1,0.3,1) forwards" }}>
-          <div className="flex items-center justify-between gap-2 mb-3">
-            <p className="text-sm font-semibold text-green-700 flex items-center gap-1.5">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-              Réimport terminé — {fullSyncReport.total_fetched} transactions récupérées depuis {fullSyncReport.sync_from}
-            </p>
-            <button onClick={() => setFullSyncReport(null)} className="text-green-600 hover:text-green-800 transition-colors">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
-          </div>
-          <div className="grid grid-cols-3 gap-3 text-center">
-            <div className="bg-white rounded-xl border border-green-200 p-3">
-              <p className="text-lg font-bold text-green-700 font-mono">{fullSyncReport.inclus}</p>
-              <p className="text-[11px] text-green-600 mt-0.5">Incluses automatiquement</p>
-            </div>
-            <div className="bg-white rounded-xl border border-surface-border p-3">
-              <p className="text-lg font-bold text-ink font-mono">{fullSyncReport.exclu}</p>
-              <p className="text-[11px] text-ink-secondary mt-0.5">Exclues automatiquement</p>
-            </div>
-            <div className="bg-white rounded-xl border border-orange-200 p-3">
-              <p className="text-lg font-bold text-orange-600 font-mono">{fullSyncReport.en_attente}</p>
-              <p className="text-[11px] text-orange-600 mt-0.5">Zone grise à traiter</p>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Tabs — full width on mobile */}
       <div
