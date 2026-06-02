@@ -257,98 +257,99 @@ export default function HistoriquePage() {
                   className="card hover:shadow-elevated transition-all duration-200 group"
                   style={{ opacity: 0, animation: `slideUp 0.35s cubic-bezier(0.16,1,0.3,1) ${idx * 40 + 200}ms forwards` }}
                 >
-                  {/* ── DESKTOP : ligne unique ── */}
-                  <div className="hidden sm:flex items-center gap-2 px-4 py-3 min-w-0">
-                    {/* Client type badge */}
-                    <span
-                      className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0"
-                      style={{ backgroundColor: clientBadge.bg, color: clientBadge.color }}
-                    >
-                      {clientBadge.label}
-                    </span>
-                    {/* Client name */}
-                    <span className="text-sm font-bold text-ink truncate shrink-0 max-w-[200px]">{record.clientName}</span>
-                    {/* Doc type badge */}
-                    <span
-                      className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0"
-                      style={
-                        isFacture
-                          ? { backgroundColor: "rgba(124,58,237,0.10)", color: "#7C3AED" }
-                          : { backgroundColor: "rgba(110,110,115,0.10)", color: "#6E6E73" }
-                      }
-                    >
-                      {isFacture ? "Facture" : "Devis"}
-                    </span>
-                    {/* Chips activité, durée, participants, date */}
-                    {activityLabel && (
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "2px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: 600, whiteSpace: "nowrap", backgroundColor: "rgba(0,113,227,0.10)", color: "#0071E3", flexShrink: 0 }}>
-                        <ActivityIcon activity={fd?.activity} />
-                        {activityLabel}
+                  {/* ── DESKTOP : 2 lignes ── */}
+                  <div className="hidden sm:block px-5 py-3.5">
+                    {/* Ligne haute : identité + numéro | prix */}
+                    <div className="flex items-center gap-2 mb-2">
+                      <span
+                        className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0"
+                        style={{ backgroundColor: clientBadge.bg, color: clientBadge.color }}
+                      >
+                        {clientBadge.label}
                       </span>
-                    )}
-                    {durationLabel && (
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "2px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: 600, whiteSpace: "nowrap", backgroundColor: "rgba(232,130,12,0.12)", color: "#B45309", flexShrink: 0 }}>
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-                        </svg>
-                        {durationLabel}
+                      <span className="text-sm font-bold text-ink">{record.clientName}</span>
+                      <span
+                        className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0"
+                        style={
+                          isFacture
+                            ? { backgroundColor: "rgba(124,58,237,0.10)", color: "#7C3AED" }
+                            : { backgroundColor: "rgba(110,110,115,0.10)", color: "#6E6E73" }
+                        }
+                      >
+                        {isFacture ? "Facture" : "Devis"}
                       </span>
-                    )}
-                    {record.participantsCount > 0 && (
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "2px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: 600, whiteSpace: "nowrap", backgroundColor: "rgba(22,163,74,0.10)", color: "#16A34A", flexShrink: 0 }}>
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
-                          <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-                        </svg>
-                        {isGroupeAccomp ? `${nbEleves}él. + ${nbAccomp}acc.` : `${record.participantsCount} pers.`}
-                      </span>
-                    )}
-                    {prestationDate && (
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "2px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: 600, whiteSpace: "nowrap", backgroundColor: "rgba(124,58,237,0.10)", color: "#7C3AED", flexShrink: 0 }}>
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-                        </svg>
-                        {prestationDate}{heureLabel && ` · ${heureLabel}`}
-                      </span>
-                    )}
-                    {/* Spacer */}
-                    <div className="flex-1" />
-                    {/* Numéro */}
-                    <span className="text-xs text-ink-muted font-mono shrink-0">{record.numero}</span>
-                    {/* Prix */}
-                    <div className="flex items-baseline gap-1.5 shrink-0">
-                      <span className="text-sm font-bold font-mono" style={{ color: "#0071E3" }}>{formatPrice(record.totalNet)}</span>
-                      {hasRemise && (
-                        <span className="text-xs text-ink-muted line-through font-mono">{formatPrice(record.totalBrut)}</span>
-                      )}
+                      <span className="text-xs text-ink-muted font-mono">{record.numero}</span>
+                      <div className="flex-1" />
+                      {/* Prix à droite */}
+                      <div className="flex items-baseline gap-2 shrink-0">
+                        <span className="text-base font-bold font-mono" style={{ color: "#0071E3" }}>{formatPrice(record.totalNet)}</span>
+                        {hasRemise && (
+                          <span className="text-xs text-ink-muted line-through font-mono">{formatPrice(record.totalBrut)}</span>
+                        )}
+                      </div>
                     </div>
-                    {/* Actions — hover */}
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 shrink-0">
-                      <button onClick={() => setSelectedRecord(record)} className="p-2 rounded-lg text-ink-muted hover:text-brand-teal hover:bg-brand-teal-light transition-colors" title="Voir / Télécharger">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
-                        </svg>
-                      </button>
-                      {record.documentType === "devis" && (
-                        <button onClick={() => handleConvertToFacture(record)} className="p-2 rounded-lg text-ink-muted hover:text-brand-teal hover:bg-brand-teal-light transition-colors" title="Convertir en facture">
+                    {/* Ligne basse : chips | boutons */}
+                    <div className="flex items-center gap-1.5">
+                      {activityLabel && (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "2px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: 600, whiteSpace: "nowrap", backgroundColor: "rgba(0,113,227,0.10)", color: "#0071E3" }}>
+                          <ActivityIcon activity={fd?.activity} />
+                          {activityLabel}
+                        </span>
+                      )}
+                      {durationLabel && (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "2px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: 600, whiteSpace: "nowrap", backgroundColor: "rgba(232,130,12,0.12)", color: "#B45309" }}>
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                          </svg>
+                          {durationLabel}
+                        </span>
+                      )}
+                      {record.participantsCount > 0 && (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "2px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: 600, whiteSpace: "nowrap", backgroundColor: "rgba(22,163,74,0.10)", color: "#16A34A" }}>
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                          </svg>
+                          {isGroupeAccomp ? `${nbEleves}él. + ${nbAccomp}acc.` : `${record.participantsCount} pers.`}
+                        </span>
+                      )}
+                      {prestationDate && (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "2px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: 600, whiteSpace: "nowrap", backgroundColor: "rgba(124,58,237,0.10)", color: "#7C3AED" }}>
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+                          </svg>
+                          {prestationDate}{heureLabel && ` · ${heureLabel}`}
+                        </span>
+                      )}
+                      <div className="flex-1" />
+                      {/* Boutons toujours visibles */}
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button onClick={() => setSelectedRecord(record)} className="p-2 rounded-lg text-ink-muted hover:text-brand-teal hover:bg-brand-teal-light transition-colors" title="Voir / Télécharger">
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/>
-                            <polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
                           </svg>
                         </button>
-                      )}
-                      <button onClick={() => handleDuplicate(record)} className="p-2 rounded-lg text-ink-muted hover:text-brand-orange hover:bg-brand-orange-light transition-colors" title="Dupliquer">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-                        </svg>
-                      </button>
-                      <button onClick={() => setConfirmDelete(record.id)} className="p-2 rounded-lg text-ink-muted hover:text-brand-red hover:bg-brand-red-light transition-colors" title="Supprimer">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="3 6 5 6 21 6"/>
-                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
-                        </svg>
-                      </button>
+                        {record.documentType === "devis" && (
+                          <button onClick={() => handleConvertToFacture(record)} className="p-2 rounded-lg text-ink-muted hover:text-brand-teal hover:bg-brand-teal-light transition-colors" title="Convertir en facture">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+                              <polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+                            </svg>
+                          </button>
+                        )}
+                        <button onClick={() => handleDuplicate(record)} className="p-2 rounded-lg text-ink-muted hover:text-brand-orange hover:bg-brand-orange-light transition-colors" title="Dupliquer">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                          </svg>
+                        </button>
+                        <button onClick={() => setConfirmDelete(record.id)} className="p-2 rounded-lg text-ink-muted hover:text-brand-red hover:bg-brand-red-light transition-colors" title="Supprimer">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="3 6 5 6 21 6"/>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                          </svg>
+                        </button>
+                      </div>
                     </div>
                   </div>
 
