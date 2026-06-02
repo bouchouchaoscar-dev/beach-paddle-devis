@@ -280,7 +280,7 @@ export default function HistoriquePage() {
                   </div>
 
                   {/* ── Ligne 2 : chips activité / durée / personnes / date / heure — 1 seule ligne ── */}
-                  <div className="flex items-center gap-1.5 overflow-x-auto mb-3" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
+                  <div className="flex flex-nowrap items-center gap-1.5 overflow-x-auto mb-3" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
                     {activityLabel && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-semibold shrink-0 whitespace-nowrap" style={{ backgroundColor: "rgba(0,113,227,0.10)", color: "#0071E3" }}>
                         <ActivityIcon activity={fd?.activity} />
