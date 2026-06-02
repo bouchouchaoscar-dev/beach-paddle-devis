@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import type { DevisRecord } from "@/lib/types";
 import { getDevisList, deleteDevis, saveDevis, generateId, generateNumero, clearLocalCache, localCacheCount } from "@/lib/storage";
 import { formatPrice, calculateDevis } from "@/lib/calculations";
-import { CLIENT_TYPE_LABELS, DURATION_LABELS } from "@/lib/pricing";
+import { DURATION_LABELS } from "@/lib/pricing";
 import { DocumentPreview } from "@/components/document/DocumentPreview";
 
 type FilterType = "all" | "devis" | "facture";
