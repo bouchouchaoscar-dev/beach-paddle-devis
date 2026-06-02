@@ -13,8 +13,8 @@ export interface QontoTransaction {
   operation_type: string;
   currency: string;
   label: string;
-  settled_at: string;       // ISO 8601
-  emitted_at: string;
+  settled_at: string;       // ISO 8601 UTC
+  emitted_at: string;       // ISO 8601 UTC — date d'émission réelle
   status: string;
   note?: string;
   reference?: string;
@@ -61,7 +61,34 @@ export interface QontoDbTransaction {
 export interface RuleResult {
   statut: "inclus" | "exclu" | "en_attente";
   categorie?: string;
+  fournisseur?: string;
   auto_rule?: string;
+}
+
+// ── Date helpers ────────────────────────────────────────────────────────────
+
+/** Convertit un ISO UTC en date locale Europe/Paris (yyyy-mm-dd) */
+export function toParisDate(isoString: string): string {
+  if (!isoString) return new Date().toISOString().slice(0, 10);
+  const d = new Date(isoString);
+  return new Intl.DateTimeFormat("fr-CA", {
+    timeZone: "Europe/Paris",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
+}
+
+/**
+ * Retourne la date de la transaction en heure Paris.
+ * Priorité : emitted_at (émission réelle) > settled_at (règlement bancaire).
+ */
+export function txDate(settledAt: string, emittedAt?: string): string {
+  return toParisDate(emittedAt || settledAt);
+}
+
+export function txSaison(settledAt: string, emittedAt?: string): string {
+  return txDate(settledAt, emittedAt).slice(0, 4);
 }
 
 // ── API helpers ────────────────────────────────────────────────────────────
@@ -134,7 +161,8 @@ const DEFAULT_EXCLUSIONS = [
 
 export function applyDefaultRules(tx: QontoTransaction): RuleResult {
   const label = tx.label.toUpperCase();
-  const date = tx.settled_at.slice(0, 10);
+  // Utilise emitted_at en priorité pour la règle de date (heure Paris)
+  const date = toParisDate(tx.emitted_at || tx.settled_at);
 
   // Virements reçus (credit) exclus sauf SGC SAINT MAUR
   if (tx.side === "credit" && !label.includes("SGC SAINT MAUR")) {
@@ -148,24 +176,24 @@ export function applyDefaultRules(tx: QontoTransaction): RuleResult {
     }
   }
 
-  // Inclusions automatiques
+  // Inclusions automatiques — avec fournisseur propre
   if (label.includes("SGC SAINT MAUR")) {
-    return { statut: "inclus", categorie: "autre", auto_rule: "inclus:SGC_SAINT_MAUR" };
+    return { statut: "inclus", categorie: "autre", fournisseur: "SGC Saint-Maur", auto_rule: "inclus:SGC_SAINT_MAUR" };
   }
   if (label.includes("CARREFOUR ORMESS")) {
-    return { statut: "inclus", categorie: "restauration_autre", auto_rule: "inclus:CARREFOUR_ORMESS" };
+    return { statut: "inclus", categorie: "restauration_autre", fournisseur: "Carrefour", auto_rule: "inclus:CARREFOUR_ORMESS" };
   }
   if (label.includes("LIDL") && label.includes("CHENNEVIERES")) {
-    return { statut: "inclus", categorie: "restauration_autre", auto_rule: "inclus:LIDL_CHENNEVIERES" };
+    return { statut: "inclus", categorie: "restauration_autre", fournisseur: "Lidl", auto_rule: "inclus:LIDL_CHENNEVIERES" };
   }
   if (label.includes("PANEM")) {
-    return { statut: "inclus", categorie: "restauration_autre", auto_rule: "inclus:PANEM" };
+    return { statut: "inclus", categorie: "restauration_autre", fournisseur: "Panem", auto_rule: "inclus:PANEM" };
   }
   if (label.includes("METRO FRANCE")) {
-    if (date >= "2026-05-31") {
-      return { statut: "inclus", categorie: "restauration_metro", auto_rule: "inclus:METRO_FRANCE" };
+    if (date >= "2026-06-01") {
+      return { statut: "inclus", categorie: "restauration_metro", fournisseur: "Métro France", auto_rule: "inclus:METRO_FRANCE" };
     }
-    return { statut: "exclu", auto_rule: "exclu:METRO_FRANCE_avant_31_05" };
+    return { statut: "exclu", auto_rule: "exclu:METRO_FRANCE_avant_06_2026" };
   }
 
   return { statut: "en_attente" };
@@ -183,18 +211,11 @@ export function applyRulesWithCustom(
       return {
         statut: rule.action,
         categorie: rule.categorie ?? undefined,
+        fournisseur: rule.categorie ? undefined : undefined,
         auto_rule: `custom:${rule.libelle_contains}`,
       };
     }
   }
 
   return applyDefaultRules(tx);
-}
-
-export function txDate(settledAt: string): string {
-  return settledAt.slice(0, 10);
-}
-
-export function txSaison(settledAt: string): string {
-  return settledAt.slice(0, 4);
 }

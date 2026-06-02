@@ -37,7 +37,7 @@ function QontoPendingBadge() {
   const [count, setCount] = useState<number>(0);
 
   useEffect(() => {
-    (async () => {
+    async function fetchCount() {
       try {
         const { count: c } = await supabase
           .from("qonto_transactions")
@@ -47,7 +47,11 @@ function QontoPendingBadge() {
       } catch {
         // table may not exist yet
       }
-    })();
+    }
+
+    fetchCount();
+    const interval = setInterval(fetchCount, 5 * 60 * 1000); // polling toutes les 5 min
+    return () => clearInterval(interval);
   }, []);
 
   if (count === 0) return null;

@@ -11,6 +11,8 @@ const CATEGORIES: ChargeCategory[] = [
   "restauration_metro", "restauration_autre", "equipement", "salaire", "autre",
 ];
 
+type TabId = "pending" | "inclus" | "exclues" | "regles";
+
 type ExpandedState = {
   id: string;
   action: "inclure" | "exclure" | "immobiliser";
@@ -21,10 +23,26 @@ type ExpandedState = {
   immoDuree: number;
 };
 
+type FullSyncReport = {
+  total_fetched: number;
+  inclus: number;
+  exclu: number;
+  en_attente: number;
+  sync_from: string;
+};
+
 function fmtDate(d: string) {
   return new Date(d + "T12:00:00").toLocaleDateString("fr-FR", {
     day: "2-digit", month: "short",
   });
+}
+
+function raisonExclusion(tx: QontoDbTransaction): string {
+  if (!tx.auto_rule) return "Exclusion manuelle";
+  if (tx.auto_rule === "income") return "Virement reçu";
+  if (tx.auto_rule.startsWith("exclu:")) return `Règle : ${tx.auto_rule.replace("exclu:", "")}`;
+  if (tx.auto_rule.startsWith("custom:")) return `Règle mémorisée : ${tx.auto_rule.replace("custom:", "")}`;
+  return tx.auto_rule;
 }
 
 // ── Checkbox ────────────────────────────────────────────────────────────────
@@ -56,7 +74,7 @@ export default function QontoPage() {
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<ExpandedState | null>(null);
   const [processing, setProcessing] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"pending" | "inclus" | "regles">("pending");
+  const [activeTab, setActiveTab] = useState<TabId>("pending");
 
   const [searchQuery, setSearchQuery] = useState("");
   const [syncing, setSyncing] = useState(false);
@@ -71,6 +89,14 @@ export default function QontoPage() {
   const [showBulkInclude, setShowBulkInclude] = useState(false);
   const [bulkProcessing, setBulkProcessing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Full sync (reset + reimport)
+  const [fullSyncing, setFullSyncing] = useState(false);
+  const [fullSyncReport, setFullSyncReport] = useState<FullSyncReport | null>(null);
+  const [showFullSyncConfirm, setShowFullSyncConfirm] = useState(false);
+
+  // Récupérer une transaction exclue
+  const [recoveringId, setRecoveringId] = useState<string | null>(null);
 
   // Initialize "seen" state from localStorage (runs once on mount)
   useEffect(() => {
@@ -143,25 +169,70 @@ export default function QontoPage() {
     }
   }, [load, handleSync]);
 
+  // Full reset + réimport depuis mars 2026
+  async function handleFullSync() {
+    setShowFullSyncConfirm(false);
+    setFullSyncing(true);
+    setFullSyncReport(null);
+    try {
+      const res = await fetch("/api/qonto-full-sync", { method: "POST" });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setFullSyncReport(data as FullSyncReport);
+      localStorage.setItem("qonto_last_sync", String(Date.now()));
+      await load();
+    } catch (err) {
+      console.error("[full-sync]", err);
+    } finally {
+      setFullSyncing(false);
+    }
+  }
+
+  // Récupérer une transaction exclue → repasse en_attente
+  async function handleRecover(txId: string) {
+    setRecoveringId(txId);
+    try {
+      await supabase
+        .from("qonto_transactions")
+        .update({ statut: "en_attente" })
+        .eq("id", txId);
+      await load();
+      setActiveTab("pending");
+    } finally {
+      setRecoveringId(null);
+    }
+  }
+
   const pendingTxs = transactions.filter((t) => t.statut === "en_attente");
   const inclusTxs = transactions.filter((t) => t.statut === "inclus");
-  const allVisibleTxs = activeTab === "pending" ? pendingTxs : inclusTxs;
+  const excluesTxs = transactions.filter((t) => t.statut === "exclu");
+
+  const allVisibleTxs = activeTab === "pending"
+    ? pendingTxs
+    : activeTab === "inclus"
+    ? inclusTxs
+    : activeTab === "exclues"
+    ? excluesTxs
+    : [];
+
   const visibleTxs = (() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return allVisibleTxs;
     return allVisibleTxs.filter((t) =>
       t.libelle.toLowerCase().includes(q) ||
       String(t.montant).includes(q) ||
-      (t.fournisseur ?? "").toLowerCase().includes(q)
+      (t.fournisseur ?? "").toLowerCase().includes(q) ||
+      (t.auto_rule ?? "").toLowerCase().includes(q)
     );
   })();
 
-  function switchTab(tab: typeof activeTab) {
+  function switchTab(tab: TabId) {
     setActiveTab(tab);
     setSelectedIds(new Set());
     setExpanded(null);
     setShowBulkInclude(false);
     setSearchQuery("");
+    setFullSyncReport(null);
   }
 
   function toggleSelect(id: string) {
@@ -313,20 +384,96 @@ export default function QontoPage() {
             {syncing ? "Synchronisation en cours…" : "Synchronisation automatique à l'ouverture"}
           </p>
         </div>
-        {/* Reset sync — discreet button, full re-import from 2026-03-01 */}
-        <button
-          onClick={() => { if (confirm("Relancer une synchronisation complète depuis le 1er mars 2026 ?")) handleSync(true); }}
-          disabled={syncing}
-          title="Réinitialiser la synchronisation (import complet)"
-          className="text-ink-muted hover:text-ink-secondary transition-colors p-1.5 rounded-lg hover:bg-surface-muted disabled:opacity-40"
-        >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="3"/>
-            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/>
-            <path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>
-          </svg>
-        </button>
+
+        <div className="flex items-center gap-2">
+          {/* Sync incrémentale */}
+          <button
+            onClick={() => handleSync(true)}
+            disabled={syncing || fullSyncing}
+            title="Synchronisation complète (sans reset)"
+            className="text-ink-muted hover:text-ink-secondary transition-colors p-1.5 rounded-lg hover:bg-surface-muted disabled:opacity-40"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/>
+              <path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>
+            </svg>
+          </button>
+
+          {/* Réimport complet */}
+          <button
+            onClick={() => setShowFullSyncConfirm(true)}
+            disabled={syncing || fullSyncing}
+            title="Réimport complet — reset + reimport depuis mars 2026"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 disabled:opacity-40 transition-colors"
+          >
+            {fullSyncing ? (
+              <svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+            ) : (
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/>
+              </svg>
+            )}
+            <span className="hidden sm:inline">{fullSyncing ? "Réimport…" : "Réimport complet"}</span>
+          </button>
+        </div>
       </div>
+
+      {/* Confirmation réimport complet */}
+      {showFullSyncConfirm && (
+        <div className="card border-red-200 bg-red-50/50 p-4 flex flex-wrap items-start gap-3" style={{ opacity: 0, animation: "slideUp 0.3s cubic-bezier(0.16,1,0.3,1) forwards" }}>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-red-700">Réimport complet depuis mars 2026</p>
+            <p className="text-xs text-red-600 mt-0.5">
+              Toutes les transactions Qonto et les charges Qonto 2026 seront supprimées puis réimportées avec les nouvelles règles.
+              Les charges manuelles et PDF ne sont pas touchées.
+            </p>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <button
+              onClick={handleFullSync}
+              className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-semibold hover:bg-red-700 transition-colors"
+            >
+              Confirmer
+            </button>
+            <button
+              onClick={() => setShowFullSyncConfirm(false)}
+              className="px-3 py-1.5 rounded-lg bg-surface-muted text-ink-secondary text-xs font-medium hover:bg-surface-border transition-colors"
+            >
+              Annuler
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Rapport réimport complet */}
+      {fullSyncReport && (
+        <div className="card border-green-200 bg-green-50/50 p-4" style={{ opacity: 0, animation: "slideUp 0.3s cubic-bezier(0.16,1,0.3,1) forwards" }}>
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <p className="text-sm font-semibold text-green-700 flex items-center gap-1.5">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              Réimport terminé — {fullSyncReport.total_fetched} transactions récupérées depuis {fullSyncReport.sync_from}
+            </p>
+            <button onClick={() => setFullSyncReport(null)} className="text-green-600 hover:text-green-800 transition-colors">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <div className="grid grid-cols-3 gap-3 text-center">
+            <div className="bg-white rounded-xl border border-green-200 p-3">
+              <p className="text-lg font-bold text-green-700 font-mono">{fullSyncReport.inclus}</p>
+              <p className="text-[11px] text-green-600 mt-0.5">Incluses automatiquement</p>
+            </div>
+            <div className="bg-white rounded-xl border border-surface-border p-3">
+              <p className="text-lg font-bold text-ink font-mono">{fullSyncReport.exclu}</p>
+              <p className="text-[11px] text-ink-secondary mt-0.5">Exclues automatiquement</p>
+            </div>
+            <div className="bg-white rounded-xl border border-orange-200 p-3">
+              <p className="text-lg font-bold text-orange-600 font-mono">{fullSyncReport.en_attente}</p>
+              <p className="text-[11px] text-orange-600 mt-0.5">Zone grise à traiter</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tabs — full width on mobile */}
       <div
@@ -336,6 +483,7 @@ export default function QontoPage() {
         {([
           { id: "pending" as const, label: "En attente", count: pendingTxs.length, countColor: pendingTxs.length > 0 ? "bg-orange-500" : undefined },
           { id: "inclus" as const, label: "Incluses", count: inclusTxs.length },
+          { id: "exclues" as const, label: "Exclues", count: excluesTxs.length },
           { id: "regles" as const, label: "Règles", count: rules.length },
         ]).map((tab) => (
           <button key={tab.id} onClick={() => switchTab(tab.id)}
@@ -423,7 +571,6 @@ export default function QontoPage() {
                       <div className={`flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3 transition-colors ${isExpandedHere ? "bg-surface-muted/50" : "hover:bg-surface-muted/20"}`}>
                         <Checkbox checked={isChecked} onChange={() => toggleSelect(tx.id)} />
 
-                        {/* Libellé + date sous le libellé sur mobile */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5 min-w-0">
                             <p className="text-sm font-medium text-ink truncate">{tx.libelle}</p>
@@ -439,10 +586,7 @@ export default function QontoPage() {
                           )}
                         </div>
 
-                        {/* Date: desktop uniquement */}
                         <div className="hidden sm:block shrink-0 text-xs text-ink-muted font-mono w-14">{fmtDate(tx.date)}</div>
-
-                        {/* Montant */}
                         <div className="shrink-0 text-sm font-bold text-ink tabular-nums font-mono">{formatPrice(tx.montant)}</div>
 
                         {activeTab === "pending" ? (
@@ -512,7 +656,6 @@ export default function QontoPage() {
                         ) : (
                           <div className="flex items-center gap-1.5 shrink-0">
                             <span className="hidden sm:inline px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-semibold">incluse</span>
-                            {/* Toujours visible sur mobile, hover sur desktop */}
                             <button onClick={() => handleReject(tx.id, false)} disabled={isLoading}
                               className="sm:opacity-0 sm:group-hover:opacity-100 w-8 h-8 flex items-center justify-center rounded-lg bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 transition-all">
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -601,6 +744,91 @@ export default function QontoPage() {
         </div>
       )}
 
+      {/* ── Tab: Exclues ── */}
+      {activeTab === "exclues" && (
+        <div className="space-y-3" style={{ opacity: 0, animation: "slideUp 0.4s cubic-bezier(0.16,1,0.3,1) 0.15s forwards" }}>
+          {/* Search bar */}
+          <div className="relative w-full">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-ink-muted" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Rechercher parmi les transactions exclues..."
+              className="input-field !pl-9 !py-1.5 text-sm w-full"
+            />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink transition-colors">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            )}
+          </div>
+
+          {visibleTxs.length === 0 ? (
+            <div className="card p-10 text-center">
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-3 bg-surface-muted">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#8E8E93" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                  {searchQuery.trim()
+                    ? <><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></>
+                    : <><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>
+                  }
+                </svg>
+              </div>
+              <p className="text-sm font-semibold text-ink">
+                {searchQuery.trim() ? "Aucune transaction trouvée" : "Aucune transaction exclue"}
+              </p>
+              <p className="text-xs text-ink-secondary mt-1">
+                {searchQuery.trim() ? `Aucun résultat pour "${searchQuery.trim()}"` : "Les transactions exclues automatiquement ou manuellement apparaîtront ici"}
+              </p>
+            </div>
+          ) : (
+            <div className="card overflow-hidden">
+              <div className="flex items-center gap-3 px-3 sm:px-4 py-2.5 border-b border-surface-border bg-surface-muted/30">
+                <span className="text-xs text-ink-secondary">
+                  {visibleTxs.length} transaction{visibleTxs.length > 1 ? "s" : ""} exclue{visibleTxs.length > 1 ? "s" : ""}
+                </span>
+                <span className="ml-auto text-xs text-ink-muted">
+                  Cliquer sur &quot;Récupérer&quot; pour repasser en zone grise
+                </span>
+              </div>
+
+              <div className="divide-y divide-surface-border">
+                {visibleTxs.map((tx) => {
+                  const isRecovering = recoveringId === tx.id;
+                  return (
+                    <div key={tx.id} className="group flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3 hover:bg-surface-muted/20 transition-colors">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-ink truncate">{tx.libelle}</p>
+                        <p className="text-[11px] text-ink-muted mt-0.5">{raisonExclusion(tx)}</p>
+                      </div>
+                      <div className="hidden sm:block shrink-0 text-xs text-ink-muted font-mono w-14">{fmtDate(tx.date)}</div>
+                      <div className="shrink-0 text-sm font-bold text-ink tabular-nums font-mono">{formatPrice(tx.montant)}</div>
+                      <button
+                        onClick={() => handleRecover(tx.id)}
+                        disabled={isRecovering}
+                        title="Récupérer — repasse en zone grise pour retraitement"
+                        className="shrink-0 flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium border border-surface-border bg-surface-muted text-ink-secondary hover:border-brand-teal hover:text-brand-teal hover:bg-brand-teal-light transition-all disabled:opacity-50"
+                      >
+                        {isRecovering ? (
+                          <svg className="animate-spin" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                        ) : (
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/>
+                          </svg>
+                        )}
+                        <span className="hidden sm:inline">Récupérer</span>
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── Tab: Règles ── */}
       {activeTab === "regles" && (
         <div className="space-y-4" style={{ opacity: 0, animation: "slideUp 0.4s cubic-bezier(0.16,1,0.3,1) 0.15s forwards" }}>
@@ -624,7 +852,6 @@ export default function QontoPage() {
                     <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold ${rule.action === "inclus" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
                       {rule.action}
                     </span>
-                    {/* Toujours visible sur mobile */}
                     <button onClick={() => handleDeleteRule(rule.id)}
                       className="shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 p-2 rounded-lg text-ink-muted hover:text-red-600 hover:bg-red-50 transition-all">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -646,7 +873,7 @@ export default function QontoPage() {
                 { label: "CARREFOUR ORMESS", action: "inclus", cat: "Restauration autre" },
                 { label: "LIDL CHENNEVIERES", action: "inclus", cat: "Restauration autre" },
                 { label: "PANEM", action: "inclus", cat: "Restauration autre" },
-                { label: "METRO FRANCE (≥ 31/05/2026)", action: "inclus", cat: "Restauration Métro" },
+                { label: "METRO FRANCE (≥ 01/06/2026)", action: "inclus", cat: "Restauration Métro" },
                 { label: "Virements reçus", action: "exclu", cat: null },
                 { label: "NETFLIX / SPOTIFY / SFR…", action: "exclu", cat: null },
               ].map((r, i) => (

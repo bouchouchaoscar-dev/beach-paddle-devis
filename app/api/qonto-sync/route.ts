@@ -44,11 +44,13 @@ export async function POST(req: Request) {
     // 3. Fetch Qonto transactions since syncFrom
     const transactions = await fetchQontoTransactions(bankAccount.slug, syncFrom);
 
-    // 4. Load already-imported qonto_ids to avoid duplicates (safety net)
+    // 4. Load already-imported qonto_ids to avoid duplicates (protection absolue)
     const { data: existingRows } = await supabase
       .from("qonto_transactions")
-      .select("qonto_id");
-    const existingIds = new Set<string>((existingRows ?? []).map((r: { qonto_id: string }) => r.qonto_id));
+      .select("qonto_id, statut");
+    const existingMap = new Map<string, string>(
+      (existingRows ?? []).map((r: { qonto_id: string; statut: string }) => [r.qonto_id, r.statut])
+    );
 
     // 5. Load custom rules
     const { data: customRulesRaw } = await supabase
@@ -60,15 +62,37 @@ export async function POST(req: Request) {
     // 6. Process new transactions
     const toInsert: Record<string, unknown>[] = [];
     const chargesToInsert: Record<string, unknown>[] = [];
-    const stats = { inclus: 0, exclu: 0, en_attente: 0 };
+    const stats = { inclus: 0, exclu: 0, en_attente: 0, ignorees: 0 };
 
     for (const tx of transactions) {
-      if (existingIds.has(tx.transaction_id)) continue;
+      // Protection absolue : ne jamais réimporter une transaction déjà traitée
+      const existingStatut = existingMap.get(tx.transaction_id);
+      if (existingStatut !== undefined) {
+        // Si déjà traitée (inclus/exclu/immobilise), ignorer complètement
+        if (existingStatut !== "en_attente") {
+          stats.ignorees++;
+          continue;
+        }
+        // Si en_attente, ignorer aussi (déjà dans la queue)
+        stats.ignorees++;
+        continue;
+      }
 
       const result = applyRulesWithCustom(tx, customRules);
-      const date = txDate(tx.settled_at);
-      const saison = txSaison(tx.settled_at);
+
+      // Priorité emitted_at pour la date Paris (logged pour debug)
+      const dateEmis = tx.emitted_at ? txDate(tx.settled_at, tx.emitted_at) : null;
+      const dateRegle = txDate(tx.settled_at);
+      const date = dateEmis ?? dateRegle;
+      const saison = txSaison(tx.settled_at, tx.emitted_at || undefined);
       const montant = Math.round(tx.amount * 100) / 100;
+
+      console.log(`[qonto-sync] ${tx.transaction_id} | label="${tx.label}" | emitted=${tx.emitted_at?.slice(0,10) ?? "n/a"} → Paris=${dateEmis ?? "n/a"} | settled=${tx.settled_at?.slice(0,10)} → Paris=${dateRegle} | date_used=${date} | statut=${result.statut}`);
+
+      // Fournisseur propre : depuis les règles si auto-inclus, sinon libellé brut
+      const fournisseurFinal = result.statut === "inclus"
+        ? (result.fournisseur ?? tx.label)
+        : null;
 
       toInsert.push({
         qonto_id: tx.transaction_id,
@@ -77,7 +101,7 @@ export async function POST(req: Request) {
         libelle: tx.label,
         statut: result.statut,
         categorie: result.categorie ?? null,
-        fournisseur: result.statut === "inclus" ? tx.label : null,
+        fournisseur: fournisseurFinal,
         auto_rule: result.auto_rule ?? null,
         memoriser: false,
         saison,
@@ -90,7 +114,7 @@ export async function POST(req: Request) {
           date,
           montant,
           categorie: result.categorie,
-          fournisseur: tx.label,
+          fournisseur: result.fournisseur ?? tx.label,
           description: `Import Qonto — ${tx.label}`,
           mode_paiement: "CB",
           statut_paiement: "paye",
@@ -115,7 +139,10 @@ export async function POST(req: Request) {
       nouveau: toInsert.length,
       total_fetched: transactions.length,
       sync_from: syncFrom,
-      ...stats,
+      ignorees: stats.ignorees,
+      inclus: stats.inclus,
+      exclu: stats.exclu,
+      en_attente: stats.en_attente,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
