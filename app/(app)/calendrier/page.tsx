@@ -68,10 +68,8 @@ function detectPayment(
   for (const e of entries) {
     if (Math.abs(e.montant - expected30) <= TOL) return { cas: 1, montant: e.montant };
   }
-  // Any partial payment
-  for (const e of entries) {
-    if (e.montant > 0 && e.montant < eventMontant + TOL) return { cas: 3, montant: e.montant };
-  }
+  // Cas 3 supprimé : sans lien direct devis↔paiement, tout montant non reconnu
+  // est traité comme aucun paiement détecté pour éviter les faux positifs
   return { cas: 4 };
 }
 
@@ -279,9 +277,6 @@ function EventPill({
       {payment?.cas === 1 && (
         <span className="shrink-0 ml-0.5" style={{ color: "#16A34A" }}><IcoCheck s={9}/></span>
       )}
-      {payment?.cas === 3 && (
-        <span className="shrink-0 ml-0.5" style={{ color: "#D97706" }}><IcoCheck s={9}/></span>
-      )}
       {(!payment || payment.cas === 4) && event.acompte_recu && (
         <span className="shrink-0 opacity-70 ml-0.5"><IcoCheck s={9}/></span>
       )}
@@ -486,7 +481,6 @@ function WeekView({
                         {formatH(ev.heure_debut)}
                         {payment?.cas === 2 && <IcoCheckFull s={8}/>}
                         {payment?.cas === 1 && <IcoCheck s={8}/>}
-                        {payment?.cas === 3 && <span style={{ color: "#D97706" }}><IcoCheck s={8}/></span>}
                       </div>
                     )}
                   </button>
@@ -604,11 +598,6 @@ function DayView({
                   {payment?.cas === 1 && (
                     <span className="flex items-center gap-1" style={{ color: "#16A34A" }}>
                       <IcoCheck s={10}/> Acompte reçu
-                    </span>
-                  )}
-                  {payment?.cas === 3 && (
-                    <span className="flex items-center gap-1" style={{ color: "#D97706" }}>
-                      <IcoCheck s={10}/> Partiel
                     </span>
                   )}
                   {(!payment || payment.cas === 4) && ev.acompte_recu && (
@@ -858,7 +847,6 @@ function EventModal({
                 <div className={`px-4 py-3 flex items-start gap-3 ${
                   payment?.cas === 2 ? "bg-green-50" :
                   payment?.cas === 1 ? "bg-emerald-50/70" :
-                  payment?.cas === 3 ? "bg-amber-50/60" :
                   "bg-gray-50"
                 }`}>
                   {payment?.cas === 2 && (
@@ -886,19 +874,6 @@ function EventModal({
                           {event.montant != null && (
                             <span className="text-emerald-500"> (attendu {formatPriceExact(event.montant * 0.3)})</span>
                           )}
-                        </div>
-                      </div>
-                    </>
-                  )}
-                  {payment?.cas === 3 && (
-                    <>
-                      <div className="w-7 h-7 rounded-full bg-amber-400 flex items-center justify-center shrink-0 mt-0.5 text-white">
-                        <IcoCheck s={13}/>
-                      </div>
-                      <div>
-                        <div className="text-sm font-bold text-amber-700">Paiement partiel</div>
-                        <div className="text-xs text-amber-600 mt-0.5">
-                          {formatPriceExact(payment.montant!)} — à valider manuellement
                         </div>
                       </div>
                     </>
