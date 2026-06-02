@@ -88,6 +88,7 @@ export default function ChargesPage() {
     heureFin: "",
     heures: "",
     tarif: "",
+    bonus: "0",
     notes: "",
   });
   const [viewingEmpId, setViewingEmpId] = useState<string | null>(null);
@@ -245,7 +246,8 @@ export default function ChargesPage() {
     }
     if (heures <= 0) return;
     const tarif = parseFloat(sessionForm.tarif) || emp.tarif_horaire;
-    const montant = heures * tarif;
+    const bonus = parseFloat(sessionForm.bonus) || 0;
+    const montant = heures * tarif + bonus;
     setSaving(true);
     try {
       await saveWorkSession({
@@ -255,6 +257,7 @@ export default function ChargesPage() {
         heure_fin: sessionForm.heureFin || undefined,
         heures,
         montant,
+        bonus: bonus > 0 ? bonus : undefined,
         notes: sessionForm.notes || undefined,
         saison: sessionForm.date.slice(0, 4),
         created_by: "",
@@ -265,12 +268,12 @@ export default function ChargesPage() {
         montant,
         categorie: "salaire",
         fournisseur: emp.nom,
-        description: `${heures}h — ${emp.nom}`,
+        description: `${heures}h — ${emp.nom}${bonus > 0 ? ` + ${bonus}€ bonus` : ""}`,
         saison: sessionForm.date.slice(0, 4),
         statut_paiement: "paye",
         created_by: "",
       });
-      setSessionForm((f) => ({ ...f, heures: "", notes: "", heureDebut: "", heureFin: "", tarif: String(emp.tarif_horaire) }));
+      setSessionForm((f) => ({ ...f, heures: "", notes: "", heureDebut: "", heureFin: "", tarif: String(emp.tarif_horaire), bonus: "0" }));
       await load();
     } finally {
       setSaving(false);
@@ -417,8 +420,9 @@ export default function ChargesPage() {
     : parseFloat(sessionForm.heures) || 0;
   const selectedEmp = employees.find((e) => e.id === sessionForm.employeeId);
   const sessionTarifPreview = parseFloat(sessionForm.tarif) || selectedEmp?.tarif_horaire || 0;
+  const sessionBonusPreview = parseFloat(sessionForm.bonus) || 0;
   const sessionMontantPreview = sessionHoursPreview > 0 && selectedEmp
-    ? sessionHoursPreview * sessionTarifPreview
+    ? sessionHoursPreview * sessionTarifPreview + sessionBonusPreview
     : 0;
 
   function fmtDate(d: string) {
@@ -784,21 +788,54 @@ export default function ChargesPage() {
                   ) : (
                     <div className="space-y-1">
                       {sessionsByEmp.map((s) => (
-                        <div key={s.id} className="flex items-center justify-between text-xs px-2 py-1.5 rounded-lg bg-surface-muted">
-                          <span className="text-ink-muted font-mono">{fmtDate(s.date)}</span>
-                          <span className="text-ink">{s.heures}h</span>
-                          <span className="text-ink font-semibold font-mono">{formatPrice(s.montant)}</span>
-                          <button onClick={() => deleteWorkSession(s.id).then(load)} className="text-ink-muted hover:text-brand-red ml-1">
-                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                          </button>
+                        <div key={s.id} className="text-xs px-2 py-1.5 rounded-lg bg-surface-muted">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-ink-muted font-mono">{fmtDate(s.date)}</span>
+                            <span className="text-ink">{s.heures}h</span>
+                            <div className="flex items-center gap-1.5 ml-auto">
+                              {(s.bonus ?? 0) > 0 && (
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 font-semibold text-[10px]">
+                                  🎁 +{formatPrice(s.bonus!)}
+                                </span>
+                              )}
+                              <span className="text-ink font-semibold font-mono">{formatPrice(s.montant)}</span>
+                            </div>
+                            <button onClick={() => deleteWorkSession(s.id).then(load)} className="text-ink-muted hover:text-brand-red">
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                            </button>
+                          </div>
                         </div>
                       ))}
-                      <div className="mt-1 px-2 py-2 rounded-xl bg-brand-teal-light border border-brand-teal/20">
-                        <div className="flex justify-between text-xs font-semibold text-brand-teal">
-                          <span>{sessionsByEmp.length} session{sessionsByEmp.length > 1 ? "s" : ""} · {sessionsByEmp.reduce((s, ws) => s + ws.heures, 0)}h</span>
-                          <span className="font-mono">{formatPrice(sessionsByEmp.reduce((s, ws) => s + ws.montant, 0))}</span>
-                        </div>
-                      </div>
+                      {(() => {
+                        const totalBase = sessionsByEmp.reduce((s, ws) => s + ws.montant - (ws.bonus ?? 0), 0);
+                        const totalBonus = sessionsByEmp.reduce((s, ws) => s + (ws.bonus ?? 0), 0);
+                        const totalGlobal = sessionsByEmp.reduce((s, ws) => s + ws.montant, 0);
+                        return (
+                          <div className="mt-1 px-2 py-2 rounded-xl bg-brand-teal-light border border-brand-teal/20">
+                            {totalBonus > 0 ? (
+                              <div className="space-y-0.5 text-xs">
+                                <div className="flex justify-between text-ink-secondary">
+                                  <span>Base ({sessionsByEmp.length} sess. · {sessionsByEmp.reduce((s, ws) => s + ws.heures, 0)}h)</span>
+                                  <span className="font-mono">{formatPrice(totalBase)}</span>
+                                </div>
+                                <div className="flex justify-between text-green-700 font-semibold">
+                                  <span>Bonus</span>
+                                  <span className="font-mono">+{formatPrice(totalBonus)}</span>
+                                </div>
+                                <div className="flex justify-between font-bold text-brand-teal border-t border-brand-teal/20 pt-1">
+                                  <span>Total</span>
+                                  <span className="font-mono">{formatPrice(totalGlobal)}</span>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex justify-between text-xs font-semibold text-brand-teal">
+                                <span>{sessionsByEmp.length} session{sessionsByEmp.length > 1 ? "s" : ""} · {sessionsByEmp.reduce((s, ws) => s + ws.heures, 0)}h</span>
+                                <span className="font-mono">{formatPrice(totalGlobal)}</span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>
@@ -893,14 +930,48 @@ export default function ChargesPage() {
                   </div>
                 </div>
                 <div>
+                  <label className="label">Bonus exceptionnel (optionnel)</label>
+                  <div className="flex items-center gap-0">
+                    <button type="button" onClick={() => setSessionForm((f) => ({ ...f, bonus: String(Math.max(0, (parseFloat(f.bonus) || 0) - 5)) }))} className="flex items-center justify-center w-9 h-9 rounded-l-xl border border-r-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border hover:text-ink transition-colors active:scale-95">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    </button>
+                    <div className="relative flex-1">
+                      <NumericInput inputMode="decimal" value={sessionForm.bonus} min={0} step={5} placeholder="0" onChange={(e) => setSessionForm((f) => ({ ...f, bonus: e.target.value }))} className="w-full h-9 border border-surface-border bg-white text-center text-sm font-bold font-mono text-ink outline-none pr-6 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-muted text-sm pointer-events-none">€</span>
+                    </div>
+                    <button type="button" onClick={() => setSessionForm((f) => ({ ...f, bonus: String((parseFloat(f.bonus) || 0) + 5) }))} className="flex items-center justify-center w-9 h-9 rounded-r-xl border border-l-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border hover:text-ink transition-colors active:scale-95">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    </button>
+                  </div>
+                </div>
+                <div>
                   <label className="label">Notes</label>
                   <input type="text" value={sessionForm.notes} placeholder="Optionnel" onChange={(e) => setSessionForm((f) => ({ ...f, notes: e.target.value }))} className="input-field" />
                 </div>
 
                 {sessionHoursPreview > 0 && selectedEmp && (
-                  <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-brand-teal-light border border-brand-teal/20 text-sm">
-                    <span className="text-ink-secondary">{sessionHoursPreview}h × {sessionTarifPreview}€</span>
-                    <span className="font-bold font-mono text-brand-teal">{formatPrice(sessionMontantPreview)}</span>
+                  <div className="px-4 py-2.5 rounded-xl bg-brand-teal-light border border-brand-teal/20 text-sm">
+                    {sessionBonusPreview > 0 ? (
+                      <div className="space-y-0.5">
+                        <div className="flex items-center justify-between text-ink-secondary">
+                          <span>{sessionHoursPreview}h × {sessionTarifPreview}€</span>
+                          <span className="font-mono">{formatPrice(sessionHoursPreview * sessionTarifPreview)}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-green-700">
+                          <span>Bonus exceptionnel</span>
+                          <span className="font-mono">+{formatPrice(sessionBonusPreview)}</span>
+                        </div>
+                        <div className="flex items-center justify-between font-bold font-mono text-brand-teal border-t border-brand-teal/20 pt-1 mt-1">
+                          <span>Total</span>
+                          <span>{formatPrice(sessionMontantPreview)}</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <span className="text-ink-secondary">{sessionHoursPreview}h × {sessionTarifPreview}€</span>
+                        <span className="font-bold font-mono text-brand-teal">{formatPrice(sessionMontantPreview)}</span>
+                      </div>
+                    )}
                   </div>
                 )}
 

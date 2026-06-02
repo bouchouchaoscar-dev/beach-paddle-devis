@@ -48,6 +48,7 @@ export interface WorkSession {
   heure_fin?: string;
   heures: number;
   montant: number;
+  bonus?: number;
   notes?: string;
   saison: string;
   created_at: string;
