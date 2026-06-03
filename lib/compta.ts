@@ -102,6 +102,11 @@ export async function updateEmployee(id: string, patch: Partial<Employee>): Prom
   if (error) throw new Error(error.message);
 }
 
+export async function deleteEmployee(id: string): Promise<void> {
+  const { error } = await supabase.from("employees").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
 
 // ── Work Sessions ────────────────────────────────────────────────────────────
 

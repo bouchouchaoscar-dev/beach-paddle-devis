@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   getCharges, saveCharge, updateCharge, deleteCharge,
-  getEmployees, saveEmployee, updateEmployee,
+  getEmployees, saveEmployee, updateEmployee, deleteEmployee,
   getWorkSessions, saveWorkSession, deleteWorkSession,
   getImmobilisations, saveImmobilisation, updateImmobilisation, deleteImmobilisation,
 } from "@/lib/compta";
@@ -92,6 +92,7 @@ export default function ChargesPage() {
     notes: "",
   });
   const [viewingEmpId, setViewingEmpId] = useState<string | null>(null);
+  const [deletingEmpId, setDeletingEmpId] = useState<string | null>(null);
 
   // Immobilisations
   const [immoForm, setImmoForm] = useState({
@@ -228,6 +229,13 @@ export default function ChargesPage() {
     } finally {
       setAddingEmp(false);
     }
+  }
+
+  async function handleDeleteEmployee(id: string) {
+    await deleteEmployee(id);
+    setDeletingEmpId(null);
+    if (viewingEmpId === id) setViewingEmpId(null);
+    await load();
   }
 
   function calcSessionHours(debut: string, fin: string): number {
@@ -735,13 +743,40 @@ export default function ChargesPage() {
                             </div>
                           ) : null;
                         })()}
-                        {emp.actif && (
-                          <button
-                            onClick={(ev) => { ev.stopPropagation(); updateEmployee(emp.id, { actif: false }).then(load); }}
-                            className="text-xs text-ink-muted hover:text-brand-red transition-colors px-2 py-1 rounded-lg hover:bg-brand-red-light"
-                          >
-                            Désactiver
-                          </button>
+                        {deletingEmpId === emp.id ? (
+                          <div className="flex items-center gap-1" onClick={(ev) => ev.stopPropagation()}>
+                            <span className="text-xs text-brand-red font-medium">Supprimer ?</span>
+                            <button
+                              onClick={() => handleDeleteEmployee(emp.id)}
+                              className="text-xs font-semibold text-white bg-brand-red px-2 py-1 rounded-lg hover:opacity-80 transition-opacity"
+                            >
+                              Oui
+                            </button>
+                            <button
+                              onClick={() => setDeletingEmpId(null)}
+                              className="text-xs text-ink-muted px-2 py-1 rounded-lg hover:bg-surface-muted transition-colors"
+                            >
+                              Non
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1" onClick={(ev) => ev.stopPropagation()}>
+                            {emp.actif && (
+                              <button
+                                onClick={() => updateEmployee(emp.id, { actif: false }).then(load)}
+                                className="text-xs text-ink-muted hover:text-brand-red transition-colors px-2 py-1 rounded-lg hover:bg-brand-red-light"
+                              >
+                                Désactiver
+                              </button>
+                            )}
+                            <button
+                              onClick={() => setDeletingEmpId(emp.id)}
+                              className="p-1.5 rounded-lg text-ink-muted hover:text-brand-red hover:bg-brand-red-light transition-colors"
+                              title="Supprimer l'employé"
+                            >
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                            </button>
+                          </div>
                         )}
                       </div>
                     </div>
