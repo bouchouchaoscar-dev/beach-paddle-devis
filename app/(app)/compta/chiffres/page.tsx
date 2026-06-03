@@ -20,15 +20,19 @@ const today = () => {
 const CHART_COLOR = "#0071E3";
 
 // Custom tooltip for daily chart showing acompte detail
-function DailyTooltip({ active, payload, label }: { active?: boolean; payload?: { value: number; payload: { acompte: number } }[]; label?: number }) {
+function DailyTooltip({ active, payload, label }: { active?: boolean; payload?: { value: number; payload: { acompte: number; solde: number } }[]; label?: number }) {
   if (!active || !payload?.length) return null;
   const total = payload[0].value;
   const acompte = payload[0].payload.acompte ?? 0;
+  const solde = payload[0].payload.solde ?? 0;
   return (
     <div style={{ background: "white", border: "1px solid #D2D2D7", borderRadius: 8, padding: "8px 12px", fontSize: 12, boxShadow: "0 4px 16px -4px rgba(0,0,0,0.08)" }}>
       <p style={{ fontWeight: 700, color: "#1D1D1F" }}>Jour {label} — {formatPrice(total)}</p>
       {acompte > 0 && (
         <p style={{ color: "#0071E3", marginTop: 2 }}>dont acompte : {formatPrice(acompte)}</p>
+      )}
+      {solde > 0 && (
+        <p style={{ color: "#16A34A", marginTop: 2 }}>dont solde : {formatPrice(solde)}</p>
       )}
     </div>
   );
@@ -47,6 +51,9 @@ export default function ChiffresPage() {
     includeAcompte: false,
     acompteMontant: "",
     acompteClient: "",
+    includeSolde: false,
+    soldeMontant: "",
+    soldeClient: "",
   });
   const [editingEntry, setEditingEntry] = useState<CaEntry | null>(null);
   const [editForm, setEditForm] = useState({ montant: "", notes: "" });
@@ -85,7 +92,7 @@ export default function ChiffresPage() {
   })();
 
   // CA entry (not acompte) for the selected date
-  const todayCaEntry = entries.find((e) => e.date === form.date && e.source !== "acompte");
+  const todayCaEntry = entries.find((e) => e.date === form.date && e.source !== "acompte" && e.source !== "solde");
 
   // For "all" mode
   const byYear = SAISONS.reduce<Record<string, number>>((acc, yr) => {
@@ -101,15 +108,16 @@ export default function ChiffresPage() {
 
   // Daily chart data: aggregate by day, track acompte portion
   const dailyData = (() => {
-    const byDay: Record<number, { ca: number; acompte: number }> = {};
+    const byDay: Record<number, { ca: number; acompte: number; solde: number }> = {};
     monthEntries.forEach((e) => {
       const day = parseInt(e.date.split("-")[2]);
-      if (!byDay[day]) byDay[day] = { ca: 0, acompte: 0 };
+      if (!byDay[day]) byDay[day] = { ca: 0, acompte: 0, solde: 0 };
       if (e.source === "acompte") byDay[day].acompte += e.montant;
+      else if (e.source === "solde") byDay[day].solde += e.montant;
       else byDay[day].ca += e.montant;
     });
     return Object.entries(byDay)
-      .map(([d, data]) => ({ day: parseInt(d), ca: data.ca + data.acompte, acompte: data.acompte }))
+      .map(([d, data]) => ({ day: parseInt(d), ca: data.ca + data.acompte + data.solde, acompte: data.acompte, solde: data.solde }))
       .sort((a, b) => a.day - b.day);
   })();
 
@@ -159,7 +167,20 @@ export default function ChiffresPage() {
           });
         }
       }
-      setForm({ date: today(), montant: "", notes: "", includeAcompte: false, acompteMontant: "", acompteClient: "" });
+      if (form.includeSolde) {
+        const soldeMontant = parseFloat(form.soldeMontant);
+        if (!isNaN(soldeMontant) && soldeMontant > 0) {
+          await saveCaEntry({
+            date: form.date,
+            montant: soldeMontant,
+            source: "solde",
+            notes: form.soldeClient || undefined,
+            saison: form.date.slice(0, 4),
+            created_by: "",
+          });
+        }
+      }
+      setForm({ date: today(), montant: "", notes: "", includeAcompte: false, acompteMontant: "", acompteClient: "", includeSolde: false, soldeMontant: "", soldeClient: "" });
       await load();
     } finally {
       setSaving(false);
@@ -376,6 +397,71 @@ export default function ChiffresPage() {
                 </div>
               )}
             </div>
+
+            {/* Solde reçu toggle */}
+            <div className="border-t border-surface-border pt-3">
+              <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                <div
+                  onClick={() => setForm((f) => ({ ...f, includeSolde: !f.includeSolde }))}
+                  className={`relative w-9 h-5 rounded-full transition-colors duration-200 flex-shrink-0 ${
+                    form.includeSolde ? "bg-green-500" : "bg-surface-border"
+                  }`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200 ${
+                    form.includeSolde ? "translate-x-4" : "translate-x-0"
+                  }`} />
+                </div>
+                <span className="text-sm font-medium text-ink">Solde reçu (complément de paiement)</span>
+              </label>
+
+              {form.includeSolde && (
+                <div className="mt-3 space-y-2.5 pl-1">
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <label className="label">Montant solde (€)</label>
+                      <div className="flex items-center gap-0">
+                        <button type="button" onClick={() => setForm((f) => ({ ...f, soldeMontant: String(Math.max(0, (parseFloat(f.soldeMontant) || 0) - 10)) }))} className="flex items-center justify-center w-9 h-9 rounded-l-xl border border-r-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border hover:text-ink transition-colors active:scale-95">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        </button>
+                        <div className="relative flex-1">
+                          <NumericInput
+                            inputMode="decimal"
+                            value={form.soldeMontant}
+                            min={0}
+                            step={10}
+                            placeholder="0"
+                            onChange={(e) => setForm((f) => ({ ...f, soldeMontant: e.target.value }))}
+                            className="w-full h-9 border border-surface-border bg-white text-center text-sm font-bold font-mono text-ink outline-none pr-6 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                          />
+                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-muted text-sm pointer-events-none">€</span>
+                        </div>
+                        <button type="button" onClick={() => setForm((f) => ({ ...f, soldeMontant: String((parseFloat(f.soldeMontant) || 0) + 10) }))} className="flex items-center justify-center w-9 h-9 rounded-r-xl border border-l-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border hover:text-ink transition-colors active:scale-95">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <label className="label">De qui</label>
+                      <input
+                        type="text"
+                        value={form.soldeClient}
+                        placeholder="Nom client / groupe"
+                        onChange={(e) => setForm((f) => ({ ...f, soldeClient: e.target.value }))}
+                        className="input-field"
+                      />
+                    </div>
+                  </div>
+                  {form.soldeMontant && (
+                    <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-green-50 border border-green-100 text-xs">
+                      <span className="text-ink-secondary">Solde à enregistrer</span>
+                      <span className="font-bold font-mono text-green-600">
+                        {formatPrice(parseFloat(form.soldeMontant) || 0)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           <button
@@ -454,9 +540,9 @@ export default function ChiffresPage() {
                 <div className="space-y-1 max-h-72 overflow-y-auto pr-1">
                   {Object.entries(monthEntriesByDate).map(([date, dayEntries]) => {
                     const dayTotal = dayEntries.reduce((s, e) => s + e.montant, 0);
-                    // Main entry = CA (non-acompte), fallback to first entry if day has only acompte(s)
-                    const mainEntry = dayEntries.find((e) => e.source !== "acompte") ?? dayEntries[0];
+                    const mainEntry = dayEntries.find((e) => e.source !== "acompte" && e.source !== "solde") ?? dayEntries[0];
                     const acompteEntries = dayEntries.filter((e) => e.source === "acompte");
+                    const soldeEntries = dayEntries.filter((e) => e.source === "solde");
                     const AcompteBadges = ({ className }: { className?: string }) => (
                       <>
                         {acompteEntries.map((a) => (
@@ -475,6 +561,24 @@ export default function ChiffresPage() {
                         ))}
                       </>
                     );
+                    const SoldeBadges = ({ className }: { className?: string }) => (
+                      <>
+                        {soldeEntries.map((s) => (
+                          <span
+                            key={s.id}
+                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-green-50 text-green-600 border border-green-100 flex-shrink-0 ${className ?? ""}`}
+                          >
+                            <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                            Solde{s.notes ? ` ${s.notes}` : ""} {formatPrice(s.montant)}
+                            <button
+                              onClick={(ev) => { ev.stopPropagation(); handleDelete(s.id); }}
+                              className="ml-0.5 leading-none hover:text-red-500 transition-colors"
+                              title="Supprimer ce solde"
+                            >×</button>
+                          </span>
+                        ))}
+                      </>
+                    );
 
                     return (
                       <div
@@ -485,7 +589,7 @@ export default function ChiffresPage() {
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-1.5 min-w-0 flex-1">
                             <span className="text-xs font-mono text-ink-muted w-14 flex-shrink-0">{fmtDate(date)}</span>
-                            {mainEntry.source !== "acompte" && mainEntry.notes && (
+                            {mainEntry.source !== "acompte" && mainEntry.source !== "solde" && mainEntry.notes && (
                               <span className="text-xs text-ink-muted truncate max-w-[80px]" title={mainEntry.notes}>
                                 {mainEntry.notes}
                               </span>
@@ -495,6 +599,7 @@ export default function ChiffresPage() {
                             )}
                             {/* Badges inline — desktop only */}
                             {acompteEntries.length > 0 && <AcompteBadges className="hidden sm:inline-flex" />}
+                            {soldeEntries.length > 0 && <SoldeBadges className="hidden sm:inline-flex" />}
                           </div>
                           <div className="flex items-center gap-2 flex-shrink-0 ml-2">
                             <span className="text-sm font-bold font-mono" style={{ color: "#0071E3" }}>
@@ -515,9 +620,10 @@ export default function ChiffresPage() {
                           </div>
                         </div>
                         {/* Badges second line — mobile only */}
-                        {acompteEntries.length > 0 && (
+                        {(acompteEntries.length > 0 || soldeEntries.length > 0) && (
                           <div className="flex flex-wrap gap-1 mt-1 pl-14 sm:hidden">
                             <AcompteBadges />
+                            <SoldeBadges />
                           </div>
                         )}
                       </div>
@@ -616,11 +722,16 @@ export default function ChiffresPage() {
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-semibold text-ink">
-                    {editingEntry.source === "acompte" ? "Modifier l'acompte" : "Modifier la recette"}
+                    {editingEntry.source === "solde" ? "Modifier le solde reçu" : editingEntry.source === "acompte" ? "Modifier l'acompte" : "Modifier la recette"}
                   </h3>
                   {editingEntry.source === "acompte" && (
                     <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-blue-50 text-blue-600 border border-blue-100">
                       Acompte
+                    </span>
+                  )}
+                  {editingEntry.source === "solde" && (
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-green-50 text-green-600 border border-green-100">
+                      Solde
                     </span>
                   )}
                 </div>
@@ -657,11 +768,11 @@ export default function ChiffresPage() {
               </div>
             </div>
             <div>
-              <label className="label">{editingEntry.source === "acompte" ? "De qui (client / groupe)" : "Notes (optionnel)"}</label>
+              <label className="label">{editingEntry.source === "acompte" || editingEntry.source === "solde" ? "De qui (client / groupe)" : "Notes (optionnel)"}</label>
               <input
                 type="text"
                 value={editForm.notes}
-                placeholder={editingEntry.source === "acompte" ? "Nom client / groupe" : "Ex : journée anniversaire…"}
+                placeholder={editingEntry.source === "acompte" || editingEntry.source === "solde" ? "Nom client / groupe" : "Ex : journée anniversaire…"}
                 onChange={(e) => setEditForm((f) => ({ ...f, notes: e.target.value }))}
                 className="input-field"
               />

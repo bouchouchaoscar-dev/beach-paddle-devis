@@ -68,7 +68,7 @@ export default function AnalysePage() {
   const resultat = totalCA - totalCharges;
   const marge = totalCA > 0 ? (resultat / totalCA) * 100 : 0;
 
-  const joursOuverts = caEntries.filter((e) => e.montant > 0).length;
+  const joursOuverts = caEntries.filter((e) => e.montant > 0 && e.source !== "acompte" && e.source !== "solde").length;
   const caMoyen = joursOuverts > 0 ? totalCA / joursOuverts : 0;
 
   // Monthly CA vs Charges (single season) / Yearly (all seasons)
