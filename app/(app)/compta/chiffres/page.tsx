@@ -141,44 +141,50 @@ export default function ChiffresPage() {
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
+  const canSave =
+    parseFloat(form.montant) > 0 ||
+    (form.includeAcompte && parseFloat(form.acompteMontant) > 0) ||
+    (form.includeSolde && parseFloat(form.soldeMontant) > 0);
+
   async function handleSave() {
+    if (!form.date || !canSave) return;
     const montant = parseFloat(form.montant);
-    if (!form.date || isNaN(montant) || montant <= 0) return;
+    const hasCa = !isNaN(montant) && montant > 0;
+    const acompteMontant = parseFloat(form.acompteMontant);
+    const hasAcompte = form.includeAcompte && !isNaN(acompteMontant) && acompteMontant > 0;
+    const soldeMontant = parseFloat(form.soldeMontant);
+    const hasSolde = form.includeSolde && !isNaN(soldeMontant) && soldeMontant > 0;
     setSaving(true);
     try {
-      await saveCaEntry({
-        date: form.date,
-        montant,
-        source: "manuel",
-        notes: form.notes || undefined,
-        saison: form.date.slice(0, 4),
-        created_by: "",
-      });
-      if (form.includeAcompte) {
-        const acompteMontant = parseFloat(form.acompteMontant);
-        if (!isNaN(acompteMontant) && acompteMontant > 0) {
-          await saveCaEntry({
-            date: form.date,
-            montant: acompteMontant,
-            source: "acompte",
-            notes: form.acompteClient || undefined,
-            saison: form.date.slice(0, 4),
-            created_by: "",
-          });
-        }
+      if (hasCa) {
+        await saveCaEntry({
+          date: form.date,
+          montant,
+          source: "manuel",
+          notes: form.notes || undefined,
+          saison: form.date.slice(0, 4),
+          created_by: "",
+        });
       }
-      if (form.includeSolde) {
-        const soldeMontant = parseFloat(form.soldeMontant);
-        if (!isNaN(soldeMontant) && soldeMontant > 0) {
-          await saveCaEntry({
-            date: form.date,
-            montant: soldeMontant,
-            source: "solde",
-            notes: form.soldeClient || undefined,
-            saison: form.date.slice(0, 4),
-            created_by: "",
-          });
-        }
+      if (hasAcompte) {
+        await saveCaEntry({
+          date: form.date,
+          montant: acompteMontant,
+          source: "acompte",
+          notes: form.acompteClient || undefined,
+          saison: form.date.slice(0, 4),
+          created_by: "",
+        });
+      }
+      if (hasSolde) {
+        await saveCaEntry({
+          date: form.date,
+          montant: soldeMontant,
+          source: "solde",
+          notes: form.soldeClient || undefined,
+          saison: form.date.slice(0, 4),
+          created_by: "",
+        });
       }
       setForm({ date: today(), montant: "", notes: "", includeAcompte: false, acompteMontant: "", acompteClient: "", includeSolde: false, soldeMontant: "", soldeClient: "" });
       await load();
@@ -466,7 +472,7 @@ export default function ChiffresPage() {
 
           <button
             onClick={handleSave}
-            disabled={saving || !form.montant}
+            disabled={saving || !canSave}
             className="btn-primary w-full"
           >
             {saving ? (
