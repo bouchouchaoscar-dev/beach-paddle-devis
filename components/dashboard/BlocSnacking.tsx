@@ -589,27 +589,26 @@ export function BlocSnacking({ form, onChange }: Props) {
                   </div>
                 )}
                 {item.formula === "dejeuner" && (
-                  <label className="flex items-center gap-2.5 cursor-pointer select-none group w-fit">
+                  <div className="flex items-center gap-3 cursor-pointer select-none group w-fit" onClick={() => {
+                    const next = !item.biereIncluse;
+                    updateItem(item.id, {
+                      biereIncluse: next,
+                      pricePerPerson: next
+                        ? SNACKING_PRICES.dejeuner + BIERE_SUPPLEMENT
+                        : SNACKING_PRICES.dejeuner,
+                      description: next ? DEJEUNER_DESC.avecBiere : DEJEUNER_DESC.sansBiere,
+                    });
+                  }}>
                     <button
                       type="button"
                       role="switch"
                       aria-checked={!!item.biereIncluse}
-                      onClick={() => {
-                        const next = !item.biereIncluse;
-                        updateItem(item.id, {
-                          biereIncluse: next,
-                          pricePerPerson: next
-                            ? SNACKING_PRICES.dejeuner + BIERE_SUPPLEMENT
-                            : SNACKING_PRICES.dejeuner,
-                          description: next ? DEJEUNER_DESC.avecBiere : DEJEUNER_DESC.sansBiere,
-                        });
-                      }}
-                      className={`relative w-9 h-5 rounded-full transition-colors duration-200 shrink-0 focus:outline-none ${
+                      className={`relative w-11 h-6 rounded-full transition-colors duration-200 shrink-0 overflow-hidden focus:outline-none ${
                         item.biereIncluse ? "bg-amber-500" : "bg-surface-border group-hover:bg-surface-border/80"
                       }`}
                     >
-                      <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${
-                        item.biereIncluse ? "translate-x-4" : "translate-x-0.5"
+                      <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-200 ${
+                        item.biereIncluse ? "translate-x-[22px]" : "translate-x-0.5"
                       }`} />
                     </button>
                     <span className="text-xs font-medium text-ink">
@@ -618,7 +617,7 @@ export function BlocSnacking({ form, onChange }: Props) {
                         +{formatPrice(BIERE_SUPPLEMENT)}/pers.
                       </span>
                     </span>
-                  </label>
+                  </div>
                 )}
                 {item.pricePerPerson !== null && (
                   <span className="text-xs text-ink-secondary">
