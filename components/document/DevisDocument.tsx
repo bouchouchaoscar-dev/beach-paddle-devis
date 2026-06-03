@@ -17,7 +17,7 @@ import { ACTIVITY_LABELS, DURATION_LABELS } from "@/lib/pricing";
 // Intl.NumberFormat fr-FR sous Node 18+) ni U+00A0. Ces caractères inconnus corrompent
 // visuellement les glyphes adjacents dans le flux PDF. On normalise vers une espace simple.
 function pricePdf(amount: number): string {
-  return formatPrice(amount).replace(/[  ]/g, " ");
+  return formatPrice(amount).replace(/[  ]/g, " ");
 }
 
 const TEAL = "#0071E3";
@@ -359,12 +359,67 @@ export function DevisDocument({
       ? "REMISE EXCEPTIONNELLE ÉTABLISSEMENT SCOLAIRE"
       : "REMISE EXCEPTIONNELLE SERVICE JEUNESSE";
 
+  // ── Auto-compression : compte les lignes de contenu pour choisir la densité
+  const contentRows = (
+    (form.activity !== "none" ? 1 : 0) +
+    (form.activity !== "none" && form.coach?.enabled && calc.coachSubtotal > 0 ? 1 : 0) +
+    form.snackingItems.length +
+    (calc.totalDiscount > 0 ? 1 : 0) +
+    (calc.totalDiscount > 0 && calc.accompagnatorsCost > 0 ? 1 : 0) +
+    (calc.totalDiscount > 0 && calc.extraDiscountAmount > 0 ? 1 : 0) +
+    (calc.totalDiscount > 0 && calc.discountAmount > 0 ? 1 : 0) +
+    (isFacture && (acompteVerse ?? 0) > 0 ? 1 : 0)
+  );
+
+  // Trois niveaux : normal (≤4), compact (5-7), ultra (8+)
+  const D: {
+    pagePadTop: string; pagePadBottom: string;
+    headerMb: string;
+    clientPadV: string; clientMb: string;
+    sectionMb: string;
+    titlePadTop: string; titlePadBottom: string;
+    rowPadV: string;
+    footerPadTop: string;
+    spacerMin: string;
+    dscSize: number;
+  } = contentRows <= 4 ? {
+    pagePadTop: "12mm", pagePadBottom: "16mm",
+    headerMb: "6mm",
+    clientPadV: "5mm", clientMb: "6mm",
+    sectionMb: "3mm",
+    titlePadTop: "4mm", titlePadBottom: "1.5mm",
+    rowPadV: "1.5mm",
+    footerPadTop: "8mm",
+    spacerMin: "8mm",
+    dscSize: 9,
+  } : contentRows <= 7 ? {
+    pagePadTop: "8mm", pagePadBottom: "10mm",
+    headerMb: "4mm",
+    clientPadV: "3mm", clientMb: "4mm",
+    sectionMb: "2mm",
+    titlePadTop: "2.5mm", titlePadBottom: "1mm",
+    rowPadV: "1mm",
+    footerPadTop: "5mm",
+    spacerMin: "3mm",
+    dscSize: 8.5,
+  } : {
+    pagePadTop: "5mm", pagePadBottom: "7mm",
+    headerMb: "2mm",
+    clientPadV: "2mm", clientMb: "2.5mm",
+    sectionMb: "1.5mm",
+    titlePadTop: "1.5mm", titlePadBottom: "0.5mm",
+    rowPadV: "0.5mm",
+    footerPadTop: "3mm",
+    spacerMin: "1mm",
+    dscSize: 7.5,
+  };
+
   return (
     <Document>
-      <Page size="A4" style={s.page}>
+      <Page size="A4" style={[s.page, { paddingTop: D.pagePadTop, paddingBottom: D.pagePadBottom }]}>
 
         {/* ── HEADER ── */}
-        <View style={s.header}>
+        <View style={[s.header, { marginBottom: D.headerMb }]}>
           <View style={s.headerLeft}>
             <Text style={s.numero}>{numero}</Text>
             <Text style={s.brandName}>BEACH PADDLE</Text>
@@ -382,7 +437,7 @@ export function DevisDocument({
         </View>
 
         {/* ── CLIENT BLOCK ── */}
-        <View style={s.clientBlock}>
+        <View style={[s.clientBlock, { paddingTop: D.clientPadV, paddingBottom: D.clientPadV, marginBottom: D.clientMb }]}>
           <View style={s.clientLeft}>
             <Text style={s.blockLabel}>Pour</Text>
             <Text style={s.clientDesc}>{form.prestationDescription || "—"}</Text>
@@ -404,18 +459,18 @@ export function DevisDocument({
 
         {/* ── ACTIVITÉ ── */}
         {form.activity !== "none" && (
-          <View style={s.section}>
-            <View style={s.sectionTitle}>
+          <View style={[s.section, { marginBottom: D.sectionMb }]}>
+            <View style={[s.sectionTitle, { paddingTop: D.titlePadTop, paddingBottom: D.titlePadBottom, marginBottom: D.titlePadBottom }]}>
               <Text style={s.sectionTitleTxt}>
                 ACTIVITÉ {(ACTIVITY_LABELS[form.activity] || form.activity).toUpperCase()}
               </Text>
             </View>
-            <View style={s.row}>
+            <View style={[s.row, { paddingTop: D.rowPadV, paddingBottom: D.rowPadV }]}>
               <View style={{ flex: 1 }}>
                 <Text style={s.rowLbl}>
                   {ACTIVITY_LABELS[form.activity]} — {DURATION_LABELS[form.duration]}
                 </Text>
-                <Text style={s.rowDsc}>
+                <Text style={[s.rowDsc, { fontSize: D.dscSize }]}>
                   {activityDesc(form.activity, n, DURATION_LABELS[form.duration], form.dateADefinir ? "" : form.heureDebut)}
                 </Text>
               </View>
@@ -428,10 +483,10 @@ export function DevisDocument({
               </Text>
             </View>
             {form.coach.enabled && calc.coachSubtotal > 0 && (
-              <View style={s.row}>
+              <View style={[s.row, { paddingTop: D.rowPadV, paddingBottom: D.rowPadV }]}>
                 <View style={{ flex: 1 }}>
                   <Text style={s.rowLbl}>{form.coach.description || "Coach Beach Paddle"}</Text>
-                  <Text style={s.rowDsc}>
+                  <Text style={[s.rowDsc, { fontSize: D.dscSize }]}>
                     Un moniteur Beach Paddle est présent afin d&apos;initier et d&apos;accompagner les participants.
                   </Text>
                 </View>
@@ -452,14 +507,14 @@ export function DevisDocument({
             item.formula === "gouter" ? "GOÛTER" :
             item.formula === "apero" ? "APÉRITIF" : "PRESTATION COMPLÉMENTAIRE";
           return (
-            <View key={item.id} style={s.section}>
-              <View style={s.sectionTitle}>
+            <View key={item.id} style={[s.section, { marginBottom: D.sectionMb }]}>
+              <View style={[s.sectionTitle, { paddingTop: D.titlePadTop, paddingBottom: D.titlePadBottom, marginBottom: D.titlePadBottom }]}>
                 <Text style={s.sectionTitleTxt}>{title}</Text>
               </View>
-              <View style={s.row}>
+              <View style={[s.row, { paddingTop: D.rowPadV, paddingBottom: D.rowPadV }]}>
                 <View style={{ flex: 1 }}>
                   <Text style={s.rowLbl}>{item.label}</Text>
-                  {item.description ? <Text style={s.rowDsc}>{item.description}</Text> : null}
+                  {item.description ? <Text style={[s.rowDsc, { fontSize: D.dscSize }]}>{item.description}</Text> : null}
                 </View>
                 <Text style={[s.rowVal, { width: "28mm", textAlign: "center" }]}>
                   {pricePdf(price)}
@@ -537,10 +592,10 @@ export function DevisDocument({
         </View>
 
         {/* Spacer pousse le footer vers le bas sur les documents courts */}
-        <View style={s.spacer} />
+        <View style={[s.spacer, { minHeight: D.spacerMin }]} />
 
         {/* ── FOOTER ── */}
-        <View style={s.footer} wrap={false}>
+        <View style={[s.footer, { paddingTop: D.footerPadTop }]} wrap={false}>
           <View style={s.footerLeft}>
             <Text style={s.footerAsso}>Association loi 1901, non assujettie à la TVA</Text>
             <Text style={s.footerRibLbl}>Coordonnées bancaires</Text>
@@ -549,12 +604,20 @@ export function DevisDocument({
             <Text style={s.footerGray}>La Banque Postale — 75900 Paris Cedex 15</Text>
           </View>
           <View style={s.footerRight}>
+            {/* Devis : BON POUR ACCORD — Facture : Date et signature uniquement */}
             <View style={s.sigBox}>
-              <Text style={s.sigTxt}>
-                Date, signature et tampon, précédés de la mention
-              </Text>
-              <Text style={s.sigBold}>BON POUR ACCORD</Text>
+              {isFacture ? (
+                <Text style={s.sigBold}>Date et signature</Text>
+              ) : (
+                <>
+                  <Text style={s.sigTxt}>
+                    Date, signature et tampon, précédés de la mention
+                  </Text>
+                  <Text style={s.sigBold}>BON POUR ACCORD</Text>
+                </>
+              )}
             </View>
+            {/* Encadré acompte 30% : devis uniquement */}
             {!isFacture && (
               <View style={s.acompteBox}>
                 <Text style={s.acompteBoxTxt}>
