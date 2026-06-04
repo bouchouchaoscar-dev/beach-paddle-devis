@@ -34,7 +34,13 @@ export interface DevisDocumentProps {
   acompteVerse?: number;
   documentDate: string;
   logoBase64: string | null;
+  username?: string;
 }
+
+const CONTACT_BY_USER: Record<string, { phone: string; email: string }> = {
+  oscar: { phone: "06 46 86 04 26", email: "oscar@beachpaddle.fr" },
+  pascal: { phone: "07 60 83 98 30", email: "contact@beachpaddle.fr" },
+};
 
 function activityDesc(activity: string, n: number, dur: string, heure: string): string {
   const t = heure ? `, à partir de ${heure}` : "";
@@ -336,10 +342,11 @@ const s = StyleSheet.create({
 });
 
 export function DevisDocument({
-  form, calc, numero, documentType, acompteVerse, documentDate, logoBase64,
+  form, calc, numero, documentType, acompteVerse, documentDate, logoBase64, username,
 }: DevisDocumentProps) {
   const n = form.participantsCount;
   const isFacture = documentType === "facture";
+  const contact = CONTACT_BY_USER[username?.toLowerCase() ?? ""] ?? CONTACT_BY_USER["oscar"];
   const hasDiscount = calc.totalDiscount > 0;
 
   const dateFormatted = documentDate
@@ -425,7 +432,7 @@ export function DevisDocument({
             <Text style={s.brandName}>BEACH PADDLE</Text>
             <Text style={s.addrLine}>86 ter, rue de Verdun</Text>
             <Text style={s.addrLine}>94500 Champigny sur Marne</Text>
-            <Text style={s.addrLine}>06 46 86 04 26 — oscar@beachpaddle.fr</Text>
+            <Text style={s.addrLine}>{contact.phone} — {contact.email}</Text>
             <Text style={s.siret}>SIRET : 84118702400010</Text>
           </View>
           <View style={s.headerRight}>

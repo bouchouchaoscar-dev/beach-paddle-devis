@@ -8,6 +8,7 @@ import { calculateDevis, formatPrice } from "@/lib/calculations";
 import { saveDevis, generateNumero, generateId } from "@/lib/storage";
 import { NumericInput } from "@/components/ui/NumericInput";
 import type { DevisRecord } from "@/lib/types";
+import { getSession } from "@/lib/auth";
 
 // 210mm at 96 dpi
 const DOC_NATURAL_WIDTH = 794;
@@ -158,6 +159,7 @@ export function DocumentPreview({ form, calc, onClose, onFormChange, readOnly, e
           acompteVerse: acompteNum > 0 ? acompteNum : undefined,
           documentDate: todayStr,
           fileName,
+          username: getSession()?.username,
         }),
       });
 

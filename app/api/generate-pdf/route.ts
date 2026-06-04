@@ -32,6 +32,7 @@ export async function POST(request: NextRequest) {
       acompteVerse: body.acompteVerse,
       documentDate: body.documentDate,
       logoBase64,
+      username: body.username,
     }) as unknown as React.ReactElement;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
