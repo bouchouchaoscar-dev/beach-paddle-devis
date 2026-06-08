@@ -271,43 +271,62 @@ function EventPill({
   const typeLabel = event.type_client ? (TYPE_SHORT[event.type_client] ?? null) : null;
   const typeEmoji = event.manuel ? "📅" : (event.type_client ? (TYPE_EMOJI[event.type_client] ?? "") : "");
 
+  const name = event.nom_client || event.titre;
+
   return (
     <button
       onClick={(e) => { e.stopPropagation(); onClick(); }}
-      className="w-full text-left px-1.5 py-[4px] rounded-[6px] flex items-center gap-0.5 hover:brightness-95 transition-all min-h-[32px] overflow-hidden"
+      className="w-full text-left px-1.5 rounded-[6px] hover:brightness-95 transition-all overflow-hidden"
       style={{ backgroundColor: pillBg, color: pillColor }}
     >
-      {/* Emoji icon — hidden on xs to give max space to name */}
-      {typeEmoji && (
-        <span className="shrink-0 hidden sm:inline text-[11px] leading-none mr-0.5">{typeEmoji}</span>
-      )}
-      {/* Type short label — desktop only */}
-      {typeLabel && (
-        <span className="shrink-0 hidden sm:inline text-[9px] font-bold opacity-70 uppercase tracking-wide leading-none whitespace-nowrap">
-          {typeLabel} ·&nbsp;
+      {/* ── Mobile : colonne 3 lignes ── */}
+      <div className="flex flex-col items-start py-1 gap-[1px] sm:hidden" style={{ minHeight: 52 }}>
+        {/* Ligne 1 : emoji + type */}
+        <span className="text-[9px] font-bold opacity-75 uppercase tracking-wide leading-none whitespace-nowrap">
+          {typeEmoji}{typeLabel ? ` ${typeLabel}` : ""}
         </span>
-      )}
-      {/* Client name — always visible, takes all available space */}
-      <span className="truncate flex-1 text-[12px] font-bold leading-tight">
-        {event.nom_client || event.titre}
-      </span>
-      {/* Heure — always shown but very compact */}
-      {event.heure_debut && (
-        <span className="shrink-0 text-[9px] opacity-65 font-medium ml-0.5 whitespace-nowrap">{formatH(event.heure_debut)}</span>
-      )}
-      {/* Payment indicators */}
-      {payment?.cas === 2 && (
-        <span className="shrink-0 ml-0.5" style={{ color: "#15803d" }}><IcoCheckFull s={10}/></span>
-      )}
-      {payment?.cas === 1 && (
-        <span className="shrink-0 ml-0.5" style={{ color: "#16A34A" }}><IcoCheck s={9}/></span>
-      )}
-      {(!payment || payment.cas === 4) && event.acompte_recu && (
-        <span className="shrink-0 opacity-70 ml-0.5"><IcoCheck s={9}/></span>
-      )}
-      {warn && (
-        <span className="shrink-0 ml-0.5" style={{ color: "#EA580C" }}><IcoWarn s={9}/></span>
-      )}
+        {/* Ligne 2 : nom tronqué */}
+        <span className="text-[10px] font-bold leading-tight w-full overflow-hidden whitespace-nowrap" style={{ textOverflow: "ellipsis", display: "block" }}>
+          {name}
+        </span>
+        {/* Ligne 3 : heure + indicateurs paiement */}
+        <div className="flex items-center gap-0.5">
+          {event.heure_debut && (
+            <span className="text-[9px] opacity-65 font-medium leading-none">{formatH(event.heure_debut)}</span>
+          )}
+          {payment?.cas === 2 && <IcoCheckFull s={8}/>}
+          {payment?.cas === 1 && <IcoCheck s={8}/>}
+          {warn && <span style={{ color: "#EA580C" }}><IcoWarn s={8}/></span>}
+        </div>
+      </div>
+
+      {/* ── Desktop : ligne horizontale ── */}
+      <div className="hidden sm:flex items-center gap-0.5 py-[3px] min-h-[24px]">
+        {typeEmoji && (
+          <span className="shrink-0 text-[11px] leading-none mr-0.5">{typeEmoji}</span>
+        )}
+        {typeLabel && (
+          <span className="shrink-0 text-[9px] font-bold opacity-70 uppercase tracking-wide leading-none whitespace-nowrap">
+            {typeLabel} ·&nbsp;
+          </span>
+        )}
+        <span className="truncate flex-1 text-[12px] font-bold leading-tight">{name}</span>
+        {event.heure_debut && (
+          <span className="shrink-0 text-[9px] opacity-65 font-medium ml-0.5 whitespace-nowrap">{formatH(event.heure_debut)}</span>
+        )}
+        {payment?.cas === 2 && (
+          <span className="shrink-0 ml-0.5" style={{ color: "#15803d" }}><IcoCheckFull s={10}/></span>
+        )}
+        {payment?.cas === 1 && (
+          <span className="shrink-0 ml-0.5" style={{ color: "#16A34A" }}><IcoCheck s={9}/></span>
+        )}
+        {(!payment || payment.cas === 4) && event.acompte_recu && (
+          <span className="shrink-0 opacity-70 ml-0.5"><IcoCheck s={9}/></span>
+        )}
+        {warn && (
+          <span className="shrink-0 ml-0.5" style={{ color: "#EA580C" }}><IcoWarn s={9}/></span>
+        )}
+      </div>
     </button>
   );
 }
