@@ -12,7 +12,7 @@ import {
   getClientStyle,
 } from "@/lib/calendar";
 import { getSession } from "@/lib/auth";
-import { getDevisById } from "@/lib/storage";
+import { getDevisById, updateDevisHeure } from "@/lib/storage";
 import { calculateDevis } from "@/lib/calculations";
 import { DocumentPreview } from "@/components/document/DocumentPreview";
 import type { DevisRecord } from "@/lib/types";
@@ -214,6 +214,20 @@ const IcoCheckFull = ({ s = 11 }: { s?: number }) => (
     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5-4-4 1.41-1.41L10 13.67l6.59-6.59L18 8.5l-8 8z"/>
   </svg>
 );
+
+const IcoPencil = ({ s = 11 }: { s?: number }) => (
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+  </svg>
+);
+
+const TIME_OPTS = Array.from({ length: 25 }, (_, i) => {
+  const totalMinutes = 8 * 60 + i * 30;
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+});
 
 function ActivityIcon({ activite, s = 11 }: { activite?: string | null; s?: number }) {
   if (activite === "paddle")
@@ -708,6 +722,7 @@ function EventModal({
   const [deleting, setDeleting] = useState(false);
   const [previewRecord, setPreviewRecord] = useState<DevisRecord | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
+  const [editingHeure, setEditingHeure] = useState(false);
 
   // manual edit fields
   const [titre, setTitre] = useState(event.titre);
@@ -748,6 +763,18 @@ function EventModal({
     try {
       await onUpdate(event.id, { titre, date_event: date, heure_debut: heure || null, notes: notes || null });
       onClose();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveHeure(val: string) {
+    setSaving(true);
+    try {
+      await onUpdate(event.id, { heure_debut: val || null });
+      if (event.devis_id) await updateDevisHeure(event.devis_id, val);
+      setHeure(val);
+      setEditingHeure(false);
     } finally {
       setSaving(false);
     }
@@ -815,9 +842,45 @@ function EventModal({
           {!event.manuel ? (
             <>
               {/* Date & heure */}
-              <div className="flex items-center gap-2 text-sm text-gray-600">
+              <div className="flex items-center gap-2 text-sm text-gray-600 flex-wrap">
                 <IcoCal s={13} />
-                <span>{longDateLabel(event.date_event)}{event.heure_debut ? ` · ${formatH(event.heure_debut)}` : ""}</span>
+                <span>{longDateLabel(event.date_event)}</span>
+                {!editingHeure ? (
+                  heure ? (
+                    <div className="flex items-center gap-1">
+                      <span>· {formatH(heure)}</span>
+                      <button
+                        onClick={() => setEditingHeure(true)}
+                        className="p-0.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                        title="Modifier l'heure"
+                      >
+                        <IcoPencil s={11} />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setEditingHeure(true)}
+                      className="text-xs font-semibold ml-0.5 hover:underline"
+                      style={{ color: "#0071E3" }}
+                    >
+                      + Ajouter une heure
+                    </button>
+                  )
+                ) : (
+                  <select
+                    autoFocus
+                    value={heure}
+                    onChange={(e) => saveHeure(e.target.value)}
+                    onBlur={() => setEditingHeure(false)}
+                    disabled={saving}
+                    className="text-sm border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#0071E3]/20 focus:border-[#0071E3] disabled:opacity-50"
+                  >
+                    <option value="">— Non définie</option>
+                    {TIME_OPTS.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               {/* Stats grid */}

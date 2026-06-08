@@ -66,6 +66,11 @@ export async function deleteCalendarEvent(id: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+export async function deleteCalendarEventByDevisId(devisId: string): Promise<void> {
+  const { error } = await supabase.from("calendar_events").delete().eq("devis_id", devisId);
+  if (error) console.warn("[calendar] deleteByDevisId error", error.message);
+}
+
 export interface AcompteEntry {
   id: string;
   montant: number;

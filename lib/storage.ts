@@ -1,6 +1,7 @@
 import type { DevisRecord } from "./types";
 import { supabase } from "./supabase";
 import { getSession } from "./auth";
+import { deleteCalendarEventByDevisId } from "./calendar";
 
 // ── localStorage helpers (fallback) ─────────────────────────────────────────
 
@@ -87,14 +88,19 @@ export async function saveDevis(record: DevisRecord): Promise<{ source: "supabas
 }
 
 export async function deleteDevis(id: string): Promise<void> {
-  // Always clean localStorage first (removes "ghost" records that only live locally).
   lsDelete(id);
-
+  await deleteCalendarEventByDevisId(id); // best-effort — no throw if no event
   const { error } = await supabase.from("documents").delete().eq("id", id);
   if (error) {
     console.warn("[storage] Supabase delete failed:", error.message);
     throw new Error(error.message);
   }
+}
+
+export async function updateDevisHeure(id: string, heure: string): Promise<void> {
+  const record = await getDevisById(id);
+  if (!record) return;
+  await saveDevis({ ...record, formData: { ...record.formData, heureDebut: heure } });
 }
 
 export function clearLocalCache(): void {
