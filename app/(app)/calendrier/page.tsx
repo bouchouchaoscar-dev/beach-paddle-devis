@@ -12,7 +12,7 @@ import {
   getClientStyle,
 } from "@/lib/calendar";
 import { getSession } from "@/lib/auth";
-import { getDevisById, updateDevisHeure } from "@/lib/storage";
+import { getDevisById, updateDevisHeure, deleteDevis } from "@/lib/storage";
 import { calculateDevis } from "@/lib/calculations";
 import { DocumentPreview } from "@/components/document/DocumentPreview";
 import type { DevisRecord } from "@/lib/types";
@@ -274,24 +274,24 @@ function EventPill({
   return (
     <button
       onClick={(e) => { e.stopPropagation(); onClick(); }}
-      className="w-full text-left px-1.5 py-[3px] rounded-[6px] flex items-center gap-0.5 hover:brightness-95 transition-all min-h-[24px] overflow-hidden"
+      className="w-full text-left px-1.5 py-[4px] rounded-[6px] flex items-center gap-0.5 hover:brightness-95 transition-all min-h-[32px] overflow-hidden"
       style={{ backgroundColor: pillBg, color: pillColor }}
     >
-      {/* Emoji icon */}
+      {/* Emoji icon — hidden on xs to give max space to name */}
       {typeEmoji && (
-        <span className="shrink-0 text-[11px] leading-none mr-0.5">{typeEmoji}</span>
+        <span className="shrink-0 hidden sm:inline text-[11px] leading-none mr-0.5">{typeEmoji}</span>
       )}
-      {/* Type short label — hidden on xs, visible sm+ */}
+      {/* Type short label — desktop only */}
       {typeLabel && (
         <span className="shrink-0 hidden sm:inline text-[9px] font-bold opacity-70 uppercase tracking-wide leading-none whitespace-nowrap">
           {typeLabel} ·&nbsp;
         </span>
       )}
-      {/* Client name — dominant, flex-1, truncated */}
+      {/* Client name — always visible, takes all available space */}
       <span className="truncate flex-1 text-[12px] font-bold leading-tight">
         {event.nom_client || event.titre}
       </span>
-      {/* Heure */}
+      {/* Heure — always shown but very compact */}
       {event.heure_debut && (
         <span className="shrink-0 text-[9px] opacity-65 font-medium ml-0.5 whitespace-nowrap">{formatH(event.heure_debut)}</span>
       )}
@@ -744,7 +744,7 @@ function EventModal({
   payment?: PaymentDetection;
   onClose: () => void;
   onUpdate: (id: string, patch: Partial<CalendarEvent>) => Promise<void>;
-  onDelete: (id: string) => Promise<void>;
+  onDelete: (id: string, devisId?: string | null) => Promise<void>;
 }) {
   const cs = getClientStyle(event.type_client);
   const days = daysUntil(event.date_event);
@@ -754,6 +754,7 @@ function EventModal({
   const [acompteMontant, setAcompteMontant] = useState(event.acompte_montant?.toString() ?? "");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [previewRecord, setPreviewRecord] = useState<DevisRecord | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [editingHeure, setEditingHeure] = useState(false);
@@ -817,7 +818,7 @@ function EventModal({
   async function handleDelete() {
     setDeleting(true);
     try {
-      await onDelete(event.id);
+      await onDelete(event.id, event.devis_id);
     } finally {
       setDeleting(false);
     }
@@ -1088,63 +1089,98 @@ function EventModal({
 
           {/* Actions */}
           <div className="flex flex-col gap-2 pt-1">
-            {/* Aperçu du devis button — only for devis-linked events */}
-            {!event.manuel && event.devis_id && (
-              <button
-                onClick={openPreview}
-                disabled={loadingPreview}
-                className="w-full h-10 flex items-center justify-center gap-2 rounded-xl text-sm font-bold transition-all hover:opacity-90 disabled:opacity-50"
-                style={{ backgroundColor: "#0071E3", color: "#fff" }}
-              >
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                  <circle cx="12" cy="12" r="3"/>
-                </svg>
-                {loadingPreview ? "Chargement..." : "Aperçu du devis"}
-              </button>
+            {confirmingDelete ? (
+              /* ── Confirmation de suppression ── */
+              <div className="rounded-2xl border border-red-100 bg-red-50 p-4">
+                <p className="text-sm font-bold text-red-800 mb-0.5">Supprimer cet événement ?</p>
+                <p className="text-xs text-red-600 mb-2">
+                  {event.nom_client || event.titre} — {longDateLabel(event.date_event)}
+                </p>
+                {event.devis_id && (
+                  <div className="flex items-start gap-1.5 bg-orange-50 border border-orange-100 rounded-xl px-3 py-2 mb-3">
+                    <IcoWarn s={12} />
+                    <span className="text-xs text-orange-700 leading-snug">
+                      Le devis lié sera également supprimé des archives.
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    className="flex-1 h-9 rounded-xl text-sm font-bold text-white transition-opacity disabled:opacity-50 hover:opacity-90"
+                    style={{ backgroundColor: "#E03131" }}
+                  >
+                    {deleting ? "Suppression..." : "Confirmer"}
+                  </button>
+                  <button
+                    onClick={() => setConfirmingDelete(false)}
+                    disabled={deleting}
+                    className="flex-1 h-9 rounded-xl text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors disabled:opacity-50"
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Aperçu du devis button — only for devis-linked events */}
+                {!event.manuel && event.devis_id && (
+                  <button
+                    onClick={openPreview}
+                    disabled={loadingPreview}
+                    className="w-full h-10 flex items-center justify-center gap-2 rounded-xl text-sm font-bold transition-all hover:opacity-90 disabled:opacity-50"
+                    style={{ backgroundColor: "#0071E3", color: "#fff" }}
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                    {loadingPreview ? "Chargement..." : "Aperçu du devis"}
+                  </button>
+                )}
+                <div className="flex items-center gap-2">
+                  {event.manuel ? (
+                    <>
+                      <button
+                        onClick={saveManual}
+                        disabled={saving}
+                        className="flex-1 h-10 rounded-xl text-sm font-bold text-white transition-opacity disabled:opacity-50 hover:opacity-90"
+                        style={{ backgroundColor: "#0071E3" }}
+                      >
+                        {saving ? "Sauvegarde..." : "Enregistrer"}
+                      </button>
+                      <button
+                        onClick={() => setConfirmingDelete(true)}
+                        className="h-10 px-3 rounded-xl text-sm font-medium flex items-center gap-1.5 transition-colors hover:bg-red-50"
+                        style={{ color: "#E03131" }}
+                      >
+                        <IcoTrash s={14} />
+                        Supprimer
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <a
+                        href="/historique"
+                        className="flex-1 h-10 flex items-center justify-center rounded-xl text-sm font-bold transition-colors hover:bg-blue-100"
+                        style={{ color: "#0071E3", backgroundColor: "#EBF4FF" }}
+                      >
+                        Voir dans Archives
+                      </a>
+                      <button
+                        onClick={() => setConfirmingDelete(true)}
+                        className="h-10 px-3 rounded-xl text-sm font-medium flex items-center gap-1.5 transition-colors hover:bg-red-50"
+                        style={{ color: "#E03131" }}
+                      >
+                        <IcoTrash s={14} />
+                        <span className="hidden sm:inline">Retirer</span>
+                      </button>
+                    </>
+                  )}
+                </div>
+              </>
             )}
-            <div className="flex items-center gap-2">
-              {event.manuel ? (
-                <>
-                  <button
-                    onClick={saveManual}
-                    disabled={saving}
-                    className="flex-1 h-10 rounded-xl text-sm font-bold text-white transition-opacity disabled:opacity-50 hover:opacity-90"
-                    style={{ backgroundColor: "#0071E3" }}
-                  >
-                    {saving ? "Sauvegarde..." : "Enregistrer"}
-                  </button>
-                  <button
-                    onClick={handleDelete}
-                    disabled={deleting}
-                    className="h-10 px-3 rounded-xl text-sm font-medium flex items-center gap-1.5 transition-colors hover:bg-red-50 disabled:opacity-50"
-                    style={{ color: "#E03131" }}
-                  >
-                    <IcoTrash s={14} />
-                    Supprimer
-                  </button>
-                </>
-              ) : (
-                <>
-                  <a
-                    href="/historique"
-                    className="flex-1 h-10 flex items-center justify-center rounded-xl text-sm font-bold transition-colors hover:bg-blue-100"
-                    style={{ color: "#0071E3", backgroundColor: "#EBF4FF" }}
-                  >
-                    Voir dans Archives
-                  </a>
-                  <button
-                    onClick={handleDelete}
-                    disabled={deleting}
-                    className="h-10 px-3 rounded-xl text-sm font-medium flex items-center gap-1.5 transition-colors hover:bg-red-50 disabled:opacity-50"
-                    style={{ color: "#E03131" }}
-                  >
-                    <IcoTrash s={14} />
-                    <span className="hidden sm:inline">Retirer</span>
-                  </button>
-                </>
-              )}
-            </div>
           </div>
         </div>
       </div>
@@ -1407,8 +1443,9 @@ export default function CalendarPage() {
     setSelectedEvent((prev) => (prev?.id === id ? { ...prev, ...patch } : prev));
   }
 
-  async function handleDeleteEvent(id: string) {
-    await deleteCalendarEvent(id);
+  async function handleDeleteEvent(id: string, devisId?: string | null) {
+    await deleteCalendarEvent(id); // soft-delete — survives sync
+    if (devisId) await deleteDevis(devisId); // also removes devis from archives
     setEvents((prev) => prev.filter((e) => e.id !== id));
     setSelectedEvent(null);
   }

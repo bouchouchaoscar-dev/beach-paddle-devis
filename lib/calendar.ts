@@ -16,6 +16,7 @@ export interface CalendarEvent {
   acompte_montant?: number | null;
   notes?: string | null;
   manuel: boolean;
+  supprime_manuellement?: boolean;
   created_at: string;
   created_by: string;
 }
@@ -39,6 +40,7 @@ export async function getCalendarEventsInRange(from: string, to: string): Promis
     .select("*")
     .gte("date_event", from)
     .lte("date_event", to)
+    .neq("supprime_manuellement", true)
     .order("date_event", { ascending: true });
   if (error) { console.warn("[calendar] fetch error", error.message); return []; }
   return (data ?? []) as CalendarEvent[];
@@ -62,7 +64,7 @@ export async function createCalendarEvent(
 }
 
 export async function deleteCalendarEvent(id: string): Promise<void> {
-  const { error } = await supabase.from("calendar_events").delete().eq("id", id);
+  const { error } = await supabase.from("calendar_events").update({ supprime_manuellement: true }).eq("id", id);
   if (error) throw new Error(error.message);
 }
 

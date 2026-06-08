@@ -24,14 +24,20 @@ export async function POST() {
     // 2. All non-manual calendar events (managed by sync)
     const { data: existing, error: existErr } = await supabase
       .from("calendar_events")
-      .select("id, devis_id")
+      .select("id, devis_id, supprime_manuellement")
       .eq("manuel", false);
 
     if (existErr) return NextResponse.json({ error: existErr.message }, { status: 500 });
 
-    const existingMap = new Map<string, string>(); // devis_id → event.id
+    const existingMap = new Map<string, string>(); // devis_id → event.id (active only)
+    const suppressedDevisIds = new Set<string>(); // devis_ids never to re-create
     for (const ev of existing ?? []) {
-      if (ev.devis_id) existingMap.set(ev.devis_id, ev.id);
+      if (!ev.devis_id) continue;
+      if (ev.supprime_manuellement) {
+        suppressedDevisIds.add(ev.devis_id);
+      } else {
+        existingMap.set(ev.devis_id, ev.id);
+      }
     }
 
     const docIds = new Set(documents.map((d) => d.id as string));
@@ -39,6 +45,7 @@ export async function POST() {
 
     // 3. Upsert events for each document
     for (const doc of documents) {
+      if (suppressedDevisIds.has(doc.id as string)) continue; // manually suppressed — never re-create
       const fd = (doc.donnees_completes as DevisRecord)?.formData;
       const activite = fd?.activity && fd.activity !== "none" ? fd.activity : null;
       const actLabel = activite ? (ACTIVITY_LABELS[activite] ?? null) : null;
