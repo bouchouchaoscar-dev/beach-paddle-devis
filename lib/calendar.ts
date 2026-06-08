@@ -40,10 +40,10 @@ export async function getCalendarEventsInRange(from: string, to: string): Promis
     .select("*")
     .gte("date_event", from)
     .lte("date_event", to)
-    .neq("supprime_manuellement", true)
     .order("date_event", { ascending: true });
   if (error) { console.warn("[calendar] fetch error", error.message); return []; }
-  return (data ?? []) as CalendarEvent[];
+  // Filter client-side — resilient if supprime_manuellement column not yet added
+  return ((data ?? []) as CalendarEvent[]).filter(e => !e.supprime_manuellement);
 }
 
 export async function updateCalendarEvent(id: string, patch: Partial<CalendarEvent>): Promise<void> {
@@ -64,8 +64,13 @@ export async function createCalendarEvent(
 }
 
 export async function deleteCalendarEvent(id: string): Promise<void> {
+  // Try soft-delete first (requires supprime_manuellement column to exist)
   const { error } = await supabase.from("calendar_events").update({ supprime_manuellement: true }).eq("id", id);
-  if (error) throw new Error(error.message);
+  if (error) {
+    // Column not yet migrated — fall back to hard delete
+    const { error: delErr } = await supabase.from("calendar_events").delete().eq("id", id);
+    if (delErr) throw new Error(delErr.message);
+  }
 }
 
 export async function deleteCalendarEventByDevisId(devisId: string): Promise<void> {
