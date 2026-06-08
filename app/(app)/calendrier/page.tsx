@@ -59,26 +59,7 @@ interface PaymentDetection {
   montant?: number;
 }
 
-function detectPayment(
-  eventMontant: number | null | undefined,
-  entries: AcompteEntry[]
-): PaymentDetection {
-  if (!eventMontant || eventMontant <= 0 || entries.length === 0) return { cas: 4 };
-  const TOL = 2;
-  const expected30 = eventMontant * 0.3;
-
-  // Full payment (highest priority)
-  for (const e of entries) {
-    if (Math.abs(e.montant - eventMontant) <= TOL) return { cas: 2, montant: e.montant };
-  }
-  // 30% acompte
-  for (const e of entries) {
-    if (Math.abs(e.montant - expected30) <= TOL) return { cas: 1, montant: e.montant };
-  }
-  // Cas 3 supprimé : sans lien direct devis↔paiement, tout montant non reconnu
-  // est traité comme aucun paiement détecté pour éviter les faux positifs
-  return { cas: 4 };
-}
+const PAYMENT_TOL = 0.5; // ±0.50€ max — évite les faux positifs sur montants proches
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -1419,10 +1400,35 @@ export default function CalendarPage() {
   // Pre-compute payment detection for all non-manual events
   const paymentByEventId = useMemo(() => {
     const map = new Map<string, PaymentDetection>();
-    for (const ev of events) {
-      if (!ev.manuel && ev.montant) {
-        map.set(ev.id, detectPayment(ev.montant, acompteEntries));
+    const nonManual = events.filter(ev => !ev.manuel && (ev.montant ?? 0) > 0);
+    if (nonManual.length === 0 || acompteEntries.length === 0) return map;
+
+    // Build all candidate matches with their precision score
+    type Candidate = { eventId: string; entryId: string; cas: 1 | 2; diff: number; montant: number };
+    const candidates: Candidate[] = [];
+
+    for (const ev of nonManual) {
+      const mont = ev.montant!;
+      const expected30 = mont * 0.3;
+      for (const e of acompteEntries) {
+        const diffFull = Math.abs(e.montant - mont);
+        if (diffFull <= PAYMENT_TOL)
+          candidates.push({ eventId: ev.id, entryId: e.id, cas: 2, diff: diffFull, montant: e.montant });
+        const diff30 = Math.abs(e.montant - expected30);
+        if (diff30 <= PAYMENT_TOL)
+          candidates.push({ eventId: ev.id, entryId: e.id, cas: 1, diff: diff30, montant: e.montant });
       }
+    }
+
+    // Greedy: assign best match first; each entry → at most one event
+    candidates.sort((a, b) => a.diff - b.diff || b.cas - a.cas); // smaller diff first; cas 2 before cas 1
+    const usedEntries = new Set<string>();
+    const matchedEvents = new Set<string>();
+    for (const c of candidates) {
+      if (usedEntries.has(c.entryId) || matchedEvents.has(c.eventId)) continue;
+      map.set(c.eventId, { cas: c.cas, montant: c.montant });
+      usedEntries.add(c.entryId);
+      matchedEvents.add(c.eventId);
     }
     return map;
   }, [events, acompteEntries]);
