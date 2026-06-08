@@ -42,6 +42,13 @@ const TYPE_SHORT: Record<string, string> = {
   service_jeunesse: "S.J.",
 };
 
+const TYPE_EMOJI: Record<string, string> = {
+  entreprise: "🏢",
+  scolaire: "🏫",
+  loisirs: "🎯",
+  service_jeunesse: "🎯",
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Payment detection
 // ─────────────────────────────────────────────────────────────────────────────
@@ -262,27 +269,31 @@ function EventPill({
   const pillColor = payment?.cas === 2 ? "#15803d" : cs.text;
 
   const typeLabel = event.type_client ? (TYPE_SHORT[event.type_client] ?? null) : null;
+  const typeEmoji = event.manuel ? "📅" : (event.type_client ? (TYPE_EMOJI[event.type_client] ?? "") : "");
 
   return (
     <button
       onClick={(e) => { e.stopPropagation(); onClick(); }}
-      className="w-full text-left px-2 py-1 rounded-[6px] text-[13px] font-semibold flex items-center gap-1 hover:brightness-95 transition-all min-h-[28px] overflow-hidden"
+      className="w-full text-left px-1.5 py-[3px] rounded-[6px] flex items-center gap-0.5 hover:brightness-95 transition-all min-h-[24px] overflow-hidden"
       style={{ backgroundColor: pillBg, color: pillColor }}
     >
-      {/* Type client badge */}
+      {/* Emoji icon */}
+      {typeEmoji && (
+        <span className="shrink-0 text-[11px] leading-none mr-0.5">{typeEmoji}</span>
+      )}
+      {/* Type short label — hidden on xs, visible sm+ */}
       {typeLabel && (
-        <span className="shrink-0 text-[9px] font-bold opacity-60 uppercase tracking-wide leading-none border rounded px-[3px] py-[1px]" style={{ borderColor: "currentColor" }}>
-          {typeLabel}
+        <span className="shrink-0 hidden sm:inline text-[9px] font-bold opacity-70 uppercase tracking-wide leading-none whitespace-nowrap">
+          {typeLabel} ·&nbsp;
         </span>
       )}
-      <ActivityIcon activite={event.activite} s={11} />
-      {/* Client name — truncated, takes all available space */}
-      <span className="truncate flex-1 text-[12px] font-semibold leading-tight">
+      {/* Client name — dominant, flex-1, truncated */}
+      <span className="truncate flex-1 text-[12px] font-bold leading-tight">
         {event.nom_client || event.titre}
       </span>
-      {/* Heure — small, right-aligned */}
+      {/* Heure */}
       {event.heure_debut && (
-        <span className="shrink-0 text-[10px] opacity-60 font-medium ml-0.5">{formatH(event.heure_debut)}</span>
+        <span className="shrink-0 text-[9px] opacity-65 font-medium ml-0.5 whitespace-nowrap">{formatH(event.heure_debut)}</span>
       )}
       {/* Payment indicators */}
       {payment?.cas === 2 && (
@@ -489,12 +500,26 @@ function WeekView({
                       borderLeft: `2.5px solid ${borderColor}`,
                     }}
                   >
-                    <div className="text-[11px] font-bold truncate leading-tight">{ev.nom_client || ev.titre}</div>
-                    {ev.heure_debut && (
-                      <div className="text-[10px] opacity-75 mt-0.5 flex items-center gap-1">
-                        {formatH(ev.heure_debut)}
-                        {payment?.cas === 2 && <IcoCheckFull s={8}/>}
-                        {payment?.cas === 1 && <IcoCheck s={8}/>}
+                    {/* Top row: emoji + type + name + heure */}
+                    <div className="flex items-center gap-0.5 leading-tight">
+                      {(ev.manuel ? "📅" : (ev.type_client ? (TYPE_EMOJI[ev.type_client] ?? "") : "")) && (
+                        <span className="shrink-0 text-[10px] leading-none mr-0.5">
+                          {ev.manuel ? "📅" : (TYPE_EMOJI[ev.type_client ?? ""] ?? "")}
+                        </span>
+                      )}
+                      <span className="hidden sm:inline shrink-0 text-[8px] font-bold opacity-65 uppercase tracking-wide whitespace-nowrap">
+                        {ev.type_client ? ((TYPE_SHORT[ev.type_client] ?? "") + " · ") : ""}
+                      </span>
+                      <span className="truncate flex-1 text-[11px] font-bold">{ev.nom_client || ev.titre}</span>
+                      {ev.heure_debut && (
+                        <span className="shrink-0 text-[9px] opacity-65 font-medium ml-0.5 whitespace-nowrap">{formatH(ev.heure_debut)}</span>
+                      )}
+                    </div>
+                    {/* Payment row */}
+                    {(payment?.cas === 2 || payment?.cas === 1) && (
+                      <div className="flex items-center gap-1 mt-0.5">
+                        {payment.cas === 2 && <IcoCheckFull s={8}/>}
+                        {payment.cas === 1 && <IcoCheck s={8}/>}
                       </div>
                     )}
                   </button>
@@ -596,9 +621,18 @@ function DayView({
                   borderLeft: `3px solid ${borderColor}`,
                 }}
               >
-                <div className="flex items-center gap-1.5">
-                  <ActivityIcon activite={ev.activite} s={12} />
-                  <span className="text-sm font-bold">{ev.nom_client || ev.titre}</span>
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="shrink-0 text-[16px] leading-none">
+                    {ev.manuel ? "📅" : (TYPE_EMOJI[ev.type_client ?? ""] ?? "")}
+                  </span>
+                  <div className="min-w-0">
+                    {ev.type_client && !ev.manuel && (
+                      <div className="text-[9px] font-bold opacity-60 uppercase tracking-wider leading-none mb-0.5">
+                        {TYPE_SHORT[ev.type_client] ?? ""}
+                      </div>
+                    )}
+                    <div className="text-sm font-bold truncate">{ev.nom_client || ev.titre}</div>
+                  </div>
                 </div>
                 <div className="flex items-center gap-3 mt-1 text-[11px] opacity-75">
                   {ev.heure_debut && <span>{formatH(ev.heure_debut)}</span>}
