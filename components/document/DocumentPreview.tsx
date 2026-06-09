@@ -20,11 +20,13 @@ interface Props {
   onFormChange: (patch: Partial<DevisFormData>) => void;
   /** Rouvrir un document existant depuis l'historique — pas de nouvelle sauvegarde */
   readOnly?: boolean;
-  /** Numéro existant (historique) — évite de regénérer un nouveau numéro */
+  /** Numéro existant (historique ou modification) — évite de regénérer un nouveau numéro */
   existingNumero?: string;
+  /** ID existant (modification) — réutilise l'ID pour mettre à jour le même enregistrement */
+  existingId?: string;
 }
 
-export function DocumentPreview({ form, calc, onClose, onFormChange, readOnly, existingNumero }: Props) {
+export function DocumentPreview({ form, calc, onClose, onFormChange, readOnly, existingNumero, existingId }: Props) {
   const [documentType, setDocumentType] = useState<DocumentType>(form.documentType);
   const [acompteVerse, setAcompteVerse] = useState<string>("");
   const [generating, setGenerating] = useState(false);
@@ -37,8 +39,8 @@ export function DocumentPreview({ form, calc, onClose, onFormChange, readOnly, e
   });
   const [numero, setNumero] = useState<string>(existingNumero ?? "");
 
-  // Stable record ID — generated once, never changes
-  const recordId = useRef(generateId());
+  // Stable record ID — generated once (or reuse existing for updates)
+  const recordId = useRef<string>(existingId ?? generateId());
 
   // Document scaling for mobile
   const [docScale, setDocScale] = useState(() =>

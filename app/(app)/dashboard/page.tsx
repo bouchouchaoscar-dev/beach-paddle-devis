@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback, useMemo, useRef } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { BlocClient } from "@/components/dashboard/BlocClient";
 import { BlocActivite } from "@/components/dashboard/BlocActivite";
 import { BlocSnacking } from "@/components/dashboard/BlocSnacking";
@@ -9,8 +10,9 @@ import { AperçuDevis } from "@/components/dashboard/AperçuDevis";
 import { DocumentPreview } from "@/components/document/DocumentPreview";
 import { calculateDevis } from "@/lib/calculations";
 import { getDefaultForm } from "@/lib/defaultForm";
+import { getDevisById } from "@/lib/storage";
 import { DURATION_LABELS } from "@/lib/pricing";
-import type { DevisFormData } from "@/lib/types";
+import type { DevisFormData, DevisRecord } from "@/lib/types";
 
 function formatHeure(h: string): string {
   const [hh, mm] = h.split(":");
@@ -69,8 +71,11 @@ function buildAutoDescription(form: DevisFormData): string {
   return parts.join(" ");
 }
 
-export default function DashboardPage() {
+function DashboardContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const isDescriptionManual = useRef(false);
+  const [editingRecord, setEditingRecord] = useState<DevisRecord | null>(null);
 
   const [form, setForm] = useState<DevisFormData>(() => {
     const defaultForm = getDefaultForm();
@@ -78,6 +83,18 @@ export default function DashboardPage() {
   });
 
   const [showPreview, setShowPreview] = useState(false);
+
+  // Load existing record if ?edit=ID is in the URL
+  useEffect(() => {
+    const editId = searchParams.get("edit");
+    if (!editId) return;
+    getDevisById(editId).then((record) => {
+      if (!record) return;
+      setEditingRecord(record);
+      isDescriptionManual.current = true;
+      setForm(record.formData);
+    });
+  }, [searchParams]);
 
   const onChange = useCallback((patch: Partial<DevisFormData>) => {
     if ("prestationDescription" in patch) {
@@ -111,8 +128,10 @@ export default function DashboardPage() {
   const calc = useMemo(() => calculateDevis(form), [form]);
 
   function handleReset() {
-    if (confirm("Réinitialiser le formulaire ?")) {
+    if (confirm(editingRecord ? "Annuler la modification et créer un nouveau document ?" : "Réinitialiser le formulaire ?")) {
       isDescriptionManual.current = false;
+      setEditingRecord(null);
+      router.replace("/dashboard");
       const freshForm = getDefaultForm();
       setForm({ ...freshForm, prestationDescription: buildAutoDescription(freshForm) });
     }
@@ -127,10 +146,22 @@ export default function DashboardPage() {
             style={{ opacity: 0, animation: "slideUp 0.4s cubic-bezier(0.16,1,0.3,1) 0.1s forwards" }}
           >
             <h1 className="text-2xl font-bold tracking-tight text-ink">
-              Nouveau document
+              {editingRecord ? "Modifier le document" : "Nouveau document"}
             </h1>
             <p className="text-sm text-ink-secondary mt-0.5">
-              Remplis le formulaire puis génère le devis ou la facture
+              {editingRecord
+                ? (
+                  <span className="flex items-center gap-1.5">
+                    <span className="font-mono text-xs font-semibold" style={{ color: "#0071E3" }}>{editingRecord.numero}</span>
+                    <span>·</span>
+                    <span>{editingRecord.clientName}</span>
+                    {editingRecord.documentType === "facture" && (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold" style={{ backgroundColor: "rgba(124,58,237,0.10)", color: "#7C3AED" }}>Facture</span>
+                    )}
+                  </span>
+                )
+                : "Remplis le formulaire puis génère le devis ou la facture"
+              }
             </p>
           </div>
           <button
@@ -141,7 +172,7 @@ export default function DashboardPage() {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.1"/>
             </svg>
-            Réinitialiser
+            {editingRecord ? "Annuler" : "Réinitialiser"}
           </button>
         </div>
 
@@ -181,8 +212,18 @@ export default function DashboardPage() {
           calc={calc}
           onClose={() => setShowPreview(false)}
           onFormChange={onChange}
+          existingId={editingRecord?.id}
+          existingNumero={editingRecord?.numero}
         />
       )}
     </>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense>
+      <DashboardContent />
+    </Suspense>
   );
 }

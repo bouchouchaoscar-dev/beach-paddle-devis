@@ -12,10 +12,10 @@ import {
   getClientStyle,
 } from "@/lib/calendar";
 import { getSession } from "@/lib/auth";
-import { getDevisById, updateDevisHeure, deleteDevis } from "@/lib/storage";
+import { getDevisById, updateDevisHeure, deleteDevis, saveDevis } from "@/lib/storage";
 import { calculateDevis } from "@/lib/calculations";
 import { DocumentPreview } from "@/components/document/DocumentPreview";
-import type { DevisRecord } from "@/lib/types";
+import type { DevisRecord, ActivityType } from "@/lib/types";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -759,6 +759,15 @@ function EventModal({
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [editingHeure, setEditingHeure] = useState(false);
 
+  // quick-edit fields (non-manual events)
+  const [nomClient, setNomClient] = useState(event.nom_client ?? "");
+  const [nbPersonnes, setNbPersonnes] = useState<number>(event.nb_personnes ?? 0);
+  const [activite, setActivite] = useState(event.activite ?? "");
+  const [editingNom, setEditingNom] = useState(false);
+  const [editingNb, setEditingNb] = useState(false);
+  const [editingActiv, setEditingActiv] = useState(false);
+  const [savingField, setSavingField] = useState<string | null>(null);
+
   // manual edit fields
   const [titre, setTitre] = useState(event.titre);
   const [date, setDate] = useState(event.date_event);
@@ -815,6 +824,55 @@ function EventModal({
     }
   }
 
+  async function saveCalendarField(
+    field: "nom_client" | "nb_personnes" | "activite",
+    value: string | number
+  ) {
+    setSavingField(field);
+    try {
+      const calPatch: Partial<CalendarEvent> = {};
+      if (field === "nom_client") {
+        const actLabel = activite ? (ACT_LABELS[activite] ?? null) : null;
+        calPatch.nom_client = value as string;
+        calPatch.titre = [actLabel, value as string].filter(Boolean).join(" — ") || (value as string);
+      } else if (field === "activite") {
+        const actLabel = value ? (ACT_LABELS[value as string] ?? null) : null;
+        const nom = nomClient || event.nom_client || event.titre;
+        calPatch.activite = (value as string) || null;
+        calPatch.titre = [actLabel, nom].filter(Boolean).join(" — ") || nom;
+      } else if (field === "nb_personnes") {
+        calPatch.nb_personnes = value as number;
+      }
+
+      if (event.devis_id) {
+        const record = await getDevisById(event.devis_id);
+        if (record) {
+          const newFormData = { ...record.formData };
+          if (field === "nom_client") newFormData.clientName = value as string;
+          if (field === "nb_personnes") newFormData.participantsCount = value as number;
+          if (field === "activite") newFormData.activity = ((value as string) || "none") as ActivityType;
+          const calc = calculateDevis(newFormData);
+          if (field === "nb_personnes") calPatch.montant = calc.totalNet;
+          await saveDevis({
+            ...record,
+            formData: newFormData,
+            ...(field === "nom_client" ? { clientName: value as string } : {}),
+            ...(field === "nb_personnes" ? { participantsCount: value as number } : {}),
+            totalBrut: calc.totalBrut,
+            totalNet: calc.totalNet,
+          });
+        }
+      }
+
+      await onUpdate(event.id, calPatch);
+      if (field === "nom_client") setEditingNom(false);
+      if (field === "nb_personnes") setEditingNb(false);
+      if (field === "activite") setEditingActiv(false);
+    } finally {
+      setSavingField(null);
+    }
+  }
+
   async function handleDelete() {
     setDeleting(true);
     try {
@@ -861,9 +919,37 @@ function EventModal({
                 </span>
               )}
             </div>
-            <h3 className="text-base font-bold text-gray-900 leading-snug">
-              {event.manuel ? titre : (event.nom_client || event.titre)}
-            </h3>
+            {event.manuel ? (
+              <h3 className="text-base font-bold text-gray-900 leading-snug">{titre}</h3>
+            ) : editingNom ? (
+              <input
+                autoFocus
+                value={nomClient}
+                onChange={(e) => setNomClient(e.target.value)}
+                onBlur={() => saveCalendarField("nom_client", nomClient)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") saveCalendarField("nom_client", nomClient);
+                  if (e.key === "Escape") setEditingNom(false);
+                }}
+                disabled={savingField === "nom_client"}
+                className="w-full text-base font-bold border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#0071E3]/20 focus:border-[#0071E3] disabled:opacity-50"
+              />
+            ) : (
+              <div className="flex items-center gap-1.5">
+                <h3 className="text-base font-bold text-gray-900 leading-snug">
+                  {nomClient || event.nom_client || event.titre}
+                </h3>
+                {!savingField && (
+                  <button
+                    onClick={() => setEditingNom(true)}
+                    className="p-0.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors shrink-0"
+                    title="Modifier le nom"
+                  >
+                    <IcoPencil s={11} />
+                  </button>
+                )}
+              </div>
+            )}
           </div>
           <button
             onClick={onClose}
@@ -918,26 +1004,84 @@ function EventModal({
                 )}
               </div>
 
-              {/* Stats grid */}
-              {(event.nb_personnes != null || event.montant != null) && (
-                <div className="grid grid-cols-2 gap-2">
-                  {event.nb_personnes != null && (
-                    <div className="rounded-xl bg-gray-50 px-3 py-2.5">
-                      <div className="flex items-center gap-1.5 mb-0.5">
-                        <IcoUsers s={11} />
-                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Participants</span>
-                      </div>
-                      <div className="text-sm font-bold text-gray-800">{event.nb_personnes} pers.</div>
-                    </div>
-                  )}
-                  {event.montant != null && (
-                    <div className="rounded-xl bg-gray-50 px-3 py-2.5">
-                      <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Montant</div>
-                      <div className="text-sm font-bold" style={{ color: "#0071E3" }}>{formatPrice(event.montant)}</div>
+              {/* Stats grid — activité + participants éditables */}
+              <div className="grid grid-cols-2 gap-2">
+                {/* Activité */}
+                <div className="rounded-xl bg-gray-50 px-3 py-2.5">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Activité</span>
+                    {!editingActiv && !savingField && (
+                      <button onClick={() => setEditingActiv(true)} className="p-0.5 rounded hover:bg-gray-200 text-gray-400 hover:text-gray-600 transition-colors" title="Modifier">
+                        <IcoPencil s={9}/>
+                      </button>
+                    )}
+                  </div>
+                  {editingActiv ? (
+                    <select
+                      autoFocus
+                      value={activite}
+                      onChange={(e) => { setActivite(e.target.value); saveCalendarField("activite", e.target.value); }}
+                      onBlur={() => setEditingActiv(false)}
+                      disabled={savingField === "activite"}
+                      className="w-full text-xs border border-gray-200 rounded px-1.5 py-1 focus:outline-none focus:border-[#0071E3] bg-white disabled:opacity-50"
+                    >
+                      <option value="">—</option>
+                      <option value="paddle">Paddle</option>
+                      <option value="kayak">Kayak</option>
+                      <option value="hybride">Hybride</option>
+                    </select>
+                  ) : (
+                    <div className="text-sm font-bold text-gray-800 flex items-center gap-1">
+                      <ActivityIcon activite={activite || null} s={11} />
+                      {activite ? (ACT_LABELS[activite] ?? activite) : <span className="font-normal text-gray-400">—</span>}
+                      {savingField === "activite" && <span className="text-[10px] text-gray-400">...</span>}
                     </div>
                   )}
                 </div>
-              )}
+
+                {/* Participants */}
+                {event.nb_personnes != null && (
+                  <div className="rounded-xl bg-gray-50 px-3 py-2.5">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-1">
+                        <IcoUsers s={10} />
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Personnes</span>
+                      </div>
+                      {!editingNb && !savingField && (
+                        <button onClick={() => setEditingNb(true)} className="p-0.5 rounded hover:bg-gray-200 text-gray-400 hover:text-gray-600 transition-colors" title="Modifier">
+                          <IcoPencil s={9}/>
+                        </button>
+                      )}
+                    </div>
+                    {editingNb ? (
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => setNbPersonnes(p => Math.max(1, p - 1))} className="w-5 h-5 rounded bg-gray-200 flex items-center justify-center text-xs font-bold hover:bg-gray-300 shrink-0">−</button>
+                        <span className="text-sm font-bold text-gray-800 w-7 text-center tabular-nums">{nbPersonnes}</span>
+                        <button onClick={() => setNbPersonnes(p => p + 1)} className="w-5 h-5 rounded bg-gray-200 flex items-center justify-center text-xs font-bold hover:bg-gray-300 shrink-0">+</button>
+                        <button
+                          onClick={() => saveCalendarField("nb_personnes", nbPersonnes)}
+                          disabled={savingField === "nb_personnes"}
+                          className="ml-0.5 text-[11px] font-bold text-white px-1.5 py-0.5 rounded disabled:opacity-50"
+                          style={{ backgroundColor: "#0071E3" }}
+                        >OK</button>
+                      </div>
+                    ) : (
+                      <div className="text-sm font-bold text-gray-800">
+                        {nbPersonnes} pers.
+                        {savingField === "nb_personnes" && <span className="text-[10px] text-gray-400 ml-1">...</span>}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Montant */}
+                {event.montant != null && (
+                  <div className="rounded-xl bg-gray-50 px-3 py-2.5">
+                    <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Montant</div>
+                    <div className="text-sm font-bold" style={{ color: "#0071E3" }}>{formatPrice(event.montant)}</div>
+                  </div>
+                )}
+              </div>
 
               {/* Payment detection block */}
               <div className="rounded-2xl border border-gray-100 overflow-hidden">
