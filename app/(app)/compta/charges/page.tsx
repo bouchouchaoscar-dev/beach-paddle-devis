@@ -711,6 +711,36 @@ export default function ChargesPage() {
             <div className="card p-5 order-last lg:order-none">
               <h2 className="text-sm font-semibold text-ink mb-4">Équipe</h2>
 
+              {/* Add employee */}
+              <div className="border-b border-surface-border pb-4 mb-4 space-y-2">
+                <p className="text-xs font-medium text-ink-muted">Ajouter un employé</p>
+                <input
+                  type="text"
+                  value={newEmpNom}
+                  placeholder="Prénom Nom"
+                  onChange={(e) => setNewEmpNom(e.target.value)}
+                  className="input-field w-full"
+                />
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-ink-secondary whitespace-nowrap">Tarif :</label>
+                  <div className="flex items-center gap-0 flex-1">
+                    <button type="button" onClick={() => setNewEmpTarif((v) => String(Math.max(0, (parseFloat(v) || 0) - 0.5)))} className="flex items-center justify-center w-8 h-9 rounded-l-xl border border-r-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border hover:text-ink transition-colors active:scale-95">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    </button>
+                    <div className="relative flex-1">
+                      <NumericInput inputMode="decimal" value={newEmpTarif} min={0} step={0.5} placeholder="0" onChange={(e) => setNewEmpTarif(e.target.value)} className="w-full h-9 border border-surface-border bg-white text-center text-sm font-bold font-mono text-ink outline-none pr-8 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-muted text-xs pointer-events-none">€/h</span>
+                    </div>
+                    <button type="button" onClick={() => setNewEmpTarif((v) => String((parseFloat(v) || 0) + 0.5))} className="flex items-center justify-center w-8 h-9 rounded-r-xl border border-l-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border hover:text-ink transition-colors active:scale-95">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    </button>
+                  </div>
+                  <button onClick={handleAddEmployee} disabled={addingEmp || !newEmpNom.trim()} className="btn-primary px-3 h-9">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  </button>
+                </div>
+              </div>
+
               {employees.length === 0 ? (
                 <p className="text-sm text-ink-muted py-4 text-center">Aucun employé enregistré</p>
               ) : (
@@ -783,36 +813,6 @@ export default function ChargesPage() {
                   ))}
                 </div>
               )}
-
-              {/* Add employee */}
-              <div className="border-t border-surface-border pt-4 space-y-2">
-                <p className="text-xs font-medium text-ink-muted">Ajouter un employé</p>
-                <input
-                  type="text"
-                  value={newEmpNom}
-                  placeholder="Prénom Nom"
-                  onChange={(e) => setNewEmpNom(e.target.value)}
-                  className="input-field w-full"
-                />
-                <div className="flex items-center gap-2">
-                  <label className="text-xs text-ink-secondary whitespace-nowrap">Tarif :</label>
-                  <div className="flex items-center gap-0 flex-1">
-                    <button type="button" onClick={() => setNewEmpTarif((v) => String(Math.max(0, (parseFloat(v) || 0) - 0.5)))} className="flex items-center justify-center w-8 h-9 rounded-l-xl border border-r-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border hover:text-ink transition-colors active:scale-95">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    </button>
-                    <div className="relative flex-1">
-                      <NumericInput inputMode="decimal" value={newEmpTarif} min={0} step={0.5} placeholder="0" onChange={(e) => setNewEmpTarif(e.target.value)} className="w-full h-9 border border-surface-border bg-white text-center text-sm font-bold font-mono text-ink outline-none pr-8 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
-                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-muted text-xs pointer-events-none">€/h</span>
-                    </div>
-                    <button type="button" onClick={() => setNewEmpTarif((v) => String((parseFloat(v) || 0) + 0.5))} className="flex items-center justify-center w-8 h-9 rounded-r-xl border border-l-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border hover:text-ink transition-colors active:scale-95">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    </button>
-                  </div>
-                  <button onClick={handleAddEmployee} disabled={addingEmp || !newEmpNom.trim()} className="btn-primary px-3 h-9">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                  </button>
-                </div>
-              </div>
 
               {/* View employee sessions */}
               {viewingEmpId && viewingEmp && (
