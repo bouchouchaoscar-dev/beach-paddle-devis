@@ -28,7 +28,9 @@ function getActivityDescription(
   activity: string,
   n: number,
   durationLabel: string,
-  heureDebut: string
+  heureDebut: string,
+  megaPaddleCount = 1,
+  megaEscapeCount = 0,
 ): string {
   const time = heureDebut ? `, à partir de ${formatH(heureDebut)}` : "";
   if (activity === "paddle") {
@@ -39,6 +41,16 @@ function getActivityDescription(
   }
   if (activity === "hybride") {
     return `Mise à disposition de Paddles, Kayaks, leash, pagaies et gilets de sauvetage pour ${n} personnes — ${durationLabel}${time}`;
+  }
+  if (activity === "mega_paddle") {
+    const parts: string[] = [];
+    if (megaPaddleCount > 0)
+      parts.push(`${megaPaddleCount} Méga Paddle${megaPaddleCount > 1 ? "s" : ""}`);
+    if (megaEscapeCount > 0) {
+      const seats = megaEscapeCount === 1 ? " (4 sièges)" : " (4 sièges chacun)";
+      parts.push(`${megaEscapeCount} Méga Escape${megaEscapeCount > 1 ? "s" : ""}${seats}`);
+    }
+    return `Mise à disposition de ${parts.join(" et ")} pour ${n} personnes — ${durationLabel}${time}`;
   }
   return "";
 }
@@ -303,7 +315,7 @@ export function DocumentTemplate({
                   {ACTIVITY_LABELS[form.activity]} — {DURATION_LABELS[form.duration]}
                 </div>
                 <div style={{ color: GRAY, fontStyle: "italic", fontSize: "9pt", marginTop: "0.5mm" }}>
-                  {getActivityDescription(form.activity, n, DURATION_LABELS[form.duration], form.heureDebut)}
+                  {getActivityDescription(form.activity, n, DURATION_LABELS[form.duration], form.heureDebut, form.megaPaddleCount ?? 1, form.megaEscapeCount ?? 0)}
                 </div>
               </div>
               {/* correction 2: supprimer le soulignement sur prix et nb pers */}

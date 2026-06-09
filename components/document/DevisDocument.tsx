@@ -47,7 +47,7 @@ function formatH(h: string): string {
   return !mm || mm === "00" ? `${parseInt(hh)}h` : `${parseInt(hh)}h${mm}`;
 }
 
-function activityDesc(activity: string, n: number, dur: string, heure: string): string {
+function activityDesc(activity: string, n: number, dur: string, heure: string, megaPaddleCount = 1, megaEscapeCount = 0): string {
   const t = heure ? `, à partir de ${formatH(heure)}` : "";
   if (activity === "paddle")
     return `Mise à disposition de Paddles, leash, pagaies et gilets de sauvetage pour ${n} personnes — ${dur}${t}`;
@@ -55,6 +55,16 @@ function activityDesc(activity: string, n: number, dur: string, heure: string): 
     return `Mise à disposition de Kayaks, pagaies et gilets de sauvetage pour ${n} personnes — ${dur}${t}`;
   if (activity === "hybride")
     return `Mise à disposition de Paddles, Kayaks, leash, pagaies et gilets de sauvetage pour ${n} personnes — ${dur}${t}`;
+  if (activity === "mega_paddle") {
+    const parts: string[] = [];
+    if (megaPaddleCount > 0)
+      parts.push(`${megaPaddleCount} Méga Paddle${megaPaddleCount > 1 ? "s" : ""}`);
+    if (megaEscapeCount > 0) {
+      const seats = megaEscapeCount === 1 ? " (4 sièges)" : " (4 sièges chacun)";
+      parts.push(`${megaEscapeCount} Méga Escape${megaEscapeCount > 1 ? "s" : ""}${seats}`);
+    }
+    return `Mise à disposition de ${parts.join(" et ")} pour ${n} personnes — ${dur}${t}`;
+  }
   return "";
 }
 
@@ -486,7 +496,7 @@ export function DevisDocument({
                   {ACTIVITY_LABELS[form.activity]} — {DURATION_LABELS[form.duration]}
                 </Text>
                 <Text style={[s.rowDsc, { fontSize: D.dscSize }]}>
-                  {activityDesc(form.activity, n, DURATION_LABELS[form.duration], form.dateADefinir ? "" : form.heureDebut)}
+                  {activityDesc(form.activity, n, DURATION_LABELS[form.duration], form.dateADefinir ? "" : form.heureDebut, form.megaPaddleCount ?? 1, form.megaEscapeCount ?? 0)}
                 </Text>
               </View>
               <Text style={[s.rowVal, { width: "28mm", textAlign: "center" }]}>

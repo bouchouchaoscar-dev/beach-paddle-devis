@@ -7,6 +7,7 @@ import {
   PADDLE_PRICES,
   KAYAK_PRICES,
   HYBRIDE_PRICES,
+  MEGA_PADDLE_PRICES,
   DURATIONS,
   DURATION_LABELS,
   getActivityPrice,
@@ -17,6 +18,8 @@ interface Props {
   form: DevisFormData;
   onChange: (patch: Partial<DevisFormData>) => void;
 }
+
+const ANIM = { opacity: 0, animation: "slideUp 0.25s cubic-bezier(0.16,1,0.3,1) forwards" } as const;
 
 const ACTIVITY_OPTIONS: { value: ActivityType; label: string; icon: React.ReactNode }[] = [
   {
@@ -46,10 +49,64 @@ const ACTIVITY_OPTIONS: { value: ActivityType; label: string; icon: React.ReactN
       </svg>
     ),
   },
+  {
+    value: "mega_paddle",
+    label: "Méga Paddle",
+    icon: (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M2 20h20M4 20V14l8-6 8 6v6M10 20v-5h4v5"/>
+      </svg>
+    ),
+  },
 ];
+
+function CountStepper({
+  label,
+  value,
+  min,
+  onDecrement,
+  onIncrement,
+  hint,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  onDecrement: () => void;
+  onIncrement: () => void;
+  hint?: string;
+}) {
+  return (
+    <div>
+      <label className="label">{label}</label>
+      <div className="flex items-center gap-0">
+        <button
+          type="button"
+          onClick={onDecrement}
+          disabled={value <= min}
+          className="flex items-center justify-center w-9 h-9 rounded-l-xl border border-r-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border hover:text-ink transition-colors active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+        <div className="w-14 h-9 border border-surface-border bg-white text-center flex items-center justify-center text-sm font-bold font-mono text-ink">
+          {value}
+        </div>
+        <button
+          type="button"
+          onClick={onIncrement}
+          className="flex items-center justify-center w-9 h-9 rounded-r-xl border border-l-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border hover:text-ink transition-colors active:scale-95"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+      </div>
+      {hint && <p className="text-xs text-ink-muted mt-1">{hint}</p>}
+    </div>
+  );
+}
 
 export function BlocActivite({ form, onChange }: Props) {
   const pricePerPerson = getActivityPrice(form.activity, form.duration);
+  const mp = form.megaPaddleCount ?? 1;
+  const me = form.megaEscapeCount ?? 0;
 
   return (
     <section className="card p-6 space-y-5">
@@ -66,19 +123,40 @@ export function BlocActivite({ form, onChange }: Props) {
         />
       </div>
 
+      {/* Méga Paddle — sélection embarcations */}
+      {form.activity === "mega_paddle" && (
+        <div className="border border-surface-border rounded-xl p-4 space-y-4" style={ANIM}>
+          <CountStepper
+            label="Nombre de Méga Paddles"
+            value={mp}
+            min={me > 0 ? 0 : 1}
+            onDecrement={() => onChange({ megaPaddleCount: Math.max(me > 0 ? 0 : 1, mp - 1) })}
+            onIncrement={() => onChange({ megaPaddleCount: mp + 1 })}
+          />
+          <CountStepper
+            label="Nombre de Méga Escapes"
+            value={me}
+            min={0}
+            onDecrement={() => onChange({ megaEscapeCount: Math.max(0, me - 1) })}
+            onIncrement={() => onChange({ megaEscapeCount: me + 1 })}
+            hint="Le Méga Escape dispose de 4 sièges"
+          />
+          {mp === 0 && me === 0 && (
+            <p className="text-xs text-brand-red font-medium">Au moins 1 embarcation requise</p>
+          )}
+        </div>
+      )}
+
       {/* Durée */}
       <div>
         <label className="label">Durée</label>
         <div className="grid grid-cols-4 gap-2">
           {DURATIONS.map((dur) => {
-            const paddleP = PADDLE_PRICES[dur];
-            const kayakP = KAYAK_PRICES[dur];
             const displayPrice =
-              form.activity === "paddle"
-                ? paddleP
-                : form.activity === "kayak"
-                ? kayakP
-                : HYBRIDE_PRICES[dur];
+              form.activity === "paddle" ? PADDLE_PRICES[dur] :
+              form.activity === "kayak" ? KAYAK_PRICES[dur] :
+              form.activity === "mega_paddle" ? MEGA_PADDLE_PRICES[dur] :
+              HYBRIDE_PRICES[dur];
             const active = form.duration === dur;
 
             return (
@@ -114,11 +192,10 @@ export function BlocActivite({ form, onChange }: Props) {
           }}
         >
           <span className="text-ink-secondary">
-            {form.activity === "paddle"
-              ? "Stand Up Paddle"
-              : form.activity === "kayak"
-              ? "Kayak"
-              : "Hybride"}{" "}
+            {form.activity === "paddle" ? "Stand Up Paddle" :
+             form.activity === "kayak" ? "Kayak" :
+             form.activity === "mega_paddle" ? "Méga Paddle" :
+             "Hybride"}{" "}
             — {DURATION_LABELS[form.duration]}
           </span>
           <span className="font-bold font-mono" style={{ color: "#0071E3" }}>
@@ -139,7 +216,7 @@ export function BlocActivite({ form, onChange }: Props) {
         {form.coach.enabled && (
           <div
             className="grid grid-cols-2 gap-3 animate-slide-up"
-            style={{ opacity: 0, animation: "slideUp 0.25s cubic-bezier(0.16,1,0.3,1) forwards" }}
+            style={ANIM}
           >
             <div>
               <label className="label">Description</label>

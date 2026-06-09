@@ -1,5 +1,5 @@
 export type ClientType = "entreprise" | "association" | "scolaire" | "loisirs";
-export type ActivityType = "paddle" | "kayak" | "hybride" | "none";
+export type ActivityType = "paddle" | "kayak" | "hybride" | "mega_paddle" | "none";
 export type Duration = "30min" | "1h" | "1h30" | "2h";
 export type DocumentType = "devis" | "facture";
 
@@ -61,6 +61,8 @@ export interface DevisFormData {
   // Bloc 2 — Activité
   activity: ActivityType;
   duration: Duration;
+  megaPaddleCount: number;
+  megaEscapeCount: number;
   coach: CoachOption;
 
   // Bloc 3 — Snacking

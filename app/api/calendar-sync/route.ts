@@ -8,6 +8,7 @@ const ACTIVITY_LABELS: Record<string, string> = {
   paddle: "Paddle",
   kayak: "Kayak",
   hybride: "Paddle + Kayak",
+  mega_paddle: "Méga Paddle",
 };
 
 export async function POST() {

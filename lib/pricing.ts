@@ -21,6 +21,13 @@ export const HYBRIDE_PRICES: Record<Duration, number> = {
   "2h": 27.0,
 };
 
+export const MEGA_PADDLE_PRICES: Record<Duration, number> = {
+  "30min": 10.0,
+  "1h": 17.0,
+  "1h30": 25.0,
+  "2h": 30.0,
+};
+
 export function getActivityPrice(
   activity: ActivityType,
   duration: Duration
@@ -28,6 +35,7 @@ export function getActivityPrice(
   if (activity === "paddle") return PADDLE_PRICES[duration];
   if (activity === "kayak") return KAYAK_PRICES[duration];
   if (activity === "hybride") return HYBRIDE_PRICES[duration];
+  if (activity === "mega_paddle") return MEGA_PADDLE_PRICES[duration];
   return 0;
 }
 
@@ -84,6 +92,7 @@ export const ACTIVITY_LABELS: Record<ActivityType, string> = {
   paddle: "Stand Up Paddle",
   kayak: "Kayak",
   hybride: "Hybride (Paddle + Kayak)",
+  mega_paddle: "Méga Paddle",
   none: "Aucune activité",
 };
 

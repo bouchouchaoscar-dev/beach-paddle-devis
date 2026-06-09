@@ -16,6 +16,8 @@ export function getDefaultForm(): DevisFormData {
     participantsCount: 20,
     activity: "paddle",
     duration: "1h30",
+    megaPaddleCount: 1,
+    megaEscapeCount: 0,
     coach: { enabled: false, description: "Coach Beach Paddle", price: 30 },
     snackingItems: [],
     discount: {

@@ -18,6 +18,21 @@ function formatDateCourt(dateStr: string): string {
   return `le ${d} ${MONTHS_FR[m - 1]}`;
 }
 
+function buildMegaPaddlePhrase(mp: number, me: number, group: string, dur: string, dateTime: string): string {
+  const prep = (n: number) => n === 1 ? "d'" : "de ";
+  const mpLabel = (n: number) => n === 1 ? "1 Méga Paddle" : `${n} Méga Paddles`;
+  const meLabel = (n: number) => {
+    const seats = n === 1 ? " (4 sièges)" : " (4 sièges chacun)";
+    return n === 1 ? `1 Méga Escape${seats}` : `${n} Méga Escapes${seats}`;
+  };
+  if (mp > 0 && me > 0) {
+    return `Location ${prep(mp)}${mpLabel(mp)} et ${meLabel(me)} ${group} — ${dur}${dateTime}.`;
+  }
+  if (mp > 0) return `Location ${prep(mp)}${mpLabel(mp)} ${group} — ${dur}${dateTime}.`;
+  if (me > 0) return `Location ${prep(me)}${meLabel(me)} ${group} — ${dur}${dateTime}.`;
+  return `Location de Méga Paddle ${group} — ${dur}${dateTime}.`;
+}
+
 function buildGroupPhrase(form: DevisFormData): string {
   const n = form.participantsCount;
   const z = form.discount.accompagnatorsCount;
@@ -47,6 +62,8 @@ export function buildAutoDescription(form: DevisFormData): string {
     parts.push(`Location de Kayak ${group} — ${durationLabel}${dateTime}.`);
   } else if (form.activity === "hybride") {
     parts.push(`Location de Paddle et Kayak ${group} — ${durationLabel}${dateTime}.`);
+  } else if (form.activity === "mega_paddle") {
+    parts.push(buildMegaPaddlePhrase(form.megaPaddleCount ?? 1, form.megaEscapeCount ?? 0, group, durationLabel, dateTime));
   }
 
   for (const item of form.snackingItems) {

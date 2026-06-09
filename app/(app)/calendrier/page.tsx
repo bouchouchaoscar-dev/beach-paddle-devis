@@ -35,6 +35,7 @@ const ACT_LABELS: Record<string, string> = {
   paddle: "Paddle",
   kayak: "Kayak",
   hybride: "Paddle + Kayak",
+  mega_paddle: "Méga Paddle",
 };
 
 const TYPE_SHORT: Record<string, string> = {
@@ -228,6 +229,8 @@ function ActivityIcon({ activite, s = 11 }: { activite?: string | null; s?: numb
     return <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12h20M5 7l7 5 7-5M5 17l7-5 7 5"/></svg>;
   if (activite === "hybride")
     return <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>;
+  if (activite === "mega_paddle")
+    return <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 20h20M4 20V14l8-6 8 6v6M10 20v-5h4v5"/></svg>;
   return null;
 }
 
@@ -1080,6 +1083,7 @@ function EventModal({
                       <option value="paddle">Paddle</option>
                       <option value="kayak">Kayak</option>
                       <option value="hybride">Hybride</option>
+                      <option value="mega_paddle">Méga Paddle</option>
                     </select>
                   ) : (
                     <div className="text-sm font-bold text-gray-800 flex items-center gap-1">

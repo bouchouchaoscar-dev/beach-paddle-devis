@@ -49,6 +49,13 @@ function ActivityIcon({ activity }: { activity?: string }) {
       </svg>
     );
   }
+  if (activity === "mega_paddle") {
+    return (
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M2 20h20M4 20V14l8-6 8 6v6M10 20v-5h4v5"/>
+      </svg>
+    );
+  }
   // hybride
   return (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -239,7 +246,11 @@ export default function HistoriquePage() {
               const activityLabel =
                 fd?.activity === "paddle" ? "Paddle" :
                 fd?.activity === "kayak" ? "Kayak" :
-                fd?.activity === "hybride" ? "Paddle + Kayak" : null;
+                fd?.activity === "hybride" ? "Paddle + Kayak" :
+                fd?.activity === "mega_paddle" ? "Méga Paddle" : null;
+              const activityBadgeStyle = fd?.activity === "mega_paddle"
+                ? { backgroundColor: "rgba(13,148,136,0.12)", color: "#0D9488" }
+                : { backgroundColor: "rgba(0,113,227,0.10)", color: "#0071E3" };
               const durationLabel = fd?.duration ? DURATION_LABELS[fd.duration] : null;
 
               const isGroupeAccomp =
@@ -292,7 +303,7 @@ export default function HistoriquePage() {
                     {/* Ligne basse : chips | boutons */}
                     <div className="flex items-center gap-1.5">
                       {activityLabel && (
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "2px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: 600, whiteSpace: "nowrap", backgroundColor: "rgba(0,113,227,0.10)", color: "#0071E3" }}>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "2px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: 600, whiteSpace: "nowrap", ...activityBadgeStyle }}>
                           <ActivityIcon activity={fd?.activity} />
                           {activityLabel}
                         </span>
@@ -386,7 +397,7 @@ export default function HistoriquePage() {
                     {/* Ligne 2 : chips */}
                     <div className="flex flex-wrap gap-1.5 mb-2.5">
                       {activityLabel && (
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "2px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: 600, whiteSpace: "nowrap", backgroundColor: "rgba(0,113,227,0.10)", color: "#0071E3" }}>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", padding: "2px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: 600, whiteSpace: "nowrap", ...activityBadgeStyle }}>
                           <ActivityIcon activity={fd?.activity} />
                           {activityLabel}
                         </span>
