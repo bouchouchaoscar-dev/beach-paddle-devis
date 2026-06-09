@@ -55,7 +55,7 @@ const emptyChargeForm = () => ({
 
 export default function ChargesPage() {
   const { saison, setSaison } = useComptaSaison();
-  const [activeTab, setActiveTab] = useState<Tab>("upload");
+  const [activeTab, setActiveTab] = useState<Tab>("employes");
   const [charges, setCharges] = useState<Charge[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [sessions, setSessions] = useState<WorkSession[]>([]);
@@ -467,9 +467,9 @@ export default function ChargesPage() {
         style={{ opacity: 0, animation: "slideUp 0.4s cubic-bezier(0.16,1,0.3,1) 0.1s forwards" }}
       >
         {([
-          { id: "upload", label: "Upload & IA" },
-          { id: "manuel", label: "Manuel" },
           { id: "employes", label: "Employés" },
+          { id: "manuel", label: "Saisie manuelle" },
+          { id: "upload", label: "Upload & IA" },
           { id: "immobilisations", label: "Immo." },
         ] as { id: Tab; label: string }[]).map((t) => (
           <button
@@ -708,7 +708,7 @@ export default function ChargesPage() {
         {activeTab === "employes" && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             {/* Employee list */}
-            <div className="card p-5">
+            <div className="card p-5 order-last lg:order-none">
               <h2 className="text-sm font-semibold text-ink mb-4">Équipe</h2>
 
               {employees.length === 0 ? (
