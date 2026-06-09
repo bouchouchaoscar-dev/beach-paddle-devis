@@ -23,8 +23,17 @@ export function SegmentedControl<T extends string>({
 }: SegmentedControlProps<T>) {
   const activeColor = accent === "orange" ? "#0071E3" : "#0071E3";
 
+  // 4 options or more → 2-col grid on mobile, flex row on desktop
+  const useGrid = options.length >= 4;
+
   return (
-    <div className="flex items-center gap-1 p-1 bg-surface-muted rounded-xl border border-surface-border">
+    <div
+      className={`gap-1 p-1 bg-surface-muted rounded-xl border border-surface-border ${
+        useGrid
+          ? "grid grid-cols-2 md:flex md:items-center"
+          : "flex items-center"
+      }`}
+    >
       {options.map((opt) => {
         const active = opt.value === value;
         return (
@@ -32,7 +41,9 @@ export function SegmentedControl<T extends string>({
             key={opt.value}
             type="button"
             onClick={() => onChange(opt.value)}
-            className={`flex items-center gap-1.5 px-3 ${size === "sm" ? "py-1 text-xs" : "py-2 text-sm"} rounded-lg font-medium transition-all duration-200 flex-1 justify-center ${
+            className={`flex items-center gap-1.5 px-3 ${size === "sm" ? "py-1 text-xs" : "py-2 text-sm"} rounded-lg font-medium transition-all duration-200 justify-center text-center leading-tight ${
+              useGrid ? "w-full md:flex-1" : "flex-1"
+            } ${
               active
                 ? "shadow-soft"
                 : "text-ink-secondary hover:text-ink hover:bg-white/50"
