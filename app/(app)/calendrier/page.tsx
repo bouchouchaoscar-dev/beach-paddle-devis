@@ -17,6 +17,7 @@ import { calculateDevis } from "@/lib/calculations";
 import { buildAutoDescription } from "@/lib/autoDescription";
 import { DURATION_LABELS, DURATIONS } from "@/lib/pricing";
 import { DocumentPreview } from "@/components/document/DocumentPreview";
+import { DatePicker } from "@/components/ui/DatePicker";
 import type { DevisRecord, ActivityType, Duration } from "@/lib/types";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -770,12 +771,14 @@ function EventModal({
   onClose,
   onUpdate,
   onDelete,
+  onNavigate,
 }: {
   event: CalendarEvent;
   payment?: PaymentDetection;
   onClose: () => void;
   onUpdate: (id: string, patch: Partial<CalendarEvent>) => Promise<void>;
   onDelete: (id: string, devisId?: string | null) => Promise<void>;
+  onNavigate?: (date: string) => void;
 }) {
   const cs = getClientStyle(event.type_client);
   const days = daysUntil(event.date_event);
@@ -812,6 +815,10 @@ function EventModal({
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // non-manual date edit
+  const [eventDate, setEventDate] = useState(event.date_event);
+  const [editingDate, setEditingDate] = useState(false);
 
   // manual edit fields
   const [titre, setTitre] = useState(event.titre);
@@ -951,6 +958,30 @@ function EventModal({
     }
   }
 
+  async function saveDate(newDate: string) {
+    if (!newDate || newDate === eventDate) { setEditingDate(false); return; }
+    setSaving(true);
+    try {
+      await onUpdate(event.id, { date_event: newDate });
+      if (event.devis_id) {
+        const record = devisRecord ?? await getDevisById(event.devis_id);
+        if (record) {
+          const newFormData = { ...record.formData, date: newDate };
+          newFormData.prestationDescription = buildAutoDescription(newFormData);
+          const updated = { ...record, date: newDate, formData: newFormData };
+          await saveDevis(updated);
+          setDevisRecord(updated);
+        }
+      }
+      setEventDate(newDate);
+      setEditingDate(false);
+      onClose();
+      if (onNavigate) onNavigate(newDate);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handleDelete() {
     setDeleting(true);
     try {
@@ -1043,42 +1074,68 @@ function EventModal({
               {/* Date & heure */}
               <div className="flex items-center gap-2 text-sm text-gray-600 flex-wrap">
                 <IcoCal s={13} />
-                <span>{longDateLabel(event.date_event)}</span>
-                {!editingHeure ? (
-                  heure ? (
-                    <div className="flex items-center gap-1">
-                      <span>· {formatH(heure)}</span>
+                {/* Date avec bouton modifier */}
+                {editingDate ? (
+                  <div className="flex-1 min-w-0">
+                    <DatePicker
+                      value={eventDate}
+                      onChange={saveDate}
+                      allowPast
+                      autoOpen
+                    />
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1">
+                    <span>{longDateLabel(eventDate)}</span>
+                    {!saving && !savingField && (
                       <button
-                        onClick={() => setEditingHeure(true)}
+                        onClick={() => setEditingDate(true)}
                         className="p-0.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
-                        title="Modifier l'heure"
+                        title="Modifier la date"
                       >
                         <IcoPencil s={11} />
                       </button>
-                    </div>
+                    )}
+                  </div>
+                )}
+                {/* Heure — masquée quand on édite la date */}
+                {!editingDate && (
+                  !editingHeure ? (
+                    heure ? (
+                      <div className="flex items-center gap-1">
+                        <span>· {formatH(heure)}</span>
+                        <button
+                          onClick={() => setEditingHeure(true)}
+                          className="p-0.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                          title="Modifier l'heure"
+                        >
+                          <IcoPencil s={11} />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setEditingHeure(true)}
+                        className="text-xs font-semibold ml-0.5 hover:underline"
+                        style={{ color: "#0071E3" }}
+                      >
+                        + Ajouter une heure
+                      </button>
+                    )
                   ) : (
-                    <button
-                      onClick={() => setEditingHeure(true)}
-                      className="text-xs font-semibold ml-0.5 hover:underline"
-                      style={{ color: "#0071E3" }}
+                    <select
+                      autoFocus
+                      value={heure}
+                      onChange={(e) => saveHeure(e.target.value)}
+                      onBlur={() => setEditingHeure(false)}
+                      disabled={saving}
+                      className="text-sm border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#0071E3]/20 focus:border-[#0071E3] disabled:opacity-50"
                     >
-                      + Ajouter une heure
-                    </button>
+                      <option value="">— Non définie</option>
+                      {TIME_OPTS.map((t) => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
                   )
-                ) : (
-                  <select
-                    autoFocus
-                    value={heure}
-                    onChange={(e) => saveHeure(e.target.value)}
-                    onBlur={() => setEditingHeure(false)}
-                    disabled={saving}
-                    className="text-sm border border-gray-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#0071E3]/20 focus:border-[#0071E3] disabled:opacity-50"
-                  >
-                    <option value="">— Non définie</option>
-                    {TIME_OPTS.map((t) => (
-                      <option key={t} value={t}>{t}</option>
-                    ))}
-                  </select>
                 )}
               </div>
 
@@ -1730,6 +1787,13 @@ export default function CalendarPage() {
     setSelectedEvent(null);
   }
 
+  function handleNavigate(dateStr: string) {
+    const d = new Date(dateStr + "T12:00:00");
+    d.setHours(0, 0, 0, 0);
+    setCurrentDate(d);
+    // fetchRange change triggers loadEvents automatically
+  }
+
   async function handleSaveManual(ev: Partial<CalendarEvent>) {
     const newEv = await createCalendarEvent({
       titre: ev.titre ?? "",
@@ -1905,6 +1969,7 @@ export default function CalendarPage() {
           onClose={() => setSelectedEvent(null)}
           onUpdate={handleUpdateEvent}
           onDelete={handleDeleteEvent}
+          onNavigate={handleNavigate}
         />
       )}
       {showAdd && (

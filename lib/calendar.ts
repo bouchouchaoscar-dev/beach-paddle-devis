@@ -1,5 +1,6 @@
 import { supabase } from "./supabase";
 import { getSession } from "./auth";
+import type { DevisRecord } from "./types";
 
 export interface CalendarEvent {
   id: string;
@@ -98,6 +99,52 @@ export async function getAcompteEntries(): Promise<AcompteEntry[]> {
   } catch {
     return [];
   }
+}
+
+const CAL_ACT_LABELS: Record<string, string> = {
+  paddle: "Paddle",
+  kayak: "Kayak",
+  hybride: "Paddle + Kayak",
+  mega_paddle: "MégaPaddle",
+};
+
+/** Synchronise calendar_events depuis un DevisRecord sauvegardé (best-effort). */
+export async function syncCalendarEventFromDevis(record: DevisRecord): Promise<void> {
+  const { data, error: findErr } = await supabase
+    .from("calendar_events")
+    .select("id")
+    .eq("devis_id", record.id)
+    .eq("manuel", false)
+    .maybeSingle();
+
+  if (findErr || !data) return;
+
+  const fd = record.formData;
+  const dateEvent = fd.date || record.date;
+  if (!dateEvent) return;
+
+  const activite = fd.activity && fd.activity !== "none" ? fd.activity : null;
+  const actLabel = activite ? (CAL_ACT_LABELS[activite] ?? null) : null;
+  const titre =
+    [actLabel, record.clientName].filter(Boolean).join(" — ") ||
+    record.clientName ||
+    "Sans titre";
+
+  const { error } = await supabase
+    .from("calendar_events")
+    .update({
+      titre,
+      date_event: dateEvent,
+      heure_debut: fd.heureDebut?.trim() || null,
+      type_client: record.clientType,
+      nom_client: record.clientName,
+      activite,
+      nb_personnes: fd.participantsCount ?? null,
+      montant: record.totalNet,
+    })
+    .eq("id", data.id);
+
+  if (error) console.warn("[calendar] syncCalendarEventFromDevis error", error.message);
 }
 
 export async function getTodayEventCount(): Promise<number> {

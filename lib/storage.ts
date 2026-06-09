@@ -1,7 +1,7 @@
 import type { DevisRecord } from "./types";
 import { supabase } from "./supabase";
 import { getSession } from "./auth";
-import { deleteCalendarEventByDevisId } from "./calendar";
+import { deleteCalendarEventByDevisId, syncCalendarEventFromDevis } from "./calendar";
 import { buildAutoDescription } from "./autoDescription";
 
 // ── localStorage helpers (fallback) ─────────────────────────────────────────
@@ -84,6 +84,11 @@ export async function saveDevis(record: DevisRecord): Promise<{ source: "supabas
     lsSave(record);
     return { source: "localStorage" };
   }
+
+  // Sync calendar_events if a linked event exists — fire-and-forget
+  syncCalendarEventFromDevis(record).catch((e) =>
+    console.warn("[storage] calendar sync failed:", (e as Error)?.message)
+  );
 
   return { source: "supabase" };
 }

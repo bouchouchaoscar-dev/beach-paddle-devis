@@ -7,6 +7,8 @@ interface Props {
   onChange: (value: string) => void;
   /** Autoriser la sélection de dates passées (ex : saisie CA rétroactive) */
   allowPast?: boolean;
+  /** Ouvrir le calendrier immédiatement au montage */
+  autoOpen?: boolean;
 }
 
 const MONTHS = [
@@ -48,10 +50,10 @@ function getFirstDayOfWeek(year: number, month: number): number {
   return (new Date(year, month, 1).getDay() + 6) % 7;
 }
 
-export function DatePicker({ value, onChange, allowPast = false }: Props) {
+export function DatePicker({ value, onChange, allowPast = false, autoOpen = false }: Props) {
   const today = new Date();
   const selected = parseDate(value);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(autoOpen);
   const [viewYear, setViewYear] = useState(
     () => selected?.getFullYear() ?? today.getFullYear()
   );
