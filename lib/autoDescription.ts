@@ -20,10 +20,14 @@ function formatDateCourt(dateStr: string): string {
 
 function buildGroupPhrase(form: DevisFormData): string {
   const n = form.participantsCount;
+  const z = form.discount.accompagnatorsCount;
   if (form.clientType === "scolaire" || form.clientType === "loisirs") {
-    const z = form.discount.accompagnatorsCount;
     const y = Math.max(0, n - z);
     return `pour un groupe de ${n} personnes dont ${y} élèves et ${z} accompagnateurs`;
+  }
+  if (form.clientType === "association" && form.discount.accompagnatorsEnabled && z > 0) {
+    const y = Math.max(0, n - z);
+    return `pour un groupe de ${n} personnes dont ${y} membres et ${z} accompagnateurs`;
   }
   return `pour ${n} personnes`;
 }

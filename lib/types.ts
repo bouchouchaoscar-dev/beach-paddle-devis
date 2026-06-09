@@ -1,4 +1,4 @@
-export type ClientType = "entreprise" | "scolaire" | "loisirs";
+export type ClientType = "entreprise" | "association" | "scolaire" | "loisirs";
 export type ActivityType = "paddle" | "kayak" | "hybride" | "none";
 export type Duration = "30min" | "1h" | "1h30" | "2h";
 export type DocumentType = "devis" | "facture";

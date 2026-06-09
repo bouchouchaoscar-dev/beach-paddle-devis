@@ -13,6 +13,7 @@ interface Props {
 
 const CLIENT_OPTIONS: { value: ClientType; label: string }[] = [
   { value: "entreprise", label: "Entreprise" },
+  { value: "association", label: "Association" },
   { value: "scolaire", label: "Établissement scolaire" },
   { value: "loisirs", label: "Service Jeunesse" },
 ];
@@ -102,8 +103,8 @@ export function BlocClient({ form, onChange }: Props) {
               discount: {
                 ...form.discount,
                 discountEnabled: true,
-                accompagnatorsEnabled: true,
-                extraDiscountEnabled: true,
+                accompagnatorsEnabled: v === "scolaire" || v === "loisirs",
+                extraDiscountEnabled: v === "scolaire" || v === "loisirs",
                 discountRate: 10,
                 extraDiscountRate: 10,
               },
@@ -116,7 +117,7 @@ export function BlocClient({ form, onChange }: Props) {
       {/* Nom client */}
       <div>
         <label className="label">
-          {form.clientType === "entreprise" ? "Nom de l'entreprise" : "Nom de l'établissement"}
+          {form.clientType === "entreprise" ? "Nom de l'entreprise" : form.clientType === "association" ? "Nom de l'association" : "Nom de l'établissement"}
           <span className="text-brand-red ml-1">*</span>
         </label>
         <input
@@ -127,6 +128,8 @@ export function BlocClient({ form, onChange }: Props) {
           placeholder={
             form.clientType === "entreprise"
               ? "ex: Société ACME"
+              : form.clientType === "association"
+              ? "ex: Association sportive du Val-de-Marne"
               : "ex: École Jean Moulin"
           }
           required

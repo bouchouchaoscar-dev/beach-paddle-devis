@@ -45,6 +45,16 @@ export function calculateDevis(
     discountAmount = round2(totalBrut * (form.discount.discountRate / 100));
     totalDiscount = discountAmount;
     totalNet = round2(totalBrut - discountAmount);
+  } else if (form.clientType === "association") {
+    if (form.discount.discountEnabled) {
+      discountAmount = round2(totalBrut * (form.discount.discountRate / 100));
+    }
+    if (form.discount.accompagnatorsEnabled && form.discount.accompagnatorsCount > 0) {
+      const pricePerPerson = totalBrut > 0 ? round2(totalBrut / n) : 0;
+      accompagnatorsCost = round2(pricePerPerson * form.discount.accompagnatorsCount);
+    }
+    totalDiscount = round2(discountAmount + accompagnatorsCost);
+    totalNet = round2(totalBrut - totalDiscount);
   } else if (
     form.clientType === "scolaire" ||
     form.clientType === "loisirs"

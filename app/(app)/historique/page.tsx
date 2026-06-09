@@ -12,9 +12,10 @@ type FilterType = "all" | "devis" | "facture";
 
 // ── Badge styles ─────────────────────────────────────────────────────────────
 const CLIENT_BADGE: Record<string, { bg: string; color: string; label: string }> = {
-  entreprise: { bg: "rgba(0,113,227,0.10)", color: "#0071E3", label: "Entreprise" },
-  scolaire: { bg: "rgba(22,163,74,0.10)", color: "#16A34A", label: "Établissement scolaire" },
-  loisirs: { bg: "rgba(232,130,12,0.12)", color: "#B45309", label: "Service Jeunesse" },
+  entreprise:  { bg: "rgba(0,113,227,0.10)",   color: "#0071E3", label: "Entreprise" },
+  association: { bg: "rgba(124,58,237,0.10)",  color: "#7C3AED", label: "Assoc." },
+  scolaire:    { bg: "rgba(22,163,74,0.10)",   color: "#16A34A", label: "Établissement scolaire" },
+  loisirs:     { bg: "rgba(232,130,12,0.12)",  color: "#B45309", label: "Service Jeunesse" },
 };
 
 function formatHeure(h: string): string {
@@ -242,7 +243,7 @@ export default function HistoriquePage() {
               const durationLabel = fd?.duration ? DURATION_LABELS[fd.duration] : null;
 
               const isGroupeAccomp =
-                (record.clientType === "scolaire" || record.clientType === "loisirs") &&
+                (record.clientType === "scolaire" || record.clientType === "loisirs" || record.clientType === "association") &&
                 fd?.discount?.accompagnatorsEnabled &&
                 (fd?.discount?.accompagnatorsCount ?? 0) > 0;
               const nbAccomp = fd?.discount?.accompagnatorsCount ?? 0;

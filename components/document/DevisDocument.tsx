@@ -362,11 +362,14 @@ export function DevisDocument({
 
   const clientLabel =
     form.clientType === "entreprise" ? "SOCIÉTÉ" :
+    form.clientType === "association" ? "ASSOCIATION" :
     form.clientType === "loisirs" ? "SERVICE JEUNESSE" : "ÉTABLISSEMENT";
 
   const discountLabel =
     form.clientType === "entreprise"
       ? "REMISE EXCEPTIONNELLE GROUPE ENTREPRISE"
+      : form.clientType === "association"
+      ? "REMISE EXCEPTIONNELLE GROUPE ASSOCIATION"
       : form.clientType === "scolaire"
       ? "REMISE EXCEPTIONNELLE ÉTABLISSEMENT SCOLAIRE"
       : "REMISE EXCEPTIONNELLE SERVICE JEUNESSE";

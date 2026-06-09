@@ -89,6 +89,7 @@ export const ACTIVITY_LABELS: Record<ActivityType, string> = {
 
 export const CLIENT_TYPE_LABELS = {
   entreprise: "Entreprise",
+  association: "Association",
   scolaire: "Établissement scolaire",
   loisirs: "Service Jeunesse",
 } as const;

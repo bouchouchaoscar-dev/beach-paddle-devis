@@ -38,17 +38,19 @@ const ACT_LABELS: Record<string, string> = {
 };
 
 const TYPE_SHORT: Record<string, string> = {
-  entreprise: "Entr.",
-  scolaire: "École",
-  loisirs: "S.J.",
-  service_jeunesse: "S.J.",
+  entreprise:      "Entr.",
+  association:     "Assoc.",
+  scolaire:        "École",
+  loisirs:         "S.J.",
+  service_jeunesse:"S.J.",
 };
 
 const TYPE_EMOJI: Record<string, string> = {
-  entreprise: "🏢",
-  scolaire: "🏫",
-  loisirs: "🎯",
-  service_jeunesse: "🎯",
+  entreprise:      "🏢",
+  association:     "🤝",
+  scolaire:        "🏫",
+  loisirs:         "🎯",
+  service_jeunesse:"🎯",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
