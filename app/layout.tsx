@@ -5,8 +5,9 @@ export const metadata: Metadata = {
   title: "Beach Paddle Admin",
   description: "Outil de gestion Beach Paddle",
   icons: {
-    icon: "/icon.png",
-    apple: "/apple-icon.png",
+    icon: [{ url: "/logo.png", type: "image/png" }],
+    apple: [{ url: "/logo.png", type: "image/png" }],
+    shortcut: [{ url: "/logo.png", type: "image/png" }],
   },
 };
 
