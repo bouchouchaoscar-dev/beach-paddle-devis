@@ -51,7 +51,7 @@ const ACTIVITY_OPTIONS: { value: ActivityType; label: string; icon: React.ReactN
   },
   {
     value: "mega_paddle",
-    label: "Méga Paddle",
+    label: "MégaPaddle",
     icon: (
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M2 20h20M4 20V14l8-6 8 6v6M10 20v-5h4v5"/>
@@ -123,23 +123,23 @@ export function BlocActivite({ form, onChange }: Props) {
         />
       </div>
 
-      {/* Méga Paddle — sélection embarcations */}
+      {/* MégaPaddle — sélection embarcations */}
       {form.activity === "mega_paddle" && (
         <div className="border border-surface-border rounded-xl p-4 space-y-4" style={ANIM}>
           <CountStepper
-            label="Nombre de Méga Paddles"
+            label="Nombre de MégaPaddles"
             value={mp}
             min={me > 0 ? 0 : 1}
             onDecrement={() => onChange({ megaPaddleCount: Math.max(me > 0 ? 0 : 1, mp - 1) })}
             onIncrement={() => onChange({ megaPaddleCount: mp + 1 })}
           />
           <CountStepper
-            label="Nombre de Méga Escapes"
+            label="Nombre de MégaScapes"
             value={me}
             min={0}
             onDecrement={() => onChange({ megaEscapeCount: Math.max(0, me - 1) })}
             onIncrement={() => onChange({ megaEscapeCount: me + 1 })}
-            hint="Le Méga Escape dispose de 4 sièges"
+            hint="Le MégaScape dispose de 4 sièges"
           />
           {mp === 0 && me === 0 && (
             <p className="text-xs text-brand-red font-medium">Au moins 1 embarcation requise</p>
@@ -194,7 +194,7 @@ export function BlocActivite({ form, onChange }: Props) {
           <span className="text-ink-secondary">
             {form.activity === "paddle" ? "Stand Up Paddle" :
              form.activity === "kayak" ? "Kayak" :
-             form.activity === "mega_paddle" ? "Méga Paddle" :
+             form.activity === "mega_paddle" ? "MégaPaddle" :
              "Hybride"}{" "}
             — {DURATION_LABELS[form.duration]}
           </span>

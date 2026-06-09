@@ -20,17 +20,17 @@ function formatDateCourt(dateStr: string): string {
 
 function buildMegaPaddlePhrase(mp: number, me: number, group: string, dur: string, dateTime: string): string {
   const prep = (n: number) => n === 1 ? "d'" : "de ";
-  const mpLabel = (n: number) => n === 1 ? "1 Méga Paddle" : `${n} Méga Paddles`;
+  const mpLabel = (n: number) => n === 1 ? "1 MégaPaddle" : `${n} MégaPaddles`;
   const meLabel = (n: number) => {
     const seats = n === 1 ? " (4 sièges)" : " (4 sièges chacun)";
-    return n === 1 ? `1 Méga Escape${seats}` : `${n} Méga Escapes${seats}`;
+    return n === 1 ? `1 MégaScape${seats}` : `${n} MégaScapes${seats}`;
   };
   if (mp > 0 && me > 0) {
     return `Location ${prep(mp)}${mpLabel(mp)} et ${meLabel(me)} ${group} — ${dur}${dateTime}.`;
   }
   if (mp > 0) return `Location ${prep(mp)}${mpLabel(mp)} ${group} — ${dur}${dateTime}.`;
   if (me > 0) return `Location ${prep(me)}${meLabel(me)} ${group} — ${dur}${dateTime}.`;
-  return `Location de Méga Paddle ${group} — ${dur}${dateTime}.`;
+  return `Location de MégaPaddle ${group} — ${dur}${dateTime}.`;
 }
 
 function buildGroupPhrase(form: DevisFormData): string {

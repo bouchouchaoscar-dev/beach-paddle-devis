@@ -45,10 +45,10 @@ function getActivityDescription(
   if (activity === "mega_paddle") {
     const parts: string[] = [];
     if (megaPaddleCount > 0)
-      parts.push(`${megaPaddleCount} Méga Paddle${megaPaddleCount > 1 ? "s" : ""}`);
+      parts.push(`${megaPaddleCount} MégaPaddle${megaPaddleCount > 1 ? "s" : ""}`);
     if (megaEscapeCount > 0) {
       const seats = megaEscapeCount === 1 ? " (4 sièges)" : " (4 sièges chacun)";
-      parts.push(`${megaEscapeCount} Méga Escape${megaEscapeCount > 1 ? "s" : ""}${seats}`);
+      parts.push(`${megaEscapeCount} MégaScape${megaEscapeCount > 1 ? "s" : ""}${seats}`);
     }
     return `Mise à disposition de ${parts.join(" et ")} pour ${n} personnes — ${durationLabel}${time}`;
   }

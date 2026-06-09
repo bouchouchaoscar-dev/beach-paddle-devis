@@ -54,7 +54,8 @@ function DashboardContent() {
 
     const isAutoTrigger =
       isActivityOrDuration ||
-      ["heureDebut", "participantsCount", "snackingItems", "coach", "clientType", "discount", "date", "dateADefinir"].some(
+      ["heureDebut", "participantsCount", "snackingItems", "coach", "clientType", "discount", "date", "dateADefinir",
+       "megaPaddleCount", "megaEscapeCount"].some(
         (f) => f in patch
       );
 

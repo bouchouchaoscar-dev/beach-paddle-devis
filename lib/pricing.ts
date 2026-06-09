@@ -92,7 +92,7 @@ export const ACTIVITY_LABELS: Record<ActivityType, string> = {
   paddle: "Stand Up Paddle",
   kayak: "Kayak",
   hybride: "Hybride (Paddle + Kayak)",
-  mega_paddle: "Méga Paddle",
+  mega_paddle: "MégaPaddle",
   none: "Aucune activité",
 };
 

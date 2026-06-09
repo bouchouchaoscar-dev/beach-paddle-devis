@@ -35,7 +35,7 @@ const ACT_LABELS: Record<string, string> = {
   paddle: "Paddle",
   kayak: "Kayak",
   hybride: "Paddle + Kayak",
-  mega_paddle: "Méga Paddle",
+  mega_paddle: "MégaPaddle",
 };
 
 const TYPE_SHORT: Record<string, string> = {
@@ -1083,7 +1083,7 @@ function EventModal({
                       <option value="paddle">Paddle</option>
                       <option value="kayak">Kayak</option>
                       <option value="hybride">Hybride</option>
-                      <option value="mega_paddle">Méga Paddle</option>
+                      <option value="mega_paddle">MégaPaddle</option>
                     </select>
                   ) : (
                     <div className="text-sm font-bold text-gray-800 flex items-center gap-1">

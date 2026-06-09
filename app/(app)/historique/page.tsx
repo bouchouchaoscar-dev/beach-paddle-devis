@@ -247,7 +247,7 @@ export default function HistoriquePage() {
                 fd?.activity === "paddle" ? "Paddle" :
                 fd?.activity === "kayak" ? "Kayak" :
                 fd?.activity === "hybride" ? "Paddle + Kayak" :
-                fd?.activity === "mega_paddle" ? "Méga Paddle" : null;
+                fd?.activity === "mega_paddle" ? "MégaPaddle" : null;
               const activityBadgeStyle = fd?.activity === "mega_paddle"
                 ? { backgroundColor: "rgba(13,148,136,0.12)", color: "#0D9488" }
                 : { backgroundColor: "rgba(0,113,227,0.10)", color: "#0071E3" };
