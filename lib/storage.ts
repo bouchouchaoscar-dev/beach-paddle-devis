@@ -2,6 +2,7 @@ import type { DevisRecord } from "./types";
 import { supabase } from "./supabase";
 import { getSession } from "./auth";
 import { deleteCalendarEventByDevisId } from "./calendar";
+import { buildAutoDescription, isAutoDescription } from "./autoDescription";
 
 // ── localStorage helpers (fallback) ─────────────────────────────────────────
 
@@ -100,7 +101,11 @@ export async function deleteDevis(id: string): Promise<void> {
 export async function updateDevisHeure(id: string, heure: string): Promise<void> {
   const record = await getDevisById(id);
   if (!record) return;
-  await saveDevis({ ...record, formData: { ...record.formData, heureDebut: heure } });
+  const newFormData = { ...record.formData, heureDebut: heure };
+  if (isAutoDescription(record.formData)) {
+    newFormData.prestationDescription = buildAutoDescription(newFormData);
+  }
+  await saveDevis({ ...record, formData: newFormData });
 }
 
 export function clearLocalCache(): void {

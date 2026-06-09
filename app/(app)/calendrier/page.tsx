@@ -14,8 +14,10 @@ import {
 import { getSession } from "@/lib/auth";
 import { getDevisById, updateDevisHeure, deleteDevis, saveDevis } from "@/lib/storage";
 import { calculateDevis } from "@/lib/calculations";
+import { buildAutoDescription, isAutoDescription } from "@/lib/autoDescription";
+import { DURATION_LABELS, DURATIONS } from "@/lib/pricing";
 import { DocumentPreview } from "@/components/document/DocumentPreview";
-import type { DevisRecord, ActivityType } from "@/lib/types";
+import type { DevisRecord, ActivityType, Duration } from "@/lib/types";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -763,10 +765,24 @@ function EventModal({
   const [nomClient, setNomClient] = useState(event.nom_client ?? "");
   const [nbPersonnes, setNbPersonnes] = useState<number>(event.nb_personnes ?? 0);
   const [activite, setActivite] = useState(event.activite ?? "");
+  const [duration, setDuration] = useState<Duration | "">("");
   const [editingNom, setEditingNom] = useState(false);
   const [editingNb, setEditingNb] = useState(false);
   const [editingActiv, setEditingActiv] = useState(false);
+  const [editingDuration, setEditingDuration] = useState(false);
   const [savingField, setSavingField] = useState<string | null>(null);
+  // cached devis record — loaded once on mount for non-manual events
+  const [devisRecord, setDevisRecord] = useState<DevisRecord | null>(null);
+
+  useEffect(() => {
+    if (!event.devis_id) return;
+    getDevisById(event.devis_id).then((r) => {
+      if (!r) return;
+      setDevisRecord(r);
+      setDuration(r.formData.duration ?? "");
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // manual edit fields
   const [titre, setTitre] = useState(event.titre);
@@ -778,8 +794,12 @@ function EventModal({
     if (!event.devis_id) return;
     setLoadingPreview(true);
     try {
+      // Always fetch fresh from Supabase — never use cached state for PDF generation
       const record = await getDevisById(event.devis_id);
-      if (record) setPreviewRecord(record);
+      if (record) {
+        setDevisRecord(record);
+        setPreviewRecord(record);
+      }
     } finally {
       setLoadingPreview(false);
     }
@@ -845,22 +865,27 @@ function EventModal({
       }
 
       if (event.devis_id) {
-        const record = await getDevisById(event.devis_id);
+        const record = devisRecord ?? await getDevisById(event.devis_id);
         if (record) {
           const newFormData = { ...record.formData };
           if (field === "nom_client") newFormData.clientName = value as string;
           if (field === "nb_personnes") newFormData.participantsCount = value as number;
           if (field === "activite") newFormData.activity = ((value as string) || "none") as ActivityType;
+          if (isAutoDescription(record.formData)) {
+            newFormData.prestationDescription = buildAutoDescription(newFormData);
+          }
           const calc = calculateDevis(newFormData);
-          if (field === "nb_personnes") calPatch.montant = calc.totalNet;
-          await saveDevis({
+          if (field === "nb_personnes" || field === "activite") calPatch.montant = calc.totalNet;
+          const updatedRecord = {
             ...record,
             formData: newFormData,
             ...(field === "nom_client" ? { clientName: value as string } : {}),
             ...(field === "nb_personnes" ? { participantsCount: value as number } : {}),
             totalBrut: calc.totalBrut,
             totalNet: calc.totalNet,
-          });
+          };
+          await saveDevis(updatedRecord);
+          setDevisRecord(updatedRecord);
         }
       }
 
@@ -868,6 +893,27 @@ function EventModal({
       if (field === "nom_client") setEditingNom(false);
       if (field === "nb_personnes") setEditingNb(false);
       if (field === "activite") setEditingActiv(false);
+    } finally {
+      setSavingField(null);
+    }
+  }
+
+  async function saveDuration(val: Duration) {
+    setSavingField("duration");
+    try {
+      const record = devisRecord ?? (event.devis_id ? await getDevisById(event.devis_id) : null);
+      if (!record) return;
+      const newFormData = { ...record.formData, duration: val };
+      if (isAutoDescription(record.formData)) {
+        newFormData.prestationDescription = buildAutoDescription(newFormData);
+      }
+      const calc = calculateDevis(newFormData);
+      const updatedRecord = { ...record, formData: newFormData, totalBrut: calc.totalBrut, totalNet: calc.totalNet };
+      await saveDevis(updatedRecord);
+      await onUpdate(event.id, { montant: calc.totalNet });
+      setDevisRecord(updatedRecord);
+      setDuration(val);
+      setEditingDuration(false);
     } finally {
       setSavingField(null);
     }
@@ -1035,6 +1081,38 @@ function EventModal({
                       <ActivityIcon activite={activite || null} s={11} />
                       {activite ? (ACT_LABELS[activite] ?? activite) : <span className="font-normal text-gray-400">—</span>}
                       {savingField === "activite" && <span className="text-[10px] text-gray-400">...</span>}
+                    </div>
+                  )}
+                </div>
+
+                {/* Durée */}
+                <div className="rounded-xl bg-gray-50 px-3 py-2.5">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Durée</span>
+                    {!editingDuration && !savingField && (
+                      <button onClick={() => setEditingDuration(true)} className="p-0.5 rounded hover:bg-gray-200 text-gray-400 hover:text-gray-600 transition-colors" title="Modifier">
+                        <IcoPencil s={9}/>
+                      </button>
+                    )}
+                  </div>
+                  {editingDuration ? (
+                    <select
+                      autoFocus
+                      value={duration}
+                      onChange={(e) => saveDuration(e.target.value as Duration)}
+                      onBlur={() => setEditingDuration(false)}
+                      disabled={savingField === "duration"}
+                      className="w-full text-xs border border-gray-200 rounded px-1.5 py-1 focus:outline-none focus:border-[#0071E3] bg-white disabled:opacity-50"
+                    >
+                      <option value="">—</option>
+                      {DURATIONS.map((d) => (
+                        <option key={d} value={d}>{DURATION_LABELS[d]}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="text-sm font-bold text-gray-800">
+                      {duration ? DURATION_LABELS[duration] : <span className="font-normal text-gray-400">—</span>}
+                      {savingField === "duration" && <span className="text-[10px] text-gray-400 ml-1">...</span>}
                     </div>
                   )}
                 </div>
