@@ -107,7 +107,7 @@ export function BlocClient({ form, onChange }: Props) {
               />
             </div>
             <div>
-              <label className="label">Heure de début <span className="text-ink-muted font-normal">(optionnel)</span></label>
+              <label className="label">Heure de début</label>
               <select
                 value={form.heureDebut}
                 onChange={(e) => onChange({ heureDebut: e.target.value })}
