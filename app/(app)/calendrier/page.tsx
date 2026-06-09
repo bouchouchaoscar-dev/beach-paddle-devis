@@ -794,11 +794,18 @@ function EventModal({
     if (!event.devis_id) return;
     setLoadingPreview(true);
     try {
-      // Always fetch fresh from Supabase — never use cached state for PDF generation
       const record = await getDevisById(event.devis_id);
       if (record) {
-        setDevisRecord(record);
-        setPreviewRecord(record);
+        // Rebuild description from current form data to guarantee POUR block = activity row
+        const rebuiltDesc = buildAutoDescription(record.formData);
+        const freshFormData = { ...record.formData, prestationDescription: rebuiltDesc };
+        const freshRecord = { ...record, formData: freshFormData };
+        // Persist if stale (covers records saved before this fix)
+        if (rebuiltDesc !== record.formData.prestationDescription) {
+          saveDevis(freshRecord).catch(() => {});
+        }
+        setDevisRecord(freshRecord);
+        setPreviewRecord(freshRecord);
       }
     } finally {
       setLoadingPreview(false);
