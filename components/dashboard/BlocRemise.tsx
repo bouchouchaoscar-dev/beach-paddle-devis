@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import type { DevisFormData } from "@/lib/types";
 import { Toggle } from "@/components/ui/Toggle";
 import {
@@ -15,8 +16,51 @@ interface Props {
 export function BlocRemise({ form, onChange }: Props) {
   const { clientType, discount } = form;
 
+  const [rateStr, setRateStr] = useState(String(discount.discountRate));
+  const [extraRateStr, setExtraRateStr] = useState(String(discount.extraDiscountRate));
+
+  useEffect(() => {
+    setRateStr((prev) => {
+      const parsed = parseFloat(prev.replace(",", "."));
+      return parsed === discount.discountRate ? prev : String(discount.discountRate);
+    });
+  }, [discount.discountRate]);
+
+  useEffect(() => {
+    setExtraRateStr((prev) => {
+      const parsed = parseFloat(prev.replace(",", "."));
+      return parsed === discount.extraDiscountRate ? prev : String(discount.extraDiscountRate);
+    });
+  }, [discount.extraDiscountRate]);
+
   function patchDiscount(patch: Partial<DevisFormData["discount"]>) {
     onChange({ discount: { ...discount, ...patch } });
+  }
+
+  function handleRateChange(raw: string) {
+    setRateStr(raw);
+    const val = parseFloat(raw.replace(",", "."));
+    if (!isNaN(val)) patchDiscount({ discountRate: Math.min(100, Math.max(0, val)) });
+  }
+
+  function handleRateBlur() {
+    const val = parseFloat(rateStr.replace(",", "."));
+    const clamped = isNaN(val) ? discount.discountRate : Math.min(100, Math.max(0, val));
+    setRateStr(String(clamped));
+    patchDiscount({ discountRate: clamped });
+  }
+
+  function handleExtraRateChange(raw: string) {
+    setExtraRateStr(raw);
+    const val = parseFloat(raw.replace(",", "."));
+    if (!isNaN(val)) patchDiscount({ extraDiscountRate: Math.min(100, Math.max(0, val)) });
+  }
+
+  function handleExtraRateBlur() {
+    const val = parseFloat(extraRateStr.replace(",", "."));
+    const clamped = isNaN(val) ? discount.extraDiscountRate : Math.min(100, Math.max(0, val));
+    setExtraRateStr(String(clamped));
+    patchDiscount({ extraDiscountRate: clamped });
   }
 
   if (clientType === "entreprise") {
@@ -61,9 +105,15 @@ export function BlocRemise({ form, onChange }: Props) {
                   >
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
                   </button>
-                  <div className="w-14 h-9 border border-surface-border bg-white text-center flex items-center justify-center text-sm font-bold font-mono text-ink">
-                    {discount.discountRate}%
-                  </div>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={rateStr}
+                    onChange={(e) => handleRateChange(e.target.value)}
+                    onBlur={handleRateBlur}
+                    onFocus={(e) => e.target.select()}
+                    className="w-16 h-9 border border-surface-border bg-white text-center text-sm font-bold font-mono text-ink focus:outline-none focus:border-brand-red/60"
+                  />
                   <button
                     type="button"
                     onClick={() => patchDiscount({ discountRate: Math.min(100, discount.discountRate + 1) })}
@@ -182,9 +232,15 @@ export function BlocRemise({ form, onChange }: Props) {
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 </button>
-                <div className="w-14 h-9 border border-surface-border bg-white text-center flex items-center justify-center text-sm font-bold font-mono text-ink">
-                  {discount.extraDiscountRate}%
-                </div>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={extraRateStr}
+                  onChange={(e) => handleExtraRateChange(e.target.value)}
+                  onBlur={handleExtraRateBlur}
+                  onFocus={(e) => e.target.select()}
+                  className="w-16 h-9 border border-surface-border bg-white text-center text-sm font-bold font-mono text-ink focus:outline-none focus:border-brand-red/60"
+                />
                 <button
                   type="button"
                   onClick={() => patchDiscount({ extraDiscountRate: Math.min(100, discount.extraDiscountRate + 1) })}

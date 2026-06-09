@@ -4,6 +4,10 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Beach Paddle Admin",
   description: "Outil de gestion Beach Paddle",
+  icons: {
+    icon: "/icon.png",
+    apple: "/apple-icon.png",
+  },
 };
 
 export default function RootLayout({
