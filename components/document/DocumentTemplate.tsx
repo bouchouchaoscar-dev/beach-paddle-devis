@@ -19,13 +19,18 @@ const RED = "#E03131";
 const BLACK = "#1D1D1F";
 const GRAY = "#6E6E73";
 
+function formatH(h: string): string {
+  const [hh, mm] = h.split(":");
+  return !mm || mm === "00" ? `${parseInt(hh)}h` : `${parseInt(hh)}h${mm}`;
+}
+
 function getActivityDescription(
   activity: string,
   n: number,
   durationLabel: string,
   heureDebut: string
 ): string {
-  const time = heureDebut ? `, à partir de ${heureDebut}` : "";
+  const time = heureDebut ? `, à partir de ${formatH(heureDebut)}` : "";
   if (activity === "paddle") {
     return `Mise à disposition de Paddles, leash, pagaies et gilets de sauvetage pour ${n} personnes — ${durationLabel}${time}`;
   }

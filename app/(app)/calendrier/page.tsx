@@ -14,7 +14,7 @@ import {
 import { getSession } from "@/lib/auth";
 import { getDevisById, updateDevisHeure, deleteDevis, saveDevis } from "@/lib/storage";
 import { calculateDevis } from "@/lib/calculations";
-import { buildAutoDescription, isAutoDescription } from "@/lib/autoDescription";
+import { buildAutoDescription } from "@/lib/autoDescription";
 import { DURATION_LABELS, DURATIONS } from "@/lib/pricing";
 import { DocumentPreview } from "@/components/document/DocumentPreview";
 import type { DevisRecord, ActivityType, Duration } from "@/lib/types";
@@ -871,9 +871,7 @@ function EventModal({
           if (field === "nom_client") newFormData.clientName = value as string;
           if (field === "nb_personnes") newFormData.participantsCount = value as number;
           if (field === "activite") newFormData.activity = ((value as string) || "none") as ActivityType;
-          if (isAutoDescription(record.formData)) {
-            newFormData.prestationDescription = buildAutoDescription(newFormData);
-          }
+          newFormData.prestationDescription = buildAutoDescription(newFormData);
           const calc = calculateDevis(newFormData);
           if (field === "nb_personnes" || field === "activite") calPatch.montant = calc.totalNet;
           const updatedRecord = {
@@ -904,9 +902,7 @@ function EventModal({
       const record = devisRecord ?? (event.devis_id ? await getDevisById(event.devis_id) : null);
       if (!record) return;
       const newFormData = { ...record.formData, duration: val };
-      if (isAutoDescription(record.formData)) {
-        newFormData.prestationDescription = buildAutoDescription(newFormData);
-      }
+      newFormData.prestationDescription = buildAutoDescription(newFormData);
       const calc = calculateDevis(newFormData);
       const updatedRecord = { ...record, formData: newFormData, totalBrut: calc.totalBrut, totalNet: calc.totalNet };
       await saveDevis(updatedRecord);

@@ -42,8 +42,13 @@ const CONTACT_BY_USER: Record<string, { phone: string; email: string }> = {
   pascal: { phone: "07 60 83 98 30", email: "contact@beachpaddle.fr" },
 };
 
+function formatH(h: string): string {
+  const [hh, mm] = h.split(":");
+  return !mm || mm === "00" ? `${parseInt(hh)}h` : `${parseInt(hh)}h${mm}`;
+}
+
 function activityDesc(activity: string, n: number, dur: string, heure: string): string {
-  const t = heure ? `, à partir de ${heure}` : "";
+  const t = heure ? `, à partir de ${formatH(heure)}` : "";
   if (activity === "paddle")
     return `Mise à disposition de Paddles, leash, pagaies et gilets de sauvetage pour ${n} personnes — ${dur}${t}`;
   if (activity === "kayak")
