@@ -224,13 +224,37 @@ const TIME_OPTS = Array.from({ length: 25 }, (_, i) => {
 
 function ActivityIcon({ activite, s = 11 }: { activite?: string | null; s?: number }) {
   if (activite === "paddle")
-    return <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3l4 4m14 14l-4-4M17 3l-4 4-4-4M7 21l4-4 4 4"/></svg>;
+    return (
+      <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="9" y1="3" x2="15" y2="3"/>
+        <line x1="12" y1="3" x2="12" y2="14"/>
+        <path d="M8 14c0 4 1.8 6.5 4 6.5s4-2.5 4-6.5H8z"/>
+      </svg>
+    );
   if (activite === "kayak")
-    return <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12h20M5 7l7 5 7-5M5 17l7-5 7 5"/></svg>;
+    return (
+      <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="5" y1="12" x2="19" y2="12"/>
+        <path d="M5 7Q1 12 5 17Q9 12 5 7Z"/>
+        <path d="M19 7Q23 12 19 17Q15 12 19 7Z"/>
+      </svg>
+    );
   if (activite === "hybride")
-    return <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>;
+    return (
+      <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+      </svg>
+    );
   if (activite === "mega_paddle")
-    return <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 20h20M4 20V14l8-6 8 6v6M10 20v-5h4v5"/></svg>;
+    return (
+      <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="2" y1="20" x2="22" y2="20"/>
+        <path d="M5 20V15l7-4 7 4v5"/>
+        <line x1="9" y1="15" x2="9" y2="11"/>
+        <line x1="15" y1="15" x2="15" y2="11"/>
+        <line x1="9" y1="11" x2="15" y2="11"/>
+      </svg>
+    );
   return null;
 }
 

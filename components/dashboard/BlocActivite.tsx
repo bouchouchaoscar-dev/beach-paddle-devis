@@ -27,7 +27,9 @@ const ACTIVITY_OPTIONS: { value: ActivityType; label: string; icon: React.ReactN
     label: "Paddle",
     icon: (
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M3 17l4-4 4 4 4-4 4 4"/><path d="M3 7l4 4 4-4 4 4 4-4"/>
+        <line x1="9" y1="3" x2="15" y2="3"/>
+        <line x1="12" y1="3" x2="12" y2="14"/>
+        <path d="M8 14c0 4 1.8 6.5 4 6.5s4-2.5 4-6.5H8z"/>
       </svg>
     ),
   },
@@ -36,7 +38,9 @@ const ACTIVITY_OPTIONS: { value: ActivityType; label: string; icon: React.ReactN
     label: "Kayak",
     icon: (
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M2 12h20M12 2v20M4.93 4.93l14.14 14.14M19.07 4.93L4.93 19.07"/>
+        <line x1="5" y1="12" x2="19" y2="12"/>
+        <path d="M5 7Q1 12 5 17Q9 12 5 7Z"/>
+        <path d="M19 7Q23 12 19 17Q15 12 19 7Z"/>
       </svg>
     ),
   },
@@ -45,7 +49,7 @@ const ACTIVITY_OPTIONS: { value: ActivityType; label: string; icon: React.ReactN
     label: "Hybride",
     icon: (
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
       </svg>
     ),
   },
@@ -54,7 +58,11 @@ const ACTIVITY_OPTIONS: { value: ActivityType; label: string; icon: React.ReactN
     label: "MégaPaddle",
     icon: (
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M2 20h20M4 20V14l8-6 8 6v6M10 20v-5h4v5"/>
+        <line x1="2" y1="20" x2="22" y2="20"/>
+        <path d="M5 20V15l7-4 7 4v5"/>
+        <line x1="9" y1="15" x2="9" y2="11"/>
+        <line x1="15" y1="15" x2="15" y2="11"/>
+        <line x1="9" y1="11" x2="15" y2="11"/>
       </svg>
     ),
   },
