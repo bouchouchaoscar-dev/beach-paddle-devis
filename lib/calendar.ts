@@ -108,17 +108,9 @@ const CAL_ACT_LABELS: Record<string, string> = {
   mega_paddle: "MégaPaddle",
 };
 
-/** Synchronise calendar_events depuis un DevisRecord sauvegardé (best-effort). */
+/** Synchronise calendar_events depuis un DevisRecord sauvegardé (best-effort).
+ *  Crée l'événement s'il n'existe pas encore, le met à jour sinon. */
 export async function syncCalendarEventFromDevis(record: DevisRecord): Promise<void> {
-  const { data, error: findErr } = await supabase
-    .from("calendar_events")
-    .select("id")
-    .eq("devis_id", record.id)
-    .eq("manuel", false)
-    .maybeSingle();
-
-  if (findErr || !data) return;
-
   const fd = record.formData;
   const dateEvent = fd.date || record.date;
   if (!dateEvent) return;
@@ -130,21 +122,48 @@ export async function syncCalendarEventFromDevis(record: DevisRecord): Promise<v
     record.clientName ||
     "Sans titre";
 
-  const { error } = await supabase
-    .from("calendar_events")
-    .update({
-      titre,
-      date_event: dateEvent,
-      heure_debut: fd.heureDebut?.trim() || null,
-      type_client: record.clientType,
-      nom_client: record.clientName,
-      activite,
-      nb_personnes: fd.participantsCount ?? null,
-      montant: record.totalNet,
-    })
-    .eq("id", data.id);
+  const payload = {
+    titre,
+    date_event: dateEvent,
+    heure_debut: fd.heureDebut?.trim() || null,
+    type_client: record.clientType,
+    nom_client: record.clientName,
+    activite,
+    nb_personnes: fd.participantsCount ?? null,
+    montant: record.totalNet,
+  };
 
-  if (error) console.warn("[calendar] syncCalendarEventFromDevis error", error.message);
+  // Chercher un événement existant lié à ce devis (non manuel, non supprimé)
+  const { data: existing, error: findErr } = await supabase
+    .from("calendar_events")
+    .select("id, supprime_manuellement")
+    .eq("devis_id", record.id)
+    .eq("manuel", false)
+    .maybeSingle();
+
+  if (findErr) {
+    console.warn("[calendar] syncCalendarEventFromDevis find error", findErr.message);
+    return;
+  }
+
+  if (existing) {
+    // Ne pas ressusciter un événement supprimé manuellement
+    if (existing.supprime_manuellement) return;
+    const { error } = await supabase
+      .from("calendar_events")
+      .update(payload)
+      .eq("id", existing.id);
+    if (error) console.warn("[calendar] syncCalendarEventFromDevis update error", error.message);
+  } else {
+    // Créer l'événement s'il n'existe pas encore
+    const { error } = await supabase.from("calendar_events").insert({
+      ...payload,
+      devis_id: record.id,
+      manuel: false,
+      created_by: "sync",
+    });
+    if (error) console.warn("[calendar] syncCalendarEventFromDevis insert error", error.message);
+  }
 }
 
 export async function getTodayEventCount(): Promise<number> {
