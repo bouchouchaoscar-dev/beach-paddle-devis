@@ -1664,6 +1664,7 @@ export default function CalendarPage() {
   const [acompteEntries, setAcompteEntries] = useState<AcompteEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [syncToast, setSyncToast] = useState<{ created: number; updated: number; missing: number; errors: string[] } | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [debugData, setDebugData] = useState<Record<string, unknown> | null>(null);
@@ -1700,14 +1701,30 @@ export default function CalendarPage() {
 
   const handleSync = useCallback(async () => {
     setSyncing(true);
+    setSyncToast(null);
     try {
-      await fetch("/api/calendar-sync", { method: "POST" });
-      const [eventsData, acomptes] = await Promise.all([
+      const syncRes = await fetch("/api/calendar-sync", { method: "POST" });
+      const syncResult = await syncRes.json() as { created?: number; updated?: number; createErrors?: string[]; error?: string };
+
+      // Get full diagnostic after sync (all dates, not just current range)
+      const [diagRes, eventsData, acomptes] = await Promise.all([
+        fetch("/api/calendar-debug").then(r => r.json()) as Promise<{ missingCount?: number; missing?: { date: string; clientName: string; numero: string }[] }>,
         getCalendarEventsInRange(fetchRange.from, fetchRange.to),
         getAcompteEntries(),
       ]);
+
       setEvents(eventsData);
       setAcompteEntries(acomptes);
+      setSyncToast({
+        created: syncResult.created ?? 0,
+        updated: syncResult.updated ?? 0,
+        missing: diagRes.missingCount ?? 0,
+        errors: syncResult.createErrors ?? (syncResult.error ? [syncResult.error] : []),
+      });
+      // Auto-hide toast after 8s if no errors and nothing missing
+      if ((diagRes.missingCount ?? 0) === 0 && (syncResult.createErrors ?? []).length === 0) {
+        setTimeout(() => setSyncToast(null), 8000);
+      }
     } finally {
       setSyncing(false);
       setLoading(false);
@@ -1872,6 +1889,34 @@ export default function CalendarPage() {
 
   return (
     <div className="flex flex-col bg-white" style={{ height: "calc(100dvh - 56px)" }}>
+      {/* ── Sync toast ── */}
+      {syncToast && (
+        <div className={`shrink-0 px-4 py-2 flex items-center gap-3 text-xs font-semibold border-b ${
+          syncToast.errors.length > 0 ? "bg-red-50 border-red-200 text-red-700" :
+          syncToast.missing > 0 ? "bg-amber-50 border-amber-200 text-amber-800" :
+          "bg-green-50 border-green-200 text-green-700"
+        }`}>
+          {syncToast.errors.length > 0 ? (
+            <>
+              <span>Erreur sync — {syncToast.errors[0]}</span>
+              {syncToast.errors[0].includes("unique") || syncToast.errors[0].includes("23505") ? (
+                <span className="font-bold">→ Exécute sql_calendar_events_fix.sql dans Supabase SQL Editor</span>
+              ) : null}
+            </>
+          ) : syncToast.missing > 0 ? (
+            <>
+              <span>{syncToast.created} créé{syncToast.created !== 1 ? "s" : ""} · {syncToast.updated} mis à jour</span>
+              <span className="font-bold text-red-600">{syncToast.missing} devis encore sans événement — clique ⓘ pour diagnostiquer</span>
+            </>
+          ) : (
+            <span>Sync OK — {syncToast.created} créé{syncToast.created !== 1 ? "s" : ""} · {syncToast.updated} mis à jour · tout est synchronisé</span>
+          )}
+          <button onClick={() => setSyncToast(null)} className="ml-auto shrink-0 opacity-50 hover:opacity-100">
+            <IcoX s={12} />
+          </button>
+        </div>
+      )}
+
       {/* ── Header ── */}
       <div className="flex items-center gap-2 px-3 sm:px-5 h-13 sm:h-14 border-b border-gray-100 bg-white shrink-0" style={{ minHeight: "52px" }}>
         {/* Nav arrows */}
@@ -2148,19 +2193,36 @@ export default function CalendarPage() {
                     {debugData.missingCount as number} encore manquants après sync :
                   </p>
                   <div className="space-y-1.5">
-                    {(debugData.missing as Array<{ numero: string; clientName: string; date: string; dateSource: string }>).map((d, i) => (
-                      <div key={i} className="flex items-center gap-3 px-3 py-2 rounded-xl bg-red-50 border border-red-100">
-                        <div className="flex-1 min-w-0">
-                          <span className="font-mono text-xs font-bold text-[#0071E3]">{d.numero}</span>
-                          <span className="text-xs text-gray-700 ml-2">{d.clientName}</span>
+                    {(debugData.missing as Array<{ numero: string; clientName: string; date: string; dateSource: string }>).map((d, i) => {
+                      const inRange = d.date >= fetchRange.from && d.date <= fetchRange.to;
+                      return (
+                        <div key={i} className={`flex items-center gap-3 px-3 py-2 rounded-xl border ${inRange ? "bg-red-50 border-red-200" : "bg-gray-50 border-gray-200"}`}>
+                          <div className="flex-1 min-w-0">
+                            <span className="font-mono text-xs font-bold text-[#0071E3]">{d.numero}</span>
+                            <span className="text-xs text-gray-700 ml-2">{d.clientName}</span>
+                          </div>
+                          <span className={`text-xs font-semibold shrink-0 ${inRange ? "text-red-600" : "text-gray-400"}`}>{d.date}</span>
+                          {!inRange && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-semibold shrink-0">hors vue</span>
+                          )}
+                          {d.dateSource === "formData" && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-semibold shrink-0">formData</span>
+                          )}
                         </div>
-                        <span className="text-xs text-gray-500 shrink-0">{d.date}</span>
-                        {d.dateSource === "formData" && (
-                          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-semibold shrink-0">formData</span>
-                        )}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
+                  {(debugData.missing as Array<{ date: string }>).some(d => d.date < fetchRange.from || d.date > fetchRange.to) && (
+                    <p className="text-[10px] text-blue-600 mt-3 font-medium">
+                      Les entrées "hors vue" existent bien dans le calendrier — navigue vers leur mois pour les voir.
+                    </p>
+                  )}
+                  {(debugData.missing as Array<{ date: string }>).some(d => d.date >= fetchRange.from && d.date <= fetchRange.to) && (
+                    <p className="text-[10px] text-red-600 mt-2 font-bold">
+                      Les entrées en rouge sont dans le mois visible mais absentes. Cause probable : contrainte UNIQUE sur date_event.
+                      Exécute <code className="bg-red-100 px-1 rounded">data/sql_calendar_events_fix.sql</code> dans Supabase SQL Editor.
+                    </p>
+                  )}
                 </>
               )}
             </div>
