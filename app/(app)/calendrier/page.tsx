@@ -1666,6 +1666,8 @@ export default function CalendarPage() {
   const [syncing, setSyncing] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [debugData, setDebugData] = useState<Record<string, unknown> | null>(null);
+  const [loadingDebug, setLoadingDebug] = useState(false);
   const today = useMemo(todayDate, []);
   const mountedRef = useRef(false);
 
@@ -1843,6 +1845,19 @@ export default function CalendarPage() {
     }
   }
 
+  async function handleDebug() {
+    setLoadingDebug(true);
+    try {
+      const res = await fetch("/api/calendar-debug");
+      const data = await res.json();
+      setDebugData(data);
+    } catch (e) {
+      setDebugData({ error: String(e) });
+    } finally {
+      setLoadingDebug(false);
+    }
+  }
+
   const isAtToday = isSameDay(currentDate, today);
 
   return (
@@ -1911,7 +1926,7 @@ export default function CalendarPage() {
           ))}
         </div>
 
-        {/* Sync + Add */}
+        {/* Sync + Debug + Add */}
         <div className="flex items-center gap-1.5 shrink-0">
           <button
             onClick={handleSync}
@@ -1922,6 +1937,20 @@ export default function CalendarPage() {
             <span className={syncing ? "block animate-spin" : "block"}>
               <IcoSync s={14} />
             </span>
+          </button>
+          <button
+            onClick={handleDebug}
+            disabled={loadingDebug}
+            title="Debug calendrier — diagnostiquer les événements manquants"
+            className="p-2 rounded-xl text-gray-400 hover:bg-amber-50 hover:text-amber-600 transition-colors disabled:opacity-50 text-[11px] font-bold"
+          >
+            {loadingDebug ? (
+              <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+            )}
           </button>
           <button
             onClick={() => setShowAdd(true)}
@@ -2004,6 +2033,103 @@ export default function CalendarPage() {
           onClose={() => setShowAdd(false)}
           onSave={handleSaveManual}
         />
+      )}
+
+      {/* ── Debug Panel ── */}
+      {debugData && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-6"
+          style={{ backgroundColor: "rgba(0,0,0,0.55)", backdropFilter: "blur(3px)" }}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden"
+            style={{ animation: "slideUp 0.25s cubic-bezier(0.16,1,0.3,1) forwards" }}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+              <div>
+                <p className="font-bold text-gray-900 text-sm">Debug Calendrier</p>
+                <p className="text-xs text-gray-400 mt-0.5">Diagnostic de synchronisation</p>
+              </div>
+              <button
+                onClick={() => setDebugData(null)}
+                className="p-2 rounded-xl text-gray-400 hover:bg-gray-100 transition-colors"
+              >
+                <IcoX s={16} />
+              </button>
+            </div>
+
+            {/* Stats grid */}
+            <div className="px-5 py-4 grid grid-cols-2 sm:grid-cols-4 gap-3 border-b border-gray-100">
+              {[
+                { label: "Total devis", value: debugData.totalDocs as number, color: "#0071E3" },
+                { label: "Avec date", value: debugData.docsWithAnyDate as number, color: "#16A34A" },
+                { label: "Événements calendrier", value: debugData.calendarEventsActive as number, color: "#7C3AED" },
+                { label: "Manquants", value: debugData.missingCount as number, color: (debugData.missingCount as number) > 0 ? "#DC2626" : "#16A34A" },
+              ].map(s => (
+                <div key={s.label} className="rounded-xl border border-gray-100 p-3 text-center">
+                  <p className="text-2xl font-black" style={{ color: s.color }}>{s.value}</p>
+                  <p className="text-[10px] text-gray-400 font-medium mt-0.5">{s.label}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Details */}
+            <div className="px-5 py-3 border-b border-gray-100 text-xs text-gray-500 space-y-1">
+              <p>📋 date_prestation colonne : <strong>{debugData.docsWithDateColumn as number}</strong> docs</p>
+              <p>📁 date dans formData seulement : <strong>{debugData.docsWithDateInFormData as number}</strong> docs <span className="text-amber-600">(ancienne logique les ignorait!)</span></p>
+              <p>🗓️ Événements non-manuels actifs : <strong>{debugData.calendarEventsActive as number}</strong> / {debugData.calendarEventsTotal as number} total</p>
+            </div>
+
+            {/* Missing list */}
+            <div className="flex-1 overflow-y-auto px-5 py-3">
+              {(debugData.missingCount as number) === 0 ? (
+                <p className="text-center text-green-600 font-semibold text-sm py-4">
+                  Tous les devis avec une date ont un événement calendrier
+                </p>
+              ) : (
+                <>
+                  <p className="text-xs font-bold text-red-600 mb-2">
+                    {debugData.missingCount as number} devis avec date mais SANS événement calendrier :
+                  </p>
+                  <div className="space-y-1.5">
+                    {(debugData.missing as Array<{ numero: string; clientName: string; date: string; dateSource: string }>).map((d, i) => (
+                      <div key={i} className="flex items-center gap-3 px-3 py-2 rounded-xl bg-red-50 border border-red-100">
+                        <div className="flex-1 min-w-0">
+                          <span className="font-mono text-xs font-bold text-[#0071E3]">{d.numero}</span>
+                          <span className="text-xs text-gray-700 ml-2">{d.clientName}</span>
+                        </div>
+                        <span className="text-xs text-gray-500 shrink-0">{d.date}</span>
+                        {d.dateSource === "formData" && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-semibold shrink-0">formData</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Footer — sync button */}
+            <div className="px-5 py-4 border-t border-gray-100 flex items-center justify-between gap-3">
+              <p className="text-xs text-gray-400">
+                Clique sur Sync pour créer les événements manquants
+              </p>
+              <button
+                onClick={async () => {
+                  setDebugData(null);
+                  await handleSync();
+                  await handleDebug();
+                }}
+                className="flex items-center gap-2 px-4 h-9 rounded-xl text-xs font-bold text-white transition-opacity hover:opacity-90"
+                style={{ backgroundColor: "#0071E3" }}
+              >
+                <IcoSync s={13} />
+                Sync + Re-diagnostiquer
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

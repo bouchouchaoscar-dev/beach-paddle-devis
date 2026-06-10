@@ -68,7 +68,7 @@ export async function saveDevis(record: DevisRecord): Promise<{ source: "supabas
       client_type: record.clientType,
       client_adresse: record.formData.clientAddress || null,
       date_document: new Date().toISOString().split("T")[0],
-      date_prestation: record.date || null,
+      date_prestation: record.date || (!record.formData?.dateADefinir ? record.formData?.date : null) || null,
       montant_total: record.totalBrut,
       montant_remise: record.totalBrut - record.totalNet,
       montant_final: record.totalNet,
