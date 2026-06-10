@@ -3,8 +3,11 @@
 -- À exécuter une seule fois dans l'éditeur SQL de Supabase
 -- ============================================================
 
--- 1. Supprimer toute contrainte UNIQUE portant sur date_event seul
---    (empêche plusieurs devis le même jour)
+-- 1. Supprimer la contrainte UNIQUE sur date_event (commande directe)
+ALTER TABLE calendar_events DROP CONSTRAINT IF EXISTS calendar_events_date_event_key;
+
+-- 2. Supprimer toute autre contrainte UNIQUE portant sur date_event seul
+--    (au cas où le nom serait différent)
 DO $$
 DECLARE
   cname TEXT;
@@ -28,11 +31,11 @@ BEGIN
     EXECUTE 'ALTER TABLE calendar_events DROP CONSTRAINT ' || quote_ident(cname);
     RAISE NOTICE 'Contrainte supprimée : %', cname;
   ELSE
-    RAISE NOTICE 'Pas de contrainte unique sur date_event — rien à faire';
+    RAISE NOTICE 'Pas de contrainte unique sur date_event — OK';
   END IF;
 END $$;
 
--- 2. RLS + politique anon (si pas déjà en place)
+-- 3. RLS + politique anon (si pas déjà en place)
 ALTER TABLE calendar_events ENABLE ROW LEVEL SECURITY;
 DO $$
 BEGIN
@@ -47,5 +50,7 @@ BEGIN
         USING (true) WITH CHECK (true)
     $pol$;
     RAISE NOTICE 'Politique RLS créée';
+  ELSE
+    RAISE NOTICE 'Politique RLS déjà en place';
   END IF;
 END $$;

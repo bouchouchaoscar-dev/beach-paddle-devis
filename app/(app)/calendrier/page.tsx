@@ -373,7 +373,7 @@ function MonthView({
     () => getMonthGrid(currentDate.getFullYear(), currentDate.getMonth()),
     [currentDate]
   );
-  const MAX = 3;
+  const MAX = 2;
 
   return (
     <div className="flex flex-col h-full select-none">

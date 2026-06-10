@@ -42,10 +42,13 @@ export async function getCalendarEventsInRange(from: string, to: string): Promis
     .select("*")
     .gte("date_event", from)
     .lte("date_event", to)
-    .order("date_event", { ascending: true });
+    .order("date_event", { ascending: true })
+    .order("heure_debut", { ascending: true, nullsFirst: true });
   if (error) { console.warn("[calendar] fetch error", error.message); return []; }
-  // Filter client-side — resilient if supprime_manuellement column not yet added
-  return ((data ?? []) as CalendarEvent[]).filter(e => !e.supprime_manuellement);
+  const all = (data ?? []) as CalendarEvent[];
+  const visible = all.filter(e => !e.supprime_manuellement);
+  console.log(`[calendar] fetched ${all.length} events (${visible.length} visible) ${from} → ${to}`, visible.map(e => ({ id: e.id.slice(0,8), date: e.date_event, titre: e.titre, devis_id: e.devis_id?.slice(0,8) })));
+  return visible;
 }
 
 export async function updateCalendarEvent(id: string, patch: Partial<CalendarEvent>): Promise<void> {
