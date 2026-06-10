@@ -1848,11 +1848,21 @@ export default function CalendarPage() {
   async function handleDebug() {
     setLoadingDebug(true);
     try {
-      const res = await fetch("/api/calendar-debug");
-      const data = await res.json();
-      setDebugData(data);
+      // 1. Run sync and capture full logs
+      const syncRes = await fetch("/api/calendar-sync", { method: "POST" });
+      const syncData = await syncRes.json() as { ok?: boolean; created?: number; updated?: number; log?: string[]; createErrors?: string[]; error?: string };
+
+      // 2. Get diagnostic (state AFTER sync)
+      const diagRes = await fetch("/api/calendar-debug");
+      const diagData = await diagRes.json() as Record<string, unknown>;
+
+      // 3. Refresh the calendar so newly created events appear immediately
+      const refreshed = await getCalendarEventsInRange(fetchRange.from, fetchRange.to);
+      setEvents(refreshed);
+
+      setDebugData({ ...diagData, syncLog: syncData.log ?? [], syncCreated: syncData.created ?? 0, syncUpdated: syncData.updated ?? 0, syncError: syncData.error, syncCreateErrors: syncData.createErrors ?? [] });
     } catch (e) {
-      setDebugData({ error: String(e) });
+      setDebugData({ error: String(e), syncLog: [] });
     } finally {
       setLoadingDebug(false);
     }
@@ -2074,14 +2084,59 @@ export default function CalendarPage() {
               ))}
             </div>
 
+            {/* Sync result summary */}
+            {(debugData.syncLog as string[] | undefined)?.length ? (
+              <div className="px-5 py-3 border-b border-gray-100">
+                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">Résultat de la synchronisation</p>
+                {debugData.syncError ? (
+                  <p className="text-xs text-red-600 font-semibold">Erreur sync : {debugData.syncError as string}</p>
+                ) : (
+                  <p className="text-xs text-gray-700">
+                    <span className="font-bold text-green-600">{debugData.syncCreated as number} créés</span>
+                    {" · "}
+                    <span className="font-bold text-blue-600">{debugData.syncUpdated as number} mis à jour</span>
+                    {(debugData.syncCreateErrors as string[])?.length > 0 && (
+                      <span className="font-bold text-red-600 ml-1">· {(debugData.syncCreateErrors as string[]).length} erreurs</span>
+                    )}
+                  </p>
+                )}
+                {/* Full logs */}
+                <details className="mt-2">
+                  <summary className="text-[10px] text-gray-400 cursor-pointer hover:text-gray-600">Voir les logs complets ({(debugData.syncLog as string[]).length} lignes)</summary>
+                  <div className="mt-2 bg-gray-950 rounded-xl p-3 overflow-x-auto max-h-48 overflow-y-auto">
+                    {(debugData.syncLog as string[]).map((line, i) => (
+                      <p key={i} className={`font-mono text-[10px] leading-relaxed whitespace-pre ${
+                        line.startsWith("❌") || line.startsWith("💥") ? "text-red-400" :
+                        line.startsWith("✨") ? "text-green-400" :
+                        line.startsWith("⚠️") ? "text-amber-400" :
+                        line.startsWith("📊") ? "text-blue-300 font-bold" :
+                        "text-gray-300"
+                      }`}>{line}</p>
+                    ))}
+                  </div>
+                </details>
+                {(debugData.syncCreateErrors as string[])?.length > 0 && (
+                  <div className="mt-2 p-2 bg-red-50 rounded-lg border border-red-100">
+                    <p className="text-[10px] font-bold text-red-600 mb-1">Erreurs de création :</p>
+                    {(debugData.syncCreateErrors as string[]).map((e, i) => (
+                      <p key={i} className="text-[10px] text-red-500 font-mono">{e}</p>
+                    ))}
+                    {(debugData.syncCreateErrors as string[]).some(e => e.includes("unique") || e.includes("duplicate") || e.includes("23505")) && (
+                      <p className="text-[10px] text-red-700 font-bold mt-1">→ Contrainte UNIQUE encore présente! Exécute le fichier data/sql_calendar_events_fix.sql dans Supabase SQL Editor.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : null}
+
             {/* Details */}
             <div className="px-5 py-3 border-b border-gray-100 text-xs text-gray-500 space-y-1">
               <p>📋 date_prestation colonne : <strong>{debugData.docsWithDateColumn as number}</strong> docs</p>
-              <p>📁 date dans formData seulement : <strong>{debugData.docsWithDateInFormData as number}</strong> docs <span className="text-amber-600">(ancienne logique les ignorait!)</span></p>
-              <p>🗓️ Événements non-manuels actifs : <strong>{debugData.calendarEventsActive as number}</strong> / {debugData.calendarEventsTotal as number} total</p>
+              <p>📁 date dans formData seulement : <strong>{debugData.docsWithDateInFormData as number}</strong> docs</p>
+              <p>🗓️ Événements actifs : <strong>{debugData.calendarEventsActive as number}</strong> / {debugData.calendarEventsTotal as number} total</p>
             </div>
 
-            {/* Missing list */}
+            {/* Missing list (after sync) */}
             <div className="flex-1 overflow-y-auto px-5 py-3">
               {(debugData.missingCount as number) === 0 ? (
                 <p className="text-center text-green-600 font-semibold text-sm py-4">
@@ -2090,7 +2145,7 @@ export default function CalendarPage() {
               ) : (
                 <>
                   <p className="text-xs font-bold text-red-600 mb-2">
-                    {debugData.missingCount as number} devis avec date mais SANS événement calendrier :
+                    {debugData.missingCount as number} encore manquants après sync :
                   </p>
                   <div className="space-y-1.5">
                     {(debugData.missing as Array<{ numero: string; clientName: string; date: string; dateSource: string }>).map((d, i) => (
@@ -2110,22 +2165,13 @@ export default function CalendarPage() {
               )}
             </div>
 
-            {/* Footer — sync button */}
-            <div className="px-5 py-4 border-t border-gray-100 flex items-center justify-between gap-3">
-              <p className="text-xs text-gray-400">
-                Clique sur Sync pour créer les événements manquants
-              </p>
+            {/* Footer */}
+            <div className="px-5 py-4 border-t border-gray-100 flex items-center justify-end">
               <button
-                onClick={async () => {
-                  setDebugData(null);
-                  await handleSync();
-                  await handleDebug();
-                }}
-                className="flex items-center gap-2 px-4 h-9 rounded-xl text-xs font-bold text-white transition-opacity hover:opacity-90"
-                style={{ backgroundColor: "#0071E3" }}
+                onClick={() => setDebugData(null)}
+                className="flex items-center gap-2 px-4 h-9 rounded-xl text-xs font-bold border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
               >
-                <IcoSync s={13} />
-                Sync + Re-diagnostiquer
+                Fermer
               </button>
             </div>
           </div>
