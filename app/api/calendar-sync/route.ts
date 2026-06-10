@@ -47,19 +47,28 @@ export async function POST() {
     void withColOnly;
 
     // 2. All non-manual calendar events (managed by sync)
-    const { data: existing, error: existErr } = await supabase
+    // select("*") instead of named columns — resilient to missing columns (e.g. supprime_manuellement)
+    const existResult = await supabase
       .from("calendar_events")
-      .select("id, devis_id, supprime_manuellement")
+      .select("*")
       .eq("manuel", false)
       .limit(5000);
 
-    if (existErr) return NextResponse.json({ error: existErr.message, log }, { status: 500 });
+    if (existResult.error && existResult.error.code !== "42703") {
+      return NextResponse.json({ error: existResult.error.message, log }, { status: 500 });
+    }
+    if (existResult.error) {
+      log.push(`⚠️ Colonne manquante: ${existResult.error.message}`);
+      log.push(`   → Exécute data/sql_calendar_events_fix.sql dans Supabase SQL Editor`);
+      log.push(`   → Traitement comme "aucun événement existant" — création de tous les événements`);
+    }
 
     const existingMap = new Map<string, string>(); // devis_id → event.id (active only)
     const suppressedDevisIds = new Set<string>(); // devis_ids never to re-create
-    for (const ev of existing ?? []) {
+    for (const ev of existResult.data ?? []) {
       if (!ev.devis_id) continue;
-      if (ev.supprime_manuellement) {
+      // supprime_manuellement can be undefined if column missing → treated as false (active)
+      if (ev.supprime_manuellement === true) {
         suppressedDevisIds.add(ev.devis_id as string);
       } else {
         existingMap.set(ev.devis_id as string, ev.id as string);

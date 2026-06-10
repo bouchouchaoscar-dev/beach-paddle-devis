@@ -1,13 +1,37 @@
 -- ============================================================
--- Fix: autoriser plusieurs événements le même jour
--- À exécuter une seule fois dans l'éditeur SQL de Supabase
+-- Migration complète calendar_events
+-- À exécuter UNE SEULE FOIS dans Supabase → SQL Editor
+-- Safe : toutes les commandes sont idempotentes (IF NOT EXISTS)
 -- ============================================================
 
--- 1. Supprimer la contrainte UNIQUE sur date_event (commande directe)
+-- 1. Créer la table si elle n'existe pas (cas rare)
+CREATE TABLE IF NOT EXISTS calendar_events (
+  id          UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  titre       TEXT NOT NULL,
+  date_event  DATE NOT NULL,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 2. Ajouter toutes les colonnes manquantes (sans risque si elles existent déjà)
+ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS devis_id            TEXT;
+ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS heure_debut         TEXT;
+ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS type_client         TEXT;
+ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS nom_client          TEXT;
+ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS activite            TEXT;
+ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS nb_personnes        INTEGER;
+ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS montant             NUMERIC;
+ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS acompte_recu        BOOLEAN DEFAULT FALSE;
+ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS acompte_montant     NUMERIC;
+ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS notes               TEXT;
+ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS manuel              BOOLEAN DEFAULT FALSE;
+ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS supprime_manuellement BOOLEAN DEFAULT FALSE;
+ALTER TABLE calendar_events ADD COLUMN IF NOT EXISTS created_by          TEXT;
+
+-- 3. Supprimer la contrainte UNIQUE sur date_event seul
+--    (elle empêche deux devis le même jour d'avoir chacun leur événement)
 ALTER TABLE calendar_events DROP CONSTRAINT IF EXISTS calendar_events_date_event_key;
 
--- 2. Supprimer toute autre contrainte UNIQUE portant sur date_event seul
---    (au cas où le nom serait différent)
+-- Supprimer aussi toute autre contrainte UNIQUE portant UNIQUEMENT sur date_event
 DO $$
 DECLARE
   cname TEXT;
@@ -17,25 +41,21 @@ BEGIN
   JOIN pg_class rel ON rel.oid = con.conrelid
   WHERE rel.relname = 'calendar_events'
     AND con.contype = 'u'
-    AND (
-      SELECT count(*) FROM pg_attribute att
-      WHERE att.attrelid = rel.oid AND att.attnum = ANY(con.conkey)
-    ) = 1
+    AND array_length(con.conkey, 1) = 1
     AND (
       SELECT att.attname FROM pg_attribute att
-      WHERE att.attrelid = rel.oid AND att.attnum = ANY(con.conkey)
-      LIMIT 1
+      WHERE att.attrelid = rel.oid AND att.attnum = con.conkey[1]
     ) = 'date_event';
 
   IF cname IS NOT NULL THEN
     EXECUTE 'ALTER TABLE calendar_events DROP CONSTRAINT ' || quote_ident(cname);
     RAISE NOTICE 'Contrainte supprimée : %', cname;
   ELSE
-    RAISE NOTICE 'Pas de contrainte unique sur date_event — OK';
+    RAISE NOTICE 'Aucune contrainte unique sur date_event seul — OK';
   END IF;
 END $$;
 
--- 3. RLS + politique anon (si pas déjà en place)
+-- 4. RLS + politique permissive pour la clé anon
 ALTER TABLE calendar_events ENABLE ROW LEVEL SECURITY;
 DO $$
 BEGIN
@@ -51,6 +71,12 @@ BEGIN
     $pol$;
     RAISE NOTICE 'Politique RLS créée';
   ELSE
-    RAISE NOTICE 'Politique RLS déjà en place';
+    RAISE NOTICE 'Politique RLS déjà présente';
   END IF;
 END $$;
+
+-- Vérification finale
+SELECT column_name, data_type, column_default
+FROM information_schema.columns
+WHERE table_name = 'calendar_events'
+ORDER BY ordinal_position;

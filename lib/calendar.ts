@@ -136,22 +136,29 @@ export async function syncCalendarEventFromDevis(record: DevisRecord): Promise<v
     montant: record.totalNet,
   };
 
-  // Chercher un événement existant lié à ce devis (non manuel, non supprimé)
-  const { data: existing, error: findErr } = await supabase
+  // Chercher un événement existant lié à ce devis
+  // select("*") évite les erreurs "column does not exist" si le schéma est incomplet
+  const findResult = await supabase
     .from("calendar_events")
-    .select("id, supprime_manuellement")
+    .select("*")
     .eq("devis_id", record.id)
     .eq("manuel", false)
     .maybeSingle();
 
-  if (findErr) {
-    console.warn("[calendar] syncCalendarEventFromDevis find error", findErr.message);
+  if (findResult.error && findResult.error.code !== "42703") {
+    // 42703 = undefined_column → colonne manquante, on continue (traité comme "pas d'event")
+    console.warn("[calendar] syncCalendarEventFromDevis find error", findResult.error.message);
     return;
   }
+  if (findResult.error) {
+    console.warn("[calendar] colonne manquante:", findResult.error.message, "— exécute data/sql_calendar_events_fix.sql");
+  }
+
+  const existing = findResult.data as (Record<string, unknown> & { id: string }) | null;
 
   if (existing) {
     // Ne pas ressusciter un événement supprimé manuellement
-    if (existing.supprime_manuellement) return;
+    if (existing.supprime_manuellement === true) return;
     const { error } = await supabase
       .from("calendar_events")
       .update(payload)
