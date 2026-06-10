@@ -70,11 +70,27 @@ export async function POST() {
 
       const existingId = existingMap.get(doc.id as string);
       if (existingId) {
-        await supabase.from("calendar_events").update(payload).eq("id", existingId);
-        updated++;
+        const { error: upErr } = await supabase.from("calendar_events").update(payload).eq("id", existingId);
+        if (upErr) console.error("[calendar-sync] update failed:", upErr.message, "event:", existingId);
+        else updated++;
       } else {
-        await supabase.from("calendar_events").insert(payload);
-        created++;
+        const { error: insErr } = await supabase.from("calendar_events").insert(payload);
+        if (insErr) {
+          // Insert failed (possible UNIQUE constraint on date_event — run sql_calendar_events_fix.sql)
+          // Fallback: find event by devis_id and update if it exists
+          console.error("[calendar-sync] insert failed:", insErr.message, "devis_id:", doc.id);
+          const { data: fallback } = await supabase
+            .from("calendar_events")
+            .select("id")
+            .eq("devis_id", doc.id as string)
+            .maybeSingle();
+          if (fallback) {
+            await supabase.from("calendar_events").update(payload).eq("id", fallback.id);
+            updated++;
+          }
+        } else {
+          created++;
+        }
       }
     }
 

@@ -267,10 +267,12 @@ function EventPill({
   event,
   payment,
   onClick,
+  compact = false,
 }: {
   event: CalendarEvent;
   payment?: PaymentDetection;
   onClick: () => void;
+  compact?: boolean;
 }) {
   const cs = getClientStyle(event.type_client);
   const days = daysUntil(event.date_event);
@@ -292,25 +294,29 @@ function EventPill({
       className="w-full text-left px-1.5 rounded-[6px] hover:brightness-95 transition-all overflow-hidden"
       style={{ backgroundColor: pillBg, color: pillColor }}
     >
-      {/* ── Mobile : colonne 3 lignes ── */}
-      <div className="flex flex-col items-start py-1 gap-[1px] sm:hidden" style={{ minHeight: 52 }}>
+      {/* ── Mobile : colonne 2-3 lignes ── */}
+      <div className="flex flex-col items-start py-0.5 gap-[1px] sm:hidden" style={{ minHeight: compact ? 28 : 48 }}>
         {/* Ligne 1 : emoji + type */}
-        <span className="text-[9px] font-bold opacity-75 uppercase tracking-wide leading-none whitespace-nowrap">
-          {typeEmoji}{typeLabel ? ` ${typeLabel}` : ""}
-        </span>
+        {!compact && (
+          <span className="text-[9px] font-bold opacity-75 uppercase tracking-wide leading-none whitespace-nowrap">
+            {typeEmoji}{typeLabel ? ` ${typeLabel}` : ""}
+          </span>
+        )}
         {/* Ligne 2 : nom tronqué */}
         <span className="text-[10px] font-bold leading-tight w-full overflow-hidden whitespace-nowrap" style={{ textOverflow: "ellipsis", display: "block" }}>
-          {name}
+          {compact && typeEmoji ? `${typeEmoji} ` : ""}{name}
         </span>
-        {/* Ligne 3 : heure + indicateurs paiement */}
-        <div className="flex items-center gap-0.5">
-          {event.heure_debut && (
-            <span className="text-[9px] opacity-65 font-medium leading-none">{formatH(event.heure_debut)}</span>
-          )}
-          {payment?.cas === 2 && <IcoCheckFull s={8}/>}
-          {payment?.cas === 1 && <IcoCheck s={8}/>}
-          {warn && <span style={{ color: "#EA580C" }}><IcoWarn s={8}/></span>}
-        </div>
+        {/* Ligne 3 : heure + indicateurs (masquée en mode compact) */}
+        {!compact && (
+          <div className="flex items-center gap-0.5">
+            {event.heure_debut && (
+              <span className="text-[9px] opacity-65 font-medium leading-none">{formatH(event.heure_debut)}</span>
+            )}
+            {payment?.cas === 2 && <IcoCheckFull s={8}/>}
+            {payment?.cas === 1 && <IcoCheck s={8}/>}
+            {warn && <span style={{ color: "#EA580C" }}><IcoWarn s={8}/></span>}
+          </div>
+        )}
       </div>
 
       {/* ── Desktop : ligne horizontale ── */}
@@ -413,6 +419,7 @@ function MonthView({
                     event={ev}
                     payment={paymentByEventId.get(ev.id)}
                     onClick={() => onEventClick(ev)}
+                    compact={dayEvs.length > 1}
                   />
                 ))}
                 {overflow > 0 && (
@@ -509,6 +516,11 @@ function WeekView({
                 />
               ))}
               {dayEvs.map((ev) => {
+                // Détection collision : événements à la même heure → côte à côte
+                const sameTime = dayEvs.filter(e => (e.heure_debut ?? "") === (ev.heure_debut ?? ""));
+                const colIdx = sameTime.findIndex(e => e.id === ev.id);
+                const colCount = sameTime.length;
+
                 let top = 0;
                 if (ev.heure_debut) {
                   const [hh, mm] = ev.heure_debut.split(":").map(Number);
@@ -519,13 +531,17 @@ function WeekView({
                 const cardBg = payment?.cas === 2 ? "rgba(21,128,61,0.13)" : cs.bg;
                 const cardColor = payment?.cas === 2 ? "#15803d" : cs.text;
                 const borderColor = payment?.cas === 2 ? "#15803d" : cs.text;
+
+                const colW = 100 / colCount;
                 return (
                   <button
                     key={ev.id}
                     onClick={() => onEventClick(ev)}
-                    className="absolute left-0.5 right-0.5 rounded-lg px-1.5 sm:px-2 py-1 text-left hover:brightness-95 transition-all overflow-hidden"
+                    className="absolute rounded-lg px-1.5 sm:px-2 py-1 text-left hover:brightness-95 transition-all overflow-hidden"
                     style={{
                       top: `${top + 2}px`,
+                      left: `calc(${colIdx * colW}% + 1px)`,
+                      right: `calc(${(colCount - colIdx - 1) * colW}% + 1px)`,
                       minHeight: "40px",
                       backgroundColor: cardBg,
                       color: cardColor,
@@ -633,6 +649,11 @@ function DayView({
             <div key={h} className="absolute w-full border-t border-gray-100" style={{ top: `${(h - 7) * SLOT_PX}px` }} />
           ))}
           {withTime.map((ev) => {
+            // Détection collision : événements à la même heure → côte à côte
+            const sameTime = withTime.filter(e => (e.heure_debut ?? "") === (ev.heure_debut ?? ""));
+            const colIdx = sameTime.findIndex(e => e.id === ev.id);
+            const colCount = sameTime.length;
+
             const [hh, mm] = (ev.heure_debut || "8:00").split(":").map(Number);
             const top = Math.max(0, hh - 7 + (mm || 0) / 60) * SLOT_PX;
             const payment = paymentByEventId.get(ev.id);
@@ -640,13 +661,18 @@ function DayView({
             const cardBg = payment?.cas === 2 ? "rgba(21,128,61,0.13)" : cs.bg;
             const cardColor = payment?.cas === 2 ? "#15803d" : cs.text;
             const borderColor = payment?.cas === 2 ? "#15803d" : cs.text;
+
+            const pad = 8; // px
+            const colW = 100 / colCount;
             return (
               <button
                 key={ev.id}
                 onClick={() => onEventClick(ev)}
-                className="absolute left-2 right-2 sm:left-3 sm:right-3 rounded-xl px-3 py-2.5 text-left hover:brightness-95 transition-all"
+                className="absolute rounded-xl px-3 py-2.5 text-left hover:brightness-95 transition-all"
                 style={{
                   top: `${top + 2}px`,
+                  left: `calc(${colIdx * colW}% + ${pad}px)`,
+                  right: `calc(${(colCount - colIdx - 1) * colW}% + ${pad}px)`,
                   minHeight: "52px",
                   backgroundColor: cardBg,
                   color: cardColor,
