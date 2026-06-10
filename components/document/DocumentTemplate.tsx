@@ -83,6 +83,10 @@ export function DocumentTemplate({
       ? "ASSOCIATION"
       : form.clientType === "loisirs"
       ? "SERVICE JEUNESSE"
+      : form.clientType === "organisme_public"
+      ? "ORGANISME PUBLIC"
+      : form.clientType === "particulier"
+      ? "PARTICULIER"
       : "ÉTABLISSEMENT";
   const discountLabel =
     form.clientType === "entreprise"
@@ -91,6 +95,10 @@ export function DocumentTemplate({
       ? "REMISE EXCEPTIONNELLE GROUPE ASSOCIATION"
       : form.clientType === "scolaire"
       ? "REMISE EXCEPTIONNELLE ÉTABLISSEMENT SCOLAIRE"
+      : form.clientType === "organisme_public"
+      ? "REMISE EXCEPTIONNELLE ORGANISME PUBLIC"
+      : form.clientType === "particulier"
+      ? "REMISE EXCEPTIONNELLE PARTICULIER"
       : "REMISE EXCEPTIONNELLE SERVICE JEUNESSE";
 
   return (

@@ -40,19 +40,23 @@ const ACT_LABELS: Record<string, string> = {
 };
 
 const TYPE_SHORT: Record<string, string> = {
-  entreprise:      "Entr.",
-  association:     "Assoc.",
-  scolaire:        "École",
-  loisirs:         "S.J.",
-  service_jeunesse:"S.J.",
+  entreprise:       "Entr.",
+  association:      "Assoc.",
+  scolaire:         "École",
+  loisirs:          "S.J.",
+  service_jeunesse: "S.J.",
+  organisme_public: "Org.",
+  particulier:      "Part.",
 };
 
 const TYPE_EMOJI: Record<string, string> = {
-  entreprise:      "🏢",
-  association:     "🤝",
-  scolaire:        "🏫",
-  loisirs:         "🎯",
-  service_jeunesse:"🎯",
+  entreprise:       "🏢",
+  association:      "🤝",
+  scolaire:         "🏫",
+  loisirs:          "🎯",
+  service_jeunesse: "🎯",
+  organisme_public: "🏛️",
+  particulier:      "👤",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1664,11 +1668,9 @@ export default function CalendarPage() {
   const [acompteEntries, setAcompteEntries] = useState<AcompteEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const [syncToast, setSyncToast] = useState<{ created: number; updated: number; missing: number; errors: string[] } | null>(null);
+  const [syncToast, setSyncToast] = useState<{ created: number; updated: number; errors: string[] } | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [showAdd, setShowAdd] = useState(false);
-  const [debugData, setDebugData] = useState<Record<string, unknown> | null>(null);
-  const [loadingDebug, setLoadingDebug] = useState(false);
   const today = useMemo(todayDate, []);
   const mountedRef = useRef(false);
 
@@ -1706,23 +1708,20 @@ export default function CalendarPage() {
       const syncRes = await fetch("/api/calendar-sync", { method: "POST" });
       const syncResult = await syncRes.json() as { created?: number; updated?: number; createErrors?: string[]; error?: string };
 
-      // Get full diagnostic after sync (all dates, not just current range)
-      const [diagRes, eventsData, acomptes] = await Promise.all([
-        fetch("/api/calendar-debug").then(r => r.json()) as Promise<{ missingCount?: number; missing?: { date: string; clientName: string; numero: string }[] }>,
+      const [eventsData, acomptes] = await Promise.all([
         getCalendarEventsInRange(fetchRange.from, fetchRange.to),
         getAcompteEntries(),
       ]);
 
       setEvents(eventsData);
       setAcompteEntries(acomptes);
+      const errors = syncResult.createErrors ?? (syncResult.error ? [syncResult.error] : []);
       setSyncToast({
         created: syncResult.created ?? 0,
         updated: syncResult.updated ?? 0,
-        missing: diagRes.missingCount ?? 0,
-        errors: syncResult.createErrors ?? (syncResult.error ? [syncResult.error] : []),
+        errors,
       });
-      // Auto-hide toast after 8s if no errors and nothing missing
-      if ((diagRes.missingCount ?? 0) === 0 && (syncResult.createErrors ?? []).length === 0) {
+      if (errors.length === 0) {
         setTimeout(() => setSyncToast(null), 8000);
       }
     } finally {
@@ -1862,29 +1861,6 @@ export default function CalendarPage() {
     }
   }
 
-  async function handleDebug() {
-    setLoadingDebug(true);
-    try {
-      // 1. Run sync and capture full logs
-      const syncRes = await fetch("/api/calendar-sync", { method: "POST" });
-      const syncData = await syncRes.json() as { ok?: boolean; created?: number; updated?: number; log?: string[]; createErrors?: string[]; error?: string };
-
-      // 2. Get diagnostic (state AFTER sync)
-      const diagRes = await fetch("/api/calendar-debug");
-      const diagData = await diagRes.json() as Record<string, unknown>;
-
-      // 3. Refresh the calendar so newly created events appear immediately
-      const refreshed = await getCalendarEventsInRange(fetchRange.from, fetchRange.to);
-      setEvents(refreshed);
-
-      setDebugData({ ...diagData, syncLog: syncData.log ?? [], syncCreated: syncData.created ?? 0, syncUpdated: syncData.updated ?? 0, syncError: syncData.error, syncCreateErrors: syncData.createErrors ?? [] });
-    } catch (e) {
-      setDebugData({ error: String(e), syncLog: [] });
-    } finally {
-      setLoadingDebug(false);
-    }
-  }
-
   const isAtToday = isSameDay(currentDate, today);
 
   return (
@@ -1893,7 +1869,6 @@ export default function CalendarPage() {
       {syncToast && (
         <div className={`shrink-0 px-4 py-2 flex items-center gap-3 text-xs font-semibold border-b ${
           syncToast.errors.length > 0 ? "bg-red-50 border-red-200 text-red-700" :
-          syncToast.missing > 0 ? "bg-amber-50 border-amber-200 text-amber-800" :
           "bg-green-50 border-green-200 text-green-700"
         }`}>
           {syncToast.errors.length > 0 ? (
@@ -1902,11 +1877,6 @@ export default function CalendarPage() {
               {syncToast.errors[0].includes("unique") || syncToast.errors[0].includes("23505") ? (
                 <span className="font-bold">→ Exécute sql_calendar_events_fix.sql dans Supabase SQL Editor</span>
               ) : null}
-            </>
-          ) : syncToast.missing > 0 ? (
-            <>
-              <span>{syncToast.created} créé{syncToast.created !== 1 ? "s" : ""} · {syncToast.updated} mis à jour</span>
-              <span className="font-bold text-red-600">{syncToast.missing} devis encore sans événement — clique ⓘ pour diagnostiquer</span>
             </>
           ) : (
             <span>Sync OK — {syncToast.created} créé{syncToast.created !== 1 ? "s" : ""} · {syncToast.updated} mis à jour · tout est synchronisé</span>
@@ -1981,7 +1951,7 @@ export default function CalendarPage() {
           ))}
         </div>
 
-        {/* Sync + Debug + Add */}
+        {/* Sync + Add */}
         <div className="flex items-center gap-1.5 shrink-0">
           <button
             onClick={handleSync}
@@ -1992,20 +1962,6 @@ export default function CalendarPage() {
             <span className={syncing ? "block animate-spin" : "block"}>
               <IcoSync s={14} />
             </span>
-          </button>
-          <button
-            onClick={handleDebug}
-            disabled={loadingDebug}
-            title="Debug calendrier — diagnostiquer les événements manquants"
-            className="p-2 rounded-xl text-gray-400 hover:bg-amber-50 hover:text-amber-600 transition-colors disabled:opacity-50 text-[11px] font-bold"
-          >
-            {loadingDebug ? (
-              <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
-            ) : (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-              </svg>
-            )}
           </button>
           <button
             onClick={() => setShowAdd(true)}
@@ -2090,155 +2046,6 @@ export default function CalendarPage() {
         />
       )}
 
-      {/* ── Debug Panel ── */}
-      {debugData && (
-        <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-6"
-          style={{ backgroundColor: "rgba(0,0,0,0.55)", backdropFilter: "blur(3px)" }}
-        >
-          <div
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden"
-            style={{ animation: "slideUp 0.25s cubic-bezier(0.16,1,0.3,1) forwards" }}
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-              <div>
-                <p className="font-bold text-gray-900 text-sm">Debug Calendrier</p>
-                <p className="text-xs text-gray-400 mt-0.5">Diagnostic de synchronisation</p>
-              </div>
-              <button
-                onClick={() => setDebugData(null)}
-                className="p-2 rounded-xl text-gray-400 hover:bg-gray-100 transition-colors"
-              >
-                <IcoX s={16} />
-              </button>
-            </div>
-
-            {/* Stats grid */}
-            <div className="px-5 py-4 grid grid-cols-2 sm:grid-cols-4 gap-3 border-b border-gray-100">
-              {[
-                { label: "Total devis", value: debugData.totalDocs as number, color: "#0071E3" },
-                { label: "Avec date", value: debugData.docsWithAnyDate as number, color: "#16A34A" },
-                { label: "Événements calendrier", value: debugData.calendarEventsActive as number, color: "#7C3AED" },
-                { label: "Manquants", value: debugData.missingCount as number, color: (debugData.missingCount as number) > 0 ? "#DC2626" : "#16A34A" },
-              ].map(s => (
-                <div key={s.label} className="rounded-xl border border-gray-100 p-3 text-center">
-                  <p className="text-2xl font-black" style={{ color: s.color }}>{s.value}</p>
-                  <p className="text-[10px] text-gray-400 font-medium mt-0.5">{s.label}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* Sync result summary */}
-            {(debugData.syncLog as string[] | undefined)?.length ? (
-              <div className="px-5 py-3 border-b border-gray-100">
-                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">Résultat de la synchronisation</p>
-                {debugData.syncError ? (
-                  <p className="text-xs text-red-600 font-semibold">Erreur sync : {debugData.syncError as string}</p>
-                ) : (
-                  <p className="text-xs text-gray-700">
-                    <span className="font-bold text-green-600">{debugData.syncCreated as number} créés</span>
-                    {" · "}
-                    <span className="font-bold text-blue-600">{debugData.syncUpdated as number} mis à jour</span>
-                    {(debugData.syncCreateErrors as string[])?.length > 0 && (
-                      <span className="font-bold text-red-600 ml-1">· {(debugData.syncCreateErrors as string[]).length} erreurs</span>
-                    )}
-                  </p>
-                )}
-                {/* Full logs */}
-                <details className="mt-2">
-                  <summary className="text-[10px] text-gray-400 cursor-pointer hover:text-gray-600">Voir les logs complets ({(debugData.syncLog as string[]).length} lignes)</summary>
-                  <div className="mt-2 bg-gray-950 rounded-xl p-3 overflow-x-auto max-h-48 overflow-y-auto">
-                    {(debugData.syncLog as string[]).map((line, i) => (
-                      <p key={i} className={`font-mono text-[10px] leading-relaxed whitespace-pre ${
-                        line.startsWith("❌") || line.startsWith("💥") ? "text-red-400" :
-                        line.startsWith("✨") ? "text-green-400" :
-                        line.startsWith("⚠️") ? "text-amber-400" :
-                        line.startsWith("📊") ? "text-blue-300 font-bold" :
-                        "text-gray-300"
-                      }`}>{line}</p>
-                    ))}
-                  </div>
-                </details>
-                {(debugData.syncCreateErrors as string[])?.length > 0 && (
-                  <div className="mt-2 p-2 bg-red-50 rounded-lg border border-red-100">
-                    <p className="text-[10px] font-bold text-red-600 mb-1">Erreurs de création :</p>
-                    {(debugData.syncCreateErrors as string[]).map((e, i) => (
-                      <p key={i} className="text-[10px] text-red-500 font-mono">{e}</p>
-                    ))}
-                    {(debugData.syncCreateErrors as string[]).some(e => e.includes("unique") || e.includes("duplicate") || e.includes("23505")) && (
-                      <p className="text-[10px] text-red-700 font-bold mt-1">→ Contrainte UNIQUE encore présente! Exécute le fichier data/sql_calendar_events_fix.sql dans Supabase SQL Editor.</p>
-                    )}
-                  </div>
-                )}
-              </div>
-            ) : null}
-
-            {/* Details */}
-            <div className="px-5 py-3 border-b border-gray-100 text-xs text-gray-500 space-y-1">
-              <p>📋 date_prestation colonne : <strong>{debugData.docsWithDateColumn as number}</strong> docs</p>
-              <p>📁 date dans formData seulement : <strong>{debugData.docsWithDateInFormData as number}</strong> docs</p>
-              <p>🗓️ Événements actifs : <strong>{debugData.calendarEventsActive as number}</strong> / {debugData.calendarEventsTotal as number} total</p>
-            </div>
-
-            {/* Missing list (after sync) */}
-            <div className="flex-1 overflow-y-auto px-5 py-3">
-              {(debugData.missingCount as number) === 0 ? (
-                <p className="text-center text-green-600 font-semibold text-sm py-4">
-                  Tous les devis avec une date ont un événement calendrier
-                </p>
-              ) : (
-                <>
-                  <p className="text-xs font-bold text-red-600 mb-2">
-                    {debugData.missingCount as number} encore manquants après sync :
-                  </p>
-                  <div className="space-y-1.5">
-                    {(debugData.missing as Array<{ numero: string; clientName: string; date: string; dateSource: string }>).map((d, i) => {
-                      const inRange = d.date >= fetchRange.from && d.date <= fetchRange.to;
-                      return (
-                        <div key={i} className={`flex items-center gap-3 px-3 py-2 rounded-xl border ${inRange ? "bg-red-50 border-red-200" : "bg-gray-50 border-gray-200"}`}>
-                          <div className="flex-1 min-w-0">
-                            <span className="font-mono text-xs font-bold text-[#0071E3]">{d.numero}</span>
-                            <span className="text-xs text-gray-700 ml-2">{d.clientName}</span>
-                          </div>
-                          <span className={`text-xs font-semibold shrink-0 ${inRange ? "text-red-600" : "text-gray-400"}`}>{d.date}</span>
-                          {!inRange && (
-                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 font-semibold shrink-0">hors vue</span>
-                          )}
-                          {d.dateSource === "formData" && (
-                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 font-semibold shrink-0">formData</span>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                  {(debugData.missing as Array<{ date: string }>).some(d => d.date < fetchRange.from || d.date > fetchRange.to) && (
-                    <p className="text-[10px] text-blue-600 mt-3 font-medium">
-                      Les entrées "hors vue" existent bien dans le calendrier — navigue vers leur mois pour les voir.
-                    </p>
-                  )}
-                  {(debugData.missing as Array<{ date: string }>).some(d => d.date >= fetchRange.from && d.date <= fetchRange.to) && (
-                    <p className="text-[10px] text-red-600 mt-2 font-bold">
-                      Les entrées en rouge sont dans le mois visible mais absentes. Cause probable : contrainte UNIQUE sur date_event.
-                      Exécute <code className="bg-red-100 px-1 rounded">data/sql_calendar_events_fix.sql</code> dans Supabase SQL Editor.
-                    </p>
-                  )}
-                </>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="px-5 py-4 border-t border-gray-100 flex items-center justify-end">
-              <button
-                onClick={() => setDebugData(null)}
-                className="flex items-center gap-2 px-4 h-9 rounded-xl text-xs font-bold border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
-              >
-                Fermer
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -12,10 +12,12 @@ type FilterType = "all" | "devis" | "facture";
 
 // ── Badge styles ─────────────────────────────────────────────────────────────
 const CLIENT_BADGE: Record<string, { bg: string; color: string; label: string }> = {
-  entreprise:  { bg: "rgba(0,113,227,0.10)",   color: "#0071E3", label: "Entreprise" },
-  association: { bg: "rgba(124,58,237,0.10)",  color: "#7C3AED", label: "Assoc." },
-  scolaire:    { bg: "rgba(22,163,74,0.10)",   color: "#16A34A", label: "Établissement scolaire" },
-  loisirs:     { bg: "rgba(232,130,12,0.12)",  color: "#B45309", label: "Service Jeunesse" },
+  entreprise:       { bg: "rgba(0,113,227,0.10)",   color: "#0071E3", label: "Entreprise" },
+  association:      { bg: "rgba(124,58,237,0.10)",  color: "#7C3AED", label: "Assoc." },
+  scolaire:         { bg: "rgba(22,163,74,0.10)",   color: "#16A34A", label: "Étab. scolaire" },
+  loisirs:          { bg: "rgba(232,130,12,0.12)",  color: "#B45309", label: "Service Jeunesse" },
+  organisme_public: { bg: "rgba(13,148,136,0.10)",  color: "#0D9488", label: "Org. public" },
+  particulier:      { bg: "rgba(110,110,115,0.10)", color: "#6E6E73", label: "Particulier" },
 };
 
 function formatHeure(h: string): string {

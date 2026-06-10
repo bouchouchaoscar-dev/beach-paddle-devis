@@ -23,11 +23,13 @@ export interface CalendarEvent {
 }
 
 export const CLIENT_STYLES: Record<string, { text: string; bg: string; solid: string; label: string }> = {
-  entreprise:      { text: "#0071E3", bg: "rgba(0,113,227,0.10)",  solid: "#0071E3", label: "Entreprise" },
-  association:     { text: "#7C3AED", bg: "rgba(124,58,237,0.10)", solid: "#7C3AED", label: "Association" },
-  scolaire:        { text: "#16A34A", bg: "rgba(22,163,74,0.10)",  solid: "#16A34A", label: "Scolaire" },
-  loisirs:         { text: "#EA580C", bg: "rgba(234,88,12,0.10)",  solid: "#EA580C", label: "Service Jeunesse" },
-  service_jeunesse:{ text: "#EA580C", bg: "rgba(234,88,12,0.10)",  solid: "#EA580C", label: "Service Jeunesse" },
+  entreprise:       { text: "#0071E3", bg: "rgba(0,113,227,0.10)",  solid: "#0071E3", label: "Entreprise" },
+  association:      { text: "#7C3AED", bg: "rgba(124,58,237,0.10)", solid: "#7C3AED", label: "Association" },
+  scolaire:         { text: "#16A34A", bg: "rgba(22,163,74,0.10)",  solid: "#16A34A", label: "Scolaire" },
+  loisirs:          { text: "#EA580C", bg: "rgba(234,88,12,0.10)",  solid: "#EA580C", label: "Service Jeunesse" },
+  service_jeunesse: { text: "#EA580C", bg: "rgba(234,88,12,0.10)",  solid: "#EA580C", label: "Service Jeunesse" },
+  organisme_public: { text: "#0D9488", bg: "rgba(13,148,136,0.10)", solid: "#0D9488", label: "Org. public" },
+  particulier:      { text: "#6E6E73", bg: "rgba(110,110,115,0.10)",solid: "#6E6E73", label: "Particulier" },
 };
 
 export const DEFAULT_STYLE = { text: "#6E6E73", bg: "rgba(110,110,115,0.10)", solid: "#6E6E73", label: "Manuel" };

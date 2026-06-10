@@ -1,4 +1,4 @@
-export type ClientType = "entreprise" | "association" | "scolaire" | "loisirs";
+export type ClientType = "entreprise" | "association" | "scolaire" | "loisirs" | "organisme_public" | "particulier";
 export type ActivityType = "paddle" | "kayak" | "hybride" | "mega_paddle" | "none";
 export type Duration = "30min" | "1h" | "1h30" | "2h";
 export type DocumentType = "devis" | "facture";
@@ -54,6 +54,8 @@ export interface DevisFormData {
   heureDebut: string;
   clientType: ClientType;
   clientName: string;
+  clientFirstName?: string;
+  clientLastName?: string;
   clientAddress: string;
   prestationDescription: string;
   participantsCount: number;

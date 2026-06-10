@@ -41,7 +41,10 @@ export function calculateDevis(
   let totalDiscount = 0;
   let totalNet = totalBrut;
 
-  if (form.clientType === "entreprise" && form.discount.discountEnabled) {
+  if (
+    (form.clientType === "entreprise" || form.clientType === "organisme_public" || form.clientType === "particulier") &&
+    form.discount.discountEnabled
+  ) {
     discountAmount = round2(totalBrut * (form.discount.discountRate / 100));
     totalDiscount = discountAmount;
     totalNet = round2(totalBrut - discountAmount);

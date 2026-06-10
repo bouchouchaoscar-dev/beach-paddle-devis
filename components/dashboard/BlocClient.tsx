@@ -36,7 +36,7 @@ const CLIENT_OPTIONS: { value: ClientType; label: string; icon: React.ReactNode 
   },
   {
     value: "scolaire",
-    label: "Établissement scolaire",
+    label: "Étab. scolaire",
     icon: (
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
@@ -53,9 +53,64 @@ const CLIENT_OPTIONS: { value: ClientType; label: string; icon: React.ReactNode 
       </svg>
     ),
   },
+  {
+    value: "organisme_public",
+    label: "Organisme public",
+    icon: (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="3" y1="22" x2="21" y2="22"/>
+        <line x1="6" y1="18" x2="6" y2="11"/>
+        <line x1="10" y1="18" x2="10" y2="11"/>
+        <line x1="14" y1="18" x2="14" y2="11"/>
+        <line x1="18" y1="18" x2="18" y2="11"/>
+        <polygon points="12 2 20 7 4 7"/>
+      </svg>
+    ),
+  },
+  {
+    value: "particulier",
+    label: "Particulier",
+    icon: (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+        <circle cx="12" cy="7" r="4"/>
+      </svg>
+    ),
+  },
 ];
 
+function getDiscountDefaults(v: ClientType) {
+  const isScol = v === "scolaire" || v === "loisirs";
+  return {
+    discountEnabled: v !== "particulier",
+    accompagnatorsEnabled: isScol,
+    extraDiscountEnabled: isScol,
+    discountRate: v === "particulier" ? 0 : 10,
+    extraDiscountRate: 10,
+  };
+}
+
+function getClientNameLabel(type: ClientType): string {
+  switch (type) {
+    case "entreprise": return "Nom de l'entreprise";
+    case "association": return "Nom de l'association";
+    case "organisme_public": return "Nom de l'organisme";
+    default: return "Nom de l'établissement";
+  }
+}
+
+function getClientNamePlaceholder(type: ClientType): string {
+  switch (type) {
+    case "entreprise": return "ex: Société ACME";
+    case "association": return "ex: Association sportive du Val-de-Marne";
+    case "organisme_public": return "ex: Mairie de Saint-Maur-des-Fossés";
+    default: return "ex: École Jean Moulin";
+  }
+}
+
 export function BlocClient({ form, onChange }: Props) {
+  const isParticulier = form.clientType === "particulier";
+
   return (
     <section className="card p-6 space-y-5">
       <div>
@@ -139,11 +194,7 @@ export function BlocClient({ form, onChange }: Props) {
               clientType: v,
               discount: {
                 ...form.discount,
-                discountEnabled: true,
-                accompagnatorsEnabled: v === "scolaire" || v === "loisirs",
-                extraDiscountEnabled: v === "scolaire" || v === "loisirs",
-                discountRate: 10,
-                extraDiscountRate: 10,
+                ...getDiscountDefaults(v),
               },
             })
           }
@@ -151,27 +202,66 @@ export function BlocClient({ form, onChange }: Props) {
         />
       </div>
 
-      {/* Nom client */}
-      <div>
-        <label className="label">
-          {form.clientType === "entreprise" ? "Nom de l'entreprise" : form.clientType === "association" ? "Nom de l'association" : "Nom de l'établissement"}
-          <span className="text-brand-red ml-1">*</span>
-        </label>
-        <input
-          type="text"
-          value={form.clientName}
-          onChange={(e) => onChange({ clientName: e.target.value })}
-          className="input-field"
-          placeholder={
-            form.clientType === "entreprise"
-              ? "ex: Société ACME"
-              : form.clientType === "association"
-              ? "ex: Association sportive du Val-de-Marne"
-              : "ex: École Jean Moulin"
-          }
-          required
-        />
-      </div>
+      {/* Nom client — Particulier : Prénom + Nom séparés */}
+      {isParticulier ? (
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="label">
+              Prénom <span className="text-brand-red ml-1">*</span>
+            </label>
+            <input
+              type="text"
+              value={form.clientFirstName ?? ""}
+              onChange={(e) => {
+                const firstName = e.target.value;
+                const lastName = form.clientLastName ?? "";
+                onChange({
+                  clientFirstName: firstName,
+                  clientName: [firstName, lastName].filter(Boolean).join(" "),
+                });
+              }}
+              className="input-field"
+              placeholder="ex: Marie"
+              required
+            />
+          </div>
+          <div>
+            <label className="label">
+              Nom <span className="text-brand-red ml-1">*</span>
+            </label>
+            <input
+              type="text"
+              value={form.clientLastName ?? ""}
+              onChange={(e) => {
+                const lastName = e.target.value;
+                const firstName = form.clientFirstName ?? "";
+                onChange({
+                  clientLastName: lastName,
+                  clientName: [firstName, lastName].filter(Boolean).join(" "),
+                });
+              }}
+              className="input-field"
+              placeholder="ex: Dupont"
+              required
+            />
+          </div>
+        </div>
+      ) : (
+        <div>
+          <label className="label">
+            {getClientNameLabel(form.clientType)}
+            <span className="text-brand-red ml-1">*</span>
+          </label>
+          <input
+            type="text"
+            value={form.clientName}
+            onChange={(e) => onChange({ clientName: e.target.value })}
+            className="input-field"
+            placeholder={getClientNamePlaceholder(form.clientType)}
+            required
+          />
+        </div>
+      )}
 
       {/* Adresse */}
       <div>
