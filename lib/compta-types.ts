@@ -49,6 +49,7 @@ export interface WorkSession {
   heures: number;
   montant: number;
   bonus?: number;
+  paye?: boolean;
   notes?: string;
   saison: string;
   created_at: string;

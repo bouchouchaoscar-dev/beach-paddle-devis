@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import {
   getCharges, saveCharge, updateCharge, deleteCharge,
   getEmployees, saveEmployee, updateEmployee, deleteEmployee,
-  getWorkSessions, saveWorkSession, deleteWorkSession,
+  getWorkSessions, saveWorkSession, deleteWorkSession, updateWorkSessionPaye,
   getImmobilisations, saveImmobilisation, updateImmobilisation, deleteImmobilisation,
 } from "@/lib/compta";
 import { formatPrice } from "@/lib/calculations";
@@ -81,6 +81,8 @@ export default function ChargesPage() {
   const [newEmpNom, setNewEmpNom] = useState("");
   const [newEmpTarif, setNewEmpTarif] = useState("10");
   const [addingEmp, setAddingEmp] = useState(false);
+  const [sessionPayeFilter, setSessionPayeFilter] = useState<"all" | "payees" | "non_payees">("all");
+  const [togglingPayeId, setTogglingPayeId] = useState<string | null>(null);
   const [sessionForm, setSessionForm] = useState({
     employeeId: "",
     date: new Date().toISOString().split("T")[0],
@@ -421,7 +423,26 @@ export default function ChargesPage() {
   const sessionsByEmp = viewingEmpId
     ? sessions.filter((s) => s.employee_id === viewingEmpId)
     : [];
+  const sessionsByEmpFiltered = sessionsByEmp.filter((s) => {
+    if (sessionPayeFilter === "payees") return s.paye === true;
+    if (sessionPayeFilter === "non_payees") return s.paye !== true;
+    return true;
+  });
   const viewingEmp = employees.find((e) => e.id === viewingEmpId);
+
+  async function handleTogglePaye(sessionId: string, newPaye: boolean) {
+    setTogglingPayeId(sessionId);
+    try {
+      await updateWorkSessionPaye(sessionId, newPaye);
+      setSessions((prev) =>
+        prev.map((s) => (s.id === sessionId ? { ...s, paye: newPaye } : s))
+      );
+    } catch (e) {
+      console.warn("[paye] toggle error", e);
+    } finally {
+      setTogglingPayeId(null);
+    }
+  }
 
   const sessionHoursPreview = sessionForm.heureDebut && sessionForm.heureFin
     ? calcSessionHours(sessionForm.heureDebut, sessionForm.heureFin)
@@ -817,57 +838,126 @@ export default function ChargesPage() {
               {/* View employee sessions */}
               {viewingEmpId && viewingEmp && (
                 <div className="mt-4 border-t border-surface-border pt-4">
-                  <p className="text-xs font-semibold text-ink mb-2">{viewingEmp.nom} — Sessions {saison !== "all" ? saison : ""}</p>
+                  <p className="text-xs font-semibold text-ink mb-3">{viewingEmp.nom} — Sessions {saison !== "all" ? saison : ""}</p>
+
+                  {/* Filtres paiement */}
+                  {sessionsByEmp.length > 0 && (
+                    <div className="flex items-center gap-1 mb-2 p-0.5 bg-surface-muted rounded-lg border border-surface-border w-fit">
+                      {([
+                        { key: "all",       label: "Toutes" },
+                        { key: "payees",    label: "✅ Payées" },
+                        { key: "non_payees", label: "⏳ Non payées" },
+                      ] as const).map(({ key, label }) => (
+                        <button
+                          key={key}
+                          onClick={() => setSessionPayeFilter(key)}
+                          className={`px-2 py-1 rounded-md text-[10px] font-semibold transition-all ${
+                            sessionPayeFilter === key
+                              ? "bg-white shadow-sm text-ink"
+                              : "text-ink-muted hover:text-ink"
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
                   {sessionsByEmp.length === 0 ? (
                     <p className="text-xs text-ink-muted">Aucune session</p>
+                  ) : sessionsByEmpFiltered.length === 0 ? (
+                    <p className="text-xs text-ink-muted italic">Aucune session dans ce filtre</p>
                   ) : (
                     <div className="space-y-1">
-                      {sessionsByEmp.map((s) => (
-                        <div key={s.id} className="text-xs px-2 py-1.5 rounded-lg bg-surface-muted">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-ink-muted font-mono">{fmtDate(s.date)}</span>
-                            <span className="text-ink">{s.heures}h</span>
-                            <div className="flex items-center gap-1.5 ml-auto">
-                              {(s.bonus ?? 0) > 0 && (
-                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 font-semibold text-[10px]">
-                                  🎁 +{formatPrice(s.bonus!)}
-                                </span>
-                              )}
-                              <span className="text-ink font-semibold font-mono">{formatPrice(s.montant)}</span>
-                            </div>
-                            <button onClick={() => deleteWorkSession(s.id).then(load)} className="text-ink-muted hover:text-brand-red">
-                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                      {(() => {
-                        const totalBase = sessionsByEmp.reduce((s, ws) => s + ws.montant - (ws.bonus ?? 0), 0);
-                        const totalBonus = sessionsByEmp.reduce((s, ws) => s + (ws.bonus ?? 0), 0);
-                        const totalGlobal = sessionsByEmp.reduce((s, ws) => s + ws.montant, 0);
+                      {sessionsByEmpFiltered.map((s) => {
+                        const isPaye = s.paye === true;
+                        const isToggling = togglingPayeId === s.id;
                         return (
-                          <div className="mt-1 px-2 py-2 rounded-xl bg-brand-teal-light border border-brand-teal/20">
-                            {totalBonus > 0 ? (
-                              <div className="space-y-0.5 text-xs">
-                                <div className="flex justify-between text-ink-secondary">
-                                  <span>Base ({sessionsByEmp.length} sess. · {sessionsByEmp.reduce((s, ws) => s + ws.heures, 0)}h)</span>
-                                  <span className="font-mono">{formatPrice(totalBase)}</span>
+                          <div
+                            key={s.id}
+                            className={`text-xs px-2 py-1.5 rounded-lg transition-colors ${
+                              isPaye ? "bg-green-50 border border-green-100" : "bg-surface-muted"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className={`font-mono ${isPaye ? "text-green-700/70" : "text-ink-muted"}`}>{fmtDate(s.date)}</span>
+                              <span className={isPaye ? "text-green-700/70" : "text-ink"}>{s.heures}h</span>
+                              <div className="flex items-center gap-1.5 ml-auto">
+                                {(s.bonus ?? 0) > 0 && (
+                                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 font-semibold text-[10px]">
+                                    🎁 +{formatPrice(s.bonus!)}
+                                  </span>
+                                )}
+                                <span className={`font-semibold font-mono ${isPaye ? "text-green-700/70" : "text-ink"}`}>{formatPrice(s.montant)}</span>
+                              </div>
+                              {/* Bouton paiement */}
+                              <button
+                                onClick={() => handleTogglePaye(s.id, !isPaye)}
+                                disabled={isToggling}
+                                title={isPaye ? "Annuler le paiement" : "Marquer comme payé"}
+                                className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-semibold transition-all disabled:opacity-50 ${
+                                  isPaye
+                                    ? "bg-green-100 text-green-700 hover:bg-green-200"
+                                    : "bg-surface-border text-ink-muted hover:bg-[#E8820C]/10 hover:text-[#E8820C]"
+                                }`}
+                              >
+                                {isToggling ? (
+                                  <svg className="animate-spin" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                                ) : isPaye ? (
+                                  <span>✅ Payé</span>
+                                ) : (
+                                  <span>💰 Payer</span>
+                                )}
+                              </button>
+                              <button onClick={() => deleteWorkSession(s.id).then(load)} className="text-ink-muted hover:text-brand-red shrink-0">
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {(() => {
+                        const totalBase   = sessionsByEmp.reduce((acc, ws) => acc + ws.montant - (ws.bonus ?? 0), 0);
+                        const totalBonus  = sessionsByEmp.reduce((acc, ws) => acc + (ws.bonus ?? 0), 0);
+                        const totalGlobal = sessionsByEmp.reduce((acc, ws) => acc + ws.montant, 0);
+                        const totalPaye   = sessionsByEmp.filter((ws) => ws.paye === true).reduce((acc, ws) => acc + ws.montant, 0);
+                        const totalNonPaye = totalGlobal - totalPaye;
+                        return (
+                          <div className="mt-1 space-y-1">
+                            {/* Récap payé / non payé */}
+                            <div className="px-2 py-2 rounded-xl bg-green-50 border border-green-100 flex items-center justify-between text-xs">
+                              <span className="text-green-700 font-semibold">✅ Payé</span>
+                              <span className="font-mono font-bold text-green-700">{formatPrice(totalPaye)}</span>
+                            </div>
+                            <div className="px-2 py-2 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-between text-xs">
+                              <span className="text-amber-700 font-semibold">⏳ Non payé</span>
+                              <span className="font-mono font-bold text-amber-700">{formatPrice(totalNonPaye)}</span>
+                            </div>
+                            {/* Total global inchangé */}
+                            <div className="px-2 py-2 rounded-xl bg-brand-teal-light border border-brand-teal/20">
+                              {totalBonus > 0 ? (
+                                <div className="space-y-0.5 text-xs">
+                                  <div className="flex justify-between text-ink-secondary">
+                                    <span>Base ({sessionsByEmp.length} sess. · {sessionsByEmp.reduce((acc, ws) => acc + ws.heures, 0)}h)</span>
+                                    <span className="font-mono">{formatPrice(totalBase)}</span>
+                                  </div>
+                                  <div className="flex justify-between text-green-700 font-semibold">
+                                    <span>Bonus</span>
+                                    <span className="font-mono">+{formatPrice(totalBonus)}</span>
+                                  </div>
+                                  <div className="flex justify-between font-bold text-brand-teal border-t border-brand-teal/20 pt-1">
+                                    <span>Total global</span>
+                                    <span className="font-mono">{formatPrice(totalGlobal)}</span>
+                                  </div>
                                 </div>
-                                <div className="flex justify-between text-green-700 font-semibold">
-                                  <span>Bonus</span>
-                                  <span className="font-mono">+{formatPrice(totalBonus)}</span>
-                                </div>
-                                <div className="flex justify-between font-bold text-brand-teal border-t border-brand-teal/20 pt-1">
-                                  <span>Total</span>
+                              ) : (
+                                <div className="flex justify-between text-xs font-semibold text-brand-teal">
+                                  <span>{sessionsByEmp.length} session{sessionsByEmp.length > 1 ? "s" : ""} · {sessionsByEmp.reduce((acc, ws) => acc + ws.heures, 0)}h</span>
                                   <span className="font-mono">{formatPrice(totalGlobal)}</span>
                                 </div>
-                              </div>
-                            ) : (
-                              <div className="flex justify-between text-xs font-semibold text-brand-teal">
-                                <span>{sessionsByEmp.length} session{sessionsByEmp.length > 1 ? "s" : ""} · {sessionsByEmp.reduce((s, ws) => s + ws.heures, 0)}h</span>
-                                <span className="font-mono">{formatPrice(totalGlobal)}</span>
-                              </div>
-                            )}
+                              )}
+                            </div>
                           </div>
                         );
                       })()}

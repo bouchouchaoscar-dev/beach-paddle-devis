@@ -131,6 +131,11 @@ export async function deleteWorkSession(id: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+export async function updateWorkSessionPaye(id: string, paye: boolean): Promise<void> {
+  const { error } = await supabase.from("work_sessions").update({ paye }).eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
 // ── Immobilisations ──────────────────────────────────────────────────────────
 
 export async function getImmobilisations(): Promise<Immobilisation[]> {
