@@ -15,11 +15,12 @@ export async function POST() {
   const log: string[] = [];
 
   try {
-    // 1. ALL documents — no date_prestation filter (some old records have it null
-    //    but a valid date inside donnees_completes.formData.date)
+    // 1. DEVIS only — factures ne créent jamais d'événement calendrier (évite les doublons
+    //    lors d'une conversion devis → facture qui génère un nouveau document avec un nouvel ID)
     const { data: rawDocs, error: docsErr } = await supabase
       .from("documents")
       .select("id, client_nom, client_type, date_prestation, montant_final, acompte, donnees_completes")
+      .eq("type", "devis")
       .order("created_at", { ascending: false })
       .limit(5000);
 
