@@ -517,6 +517,7 @@ export default function HistoriquePage() {
           onFormChange={() => {}}
           readOnly
           existingNumero={selectedRecord.numero}
+          existingId={selectedRecord.id}
         />
       )}
     </>

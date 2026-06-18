@@ -88,7 +88,9 @@ interface Props {
 
 export function DocumentPreview({ form, calc, onClose, onFormChange, readOnly, existingNumero, existingId }: Props) {
   const [documentType, setDocumentType] = useState<DocumentType>(form.documentType);
-  const [acompteVerse, setAcompteVerse] = useState<string>("");
+  const [acompteVerse, setAcompteVerse] = useState<string>(() =>
+    form.acompteVerse !== undefined && form.acompteVerse > 0 ? String(form.acompteVerse) : ""
+  );
   const [generating, setGenerating] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "local" | "error">("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -169,8 +171,11 @@ export function DocumentPreview({ form, calc, onClose, onFormChange, readOnly, e
 
   // ── Resauvegarde quand documentType ou acompte change ────────────────────────
   // Garde la facture à jour dans Supabase sans attendre le téléchargement PDF.
+  // Autorisé quand : nouveau doc (readOnly=false) ou existingId fourni (update depuis historique).
   useEffect(() => {
-    if (readOnly || !hasSavedOnce.current) return;
+    const canSave = !readOnly || !!existingId;
+    const isReady = hasSavedOnce.current || !!existingId;
+    if (!canSave || !isReady) return;
     const timer = setTimeout(() => {
       const f = formRef.current;
       const c = calcRef.current;
@@ -290,7 +295,9 @@ export function DocumentPreview({ form, calc, onClose, onFormChange, readOnly, e
       // Re-sauvegarder avec le documentType et l'acompte définitifs.
       // La sauvegarde au montage utilisait l'état initial — si l'utilisateur
       // a basculé en facture ou saisi un acompte, on met à jour le record.
-      if (!readOnly && numero) {
+      // On sauvegarde aussi depuis les archives (readOnly=true) si on connaît
+      // l'existingId (mise à jour sans doublon) pour persister l'acompte saisi.
+      if (numero && (!readOnly || existingId)) {
         const updatedRecord: import("@/lib/types").DevisRecord = {
           id: recordId.current,
           numero,
