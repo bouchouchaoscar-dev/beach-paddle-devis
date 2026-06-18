@@ -8,7 +8,7 @@ export function NumericInput(props: Props) {
   return (
     <input
       {...props}
-      type="number"
+      type="text"
       autoComplete="off"
       autoCorrect="off"
       autoCapitalize="off"

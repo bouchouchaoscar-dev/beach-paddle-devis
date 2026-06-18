@@ -129,7 +129,7 @@ export function DocumentPreview({ form, calc, onClose, onFormChange, readOnly, e
     return () => ro.disconnect();
   }, []);
 
-  const acompteNum = parseFloat(acompteVerse) || 0;
+  const acompteNum = parseFloat(acompteVerse.replace(",", ".")) || 0;
   const calcWithAcompte = calculateDevis(form, acompteNum > 0 ? acompteNum : undefined);
 
   // ── Téléchargement PDF ───────────────────────────────────────────────────────
@@ -184,6 +184,33 @@ export function DocumentPreview({ form, calc, onClose, onFormChange, readOnly, e
       document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 10000);
 
+      // Re-sauvegarder avec le documentType et l'acompte définitifs.
+      // La sauvegarde au montage utilisait l'état initial — si l'utilisateur
+      // a basculé en facture ou saisi un acompte, on met à jour le record.
+      if (!readOnly && numero) {
+        const updatedRecord: import("@/lib/types").DevisRecord = {
+          id: recordId.current,
+          numero,
+          date: form.date,
+          createdAt: Date.now(),
+          clientType: form.clientType,
+          clientName: form.clientName,
+          prestationDescription: form.prestationDescription,
+          participantsCount: form.participantsCount,
+          totalBrut: calc.totalBrut,
+          totalNet: calc.totalNet,
+          documentType,
+          formData: {
+            ...form,
+            documentType,
+            acompteVerse: acompteNum > 0 ? acompteNum : undefined,
+          },
+        };
+        saveDevis(updatedRecord).catch((e: unknown) =>
+          console.error("[PDF] Re-save failed:", e instanceof Error ? e.message : e)
+        );
+      }
+
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Erreur inconnue";
       console.error("[PDF] Génération échouée:", msg);
@@ -229,7 +256,7 @@ export function DocumentPreview({ form, calc, onClose, onFormChange, readOnly, e
         {!compact && (
           <button
             type="button"
-            onClick={() => setAcompteVerse((v) => String(Math.max(0, (parseFloat(v) || 0) - 10)))}
+            onClick={() => setAcompteVerse((v) => String(Math.max(0, (parseFloat(v.replace(",", ".")) || 0) - 10)))}
             className="flex items-center justify-center w-9 h-9 rounded-l-xl border border-r-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border hover:text-ink transition-colors active:scale-95"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12" /></svg>
@@ -239,18 +266,17 @@ export function DocumentPreview({ form, calc, onClose, onFormChange, readOnly, e
           <NumericInput
             inputMode="decimal"
             value={acompteVerse}
-            min={0}
-            step={10}
             placeholder="0"
+            pattern="[0-9]*[.,]?[0-9]*"
             onChange={(e) => setAcompteVerse(e.target.value)}
-            className={`${compact ? "w-20 rounded-lg" : "w-24"} h-9 border border-surface-border bg-white text-center text-sm font-bold text-ink outline-none font-mono pr-6 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
+            className={`${compact ? "w-20 rounded-lg" : "w-24"} h-9 border border-surface-border bg-white text-center text-sm font-bold text-ink outline-none font-mono pr-6`}
           />
           <span className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-muted text-sm pointer-events-none">€</span>
         </div>
         {!compact && (
           <button
             type="button"
-            onClick={() => setAcompteVerse((v) => String((parseFloat(v) || 0) + 10))}
+            onClick={() => setAcompteVerse((v) => String((parseFloat(v.replace(",", ".")) || 0) + 10))}
             className="flex items-center justify-center w-9 h-9 rounded-r-xl border border-l-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border hover:text-ink transition-colors active:scale-95"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
