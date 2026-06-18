@@ -1,5 +1,6 @@
 "use client";
 
+import type React from "react";
 import { useState, useRef, useEffect } from "react";
 import type { DevisFormData, CalculationResult, DocumentType } from "@/lib/types";
 import { DocumentTemplate } from "./DocumentTemplate";
@@ -12,6 +13,65 @@ import { getSession } from "@/lib/auth";
 
 // 210mm at 96 dpi
 const DOC_NATURAL_WIDTH = 794;
+
+// ── Standalone component to avoid focus loss on mobile ───────────────────────
+// Defined OUTSIDE DocumentPreview so React never remounts it on parent re-renders.
+interface AcompteControlsProps {
+  acompteVerse: string;
+  setAcompteVerse: React.Dispatch<React.SetStateAction<string>>;
+  totalNet: number;
+  compact?: boolean;
+}
+
+function AcompteControls({ acompteVerse, setAcompteVerse, totalNet, compact }: AcompteControlsProps) {
+  return (
+    <div className="flex items-center gap-2">
+      {!compact && <label className="text-xs text-ink-secondary whitespace-nowrap">Acompte versé :</label>}
+      <button
+        type="button"
+        onClick={() => setAcompteVerse(String(Math.round(totalNet * 0.3 * 100) / 100))}
+        className="flex items-center justify-center h-8 px-2.5 rounded-full text-xs font-bold text-white hover:opacity-80 active:scale-95 transition-all"
+        style={{ backgroundColor: "#0071E3", flexShrink: 0 }}
+      >
+        30%
+      </button>
+      <div className="flex items-center gap-0">
+        {!compact && (
+          <button
+            type="button"
+            onClick={() => setAcompteVerse((v) => String(Math.max(0, (parseFloat(v.replace(",", ".")) || 0) - 10)))}
+            className="flex items-center justify-center w-9 h-9 rounded-l-xl border border-r-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border hover:text-ink transition-colors active:scale-95"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12" /></svg>
+          </button>
+        )}
+        <div className="relative">
+          <NumericInput
+            inputMode="decimal"
+            value={acompteVerse}
+            placeholder="0"
+            pattern="[0-9]*[.,]?[0-9]*"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            onChange={(e) => setAcompteVerse(e.target.value)}
+            className={`${compact ? "w-20 rounded-lg" : "w-24"} h-9 border border-surface-border bg-white text-center text-sm font-bold text-ink outline-none font-mono pr-6`}
+          />
+          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-muted text-sm pointer-events-none">€</span>
+        </div>
+        {!compact && (
+          <button
+            type="button"
+            onClick={() => setAcompteVerse((v) => String((parseFloat(v.replace(",", ".")) || 0) + 10))}
+            className="flex items-center justify-center w-9 h-9 rounded-r-xl border border-l-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border hover:text-ink transition-colors active:scale-95"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 interface Props {
   form: DevisFormData;
@@ -41,6 +101,14 @@ export function DocumentPreview({ form, calc, onClose, onFormChange, readOnly, e
 
   // Stable record ID — generated once (or reuse existing for updates)
   const recordId = useRef<string>(existingId ?? generateId());
+
+  // Refs to always read latest props in async callbacks without adding effect deps
+  const formRef = useRef(form);
+  const calcRef = useRef(calc);
+  formRef.current = form;
+  calcRef.current = calc;
+  // Tracks whether the initial save completed (gate for the debounced resave)
+  const hasSavedOnce = useRef(false);
 
   // Document scaling for mobile
   const [docScale, setDocScale] = useState(() =>
@@ -83,6 +151,7 @@ export function DocumentPreview({ form, calc, onClose, onFormChange, readOnly, e
 
         const { source } = await saveDevis(record);
         if (cancelled) return;
+        hasSavedOnce.current = true;
         setSaveStatus(source === "localStorage" ? "local" : "saved");
       } catch (err) {
         if (cancelled) return;
@@ -97,6 +166,40 @@ export function DocumentPreview({ form, calc, onClose, onFormChange, readOnly, e
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── Resauvegarde quand documentType ou acompte change ────────────────────────
+  // Garde la facture à jour dans Supabase sans attendre le téléchargement PDF.
+  useEffect(() => {
+    if (readOnly || !hasSavedOnce.current) return;
+    const timer = setTimeout(() => {
+      const f = formRef.current;
+      const c = calcRef.current;
+      const acompteNum = parseFloat(acompteVerse.replace(",", ".")) || 0;
+      const updatedRecord: DevisRecord = {
+        id: recordId.current,
+        numero,
+        date: f.date,
+        createdAt: Date.now(),
+        clientType: f.clientType,
+        clientName: f.clientName,
+        prestationDescription: f.prestationDescription,
+        participantsCount: f.participantsCount,
+        totalBrut: c.totalBrut,
+        totalNet: c.totalNet,
+        documentType,
+        formData: {
+          ...f,
+          documentType,
+          acompteVerse: acompteNum > 0 ? acompteNum : undefined,
+        },
+      };
+      saveDevis(updatedRecord).catch((e: unknown) =>
+        console.error("[DocumentPreview] Resave failed:", e instanceof Error ? e.message : e)
+      );
+    }, 800);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [acompteVerse, documentType]);
 
   useEffect(() => {
     document.body.style.overflow = "hidden";
@@ -241,50 +344,6 @@ export function DocumentPreview({ form, calc, onClose, onFormChange, readOnly, e
     </button>
   );
 
-  const AcompteControls = ({ compact }: { compact?: boolean }) => (
-    <div className={`flex items-center gap-2 ${compact ? "" : ""}`}>
-      {!compact && <label className="text-xs text-ink-secondary whitespace-nowrap">Acompte versé :</label>}
-      <button
-        type="button"
-        onClick={() => setAcompteVerse(String(Math.round(calc.totalNet * 0.3 * 100) / 100))}
-        className="flex items-center justify-center h-8 px-2.5 rounded-full text-xs font-bold text-white hover:opacity-80 active:scale-95 transition-all"
-        style={{ backgroundColor: "#0071E3", flexShrink: 0 }}
-      >
-        30%
-      </button>
-      <div className="flex items-center gap-0">
-        {!compact && (
-          <button
-            type="button"
-            onClick={() => setAcompteVerse((v) => String(Math.max(0, (parseFloat(v.replace(",", ".")) || 0) - 10)))}
-            className="flex items-center justify-center w-9 h-9 rounded-l-xl border border-r-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border hover:text-ink transition-colors active:scale-95"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12" /></svg>
-          </button>
-        )}
-        <div className="relative">
-          <NumericInput
-            inputMode="decimal"
-            value={acompteVerse}
-            placeholder="0"
-            pattern="[0-9]*[.,]?[0-9]*"
-            onChange={(e) => setAcompteVerse(e.target.value)}
-            className={`${compact ? "w-20 rounded-lg" : "w-24"} h-9 border border-surface-border bg-white text-center text-sm font-bold text-ink outline-none font-mono pr-6`}
-          />
-          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-muted text-sm pointer-events-none">€</span>
-        </div>
-        {!compact && (
-          <button
-            type="button"
-            onClick={() => setAcompteVerse((v) => String((parseFloat(v.replace(",", ".")) || 0) + 10))}
-            className="flex items-center justify-center w-9 h-9 rounded-r-xl border border-l-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border hover:text-ink transition-colors active:scale-95"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-          </button>
-        )}
-      </div>
-    </div>
-  );
 
   return (
     <div
@@ -324,7 +383,7 @@ export function DocumentPreview({ form, calc, onClose, onFormChange, readOnly, e
               size="sm"
               accent="orange"
             />
-            {documentType === "facture" && <AcompteControls />}
+            {documentType === "facture" && <AcompteControls acompteVerse={acompteVerse} setAcompteVerse={setAcompteVerse} totalNet={calc.totalNet} />}
             <DownloadBtn />
           </div>
         </div>
@@ -360,7 +419,7 @@ export function DocumentPreview({ form, calc, onClose, onFormChange, readOnly, e
             {documentType === "facture" && (
               <div className="flex items-center gap-1.5 ml-auto">
                 <span className="text-xs text-ink-secondary">Acompte :</span>
-                <AcompteControls compact />
+                <AcompteControls acompteVerse={acompteVerse} setAcompteVerse={setAcompteVerse} totalNet={calc.totalNet} compact />
               </div>
             )}
           </div>
