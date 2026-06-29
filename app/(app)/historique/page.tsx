@@ -8,6 +8,7 @@ import { getSession } from "@/lib/auth";
 import { formatPrice, calculateDevis } from "@/lib/calculations";
 import { DURATION_LABELS } from "@/lib/pricing";
 import { DocumentPreview } from "@/components/document/DocumentPreview";
+import { buildFactureLibreFileName } from "@/lib/filename";
 
 type FilterType = "all" | "devis" | "facture";
 
@@ -147,7 +148,7 @@ export default function HistoriquePage() {
           lignes: record.lignes,
           notes: record.notes,
           username: session?.username,
-          fileName: `Facture_libre_${record.numero.replace(/[°/]/g, "_")}.pdf`,
+          fileName: buildFactureLibreFileName(record.clientName, record.date),
         }),
       });
       if (!res.ok) return;
@@ -155,7 +156,7 @@ export default function HistoriquePage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `Facture_libre_${record.numero.replace(/[°/]/g, "_")}.pdf`;
+      a.download = buildFactureLibreFileName(record.clientName, record.date);
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

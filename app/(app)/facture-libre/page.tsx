@@ -6,6 +6,7 @@ import { getSession } from "@/lib/auth";
 import { saveDevis, generateNumero, generateId, getDevisById } from "@/lib/storage";
 import type { DevisRecord, FactureLibreLigne, ClientType } from "@/lib/types";
 import { formatPrice } from "@/lib/calculations";
+import { buildFactureLibreFileName } from "@/lib/filename";
 
 interface LigneState {
   id: string;
@@ -169,7 +170,7 @@ function FactureLibreForm() {
       setSaved(true);
 
       // 2. Generate PDF
-      const fileName = `Facture_libre_${numero.replace(/[°/]/g, "_")}.pdf`;
+      const fileName = buildFactureLibreFileName(clientName, date);
       const res = await fetch("/api/generate-pdf-libre", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
