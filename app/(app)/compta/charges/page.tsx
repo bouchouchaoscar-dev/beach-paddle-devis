@@ -459,9 +459,10 @@ export default function ChargesPage() {
   const selectedEmp = employees.find((e) => e.id === sessionForm.employeeId);
   const sessionTarifPreview = parseFloat(sessionForm.tarif) || selectedEmp?.tarif_horaire || 0;
   const sessionBonusPreview = parseFloat(sessionForm.bonus) || 0;
-  const sessionMontantPreview = sessionHoursPreview > 0 && selectedEmp
+  const _sessionMontantPreview = sessionHoursPreview > 0 && selectedEmp
     ? sessionHoursPreview * sessionTarifPreview + sessionBonusPreview
     : 0;
+  void _sessionMontantPreview;
 
   function fmtDate(d: string) {
     return new Date(d + "T12:00:00").toLocaleDateString("fr-FR", { day: "2-digit", month: "short" });
