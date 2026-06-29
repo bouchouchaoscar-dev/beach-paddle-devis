@@ -234,14 +234,15 @@ function FactureLibreForm() {
             Informations client
           </h2>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 overflow-hidden">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="min-w-0">
               <label className="block text-xs font-semibold text-ink-secondary mb-1.5">Date de la facture</label>
               <input
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="input-field min-w-0"
+                className="input-field"
+                style={{ minWidth: 0 }}
               />
             </div>
 
