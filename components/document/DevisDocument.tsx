@@ -334,25 +334,28 @@ const s = StyleSheet.create({
   sigTxt: { fontSize: 9, color: GRAY, textAlign: "center", lineHeight: 1.6 },
   sigBold: { fontSize: 9, fontFamily: "Helvetica-Bold", color: BLACK, textAlign: "center" },
   acompteBox: {
-    paddingTop: "4mm",
-    paddingBottom: "4mm",
+    paddingTop: "3.5mm",
+    paddingBottom: "3.5mm",
     paddingLeft: "5mm",
     paddingRight: "5mm",
     borderWidth: 1.5,
     borderColor: "#F0A0A0",
     borderStyle: "solid",
     borderRadius: 2,
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: "14mm",
     backgroundColor: "#FFF5F5",
   },
   acompteBoxTxt: {
-    fontSize: 9,
+    fontSize: 8.5,
     color: RED,
     fontFamily: "Helvetica-BoldOblique",
-    textAlign: "center",
-    lineHeight: 1.6,
+    lineHeight: 1.5,
+  },
+  acompteBoxMontant: {
+    fontSize: 10,
+    color: RED,
+    fontFamily: "Helvetica-Bold",
+    marginTop: "1.5mm",
+    marginBottom: "1.5mm",
   },
 });
 
@@ -363,6 +366,7 @@ export function DevisDocument({
   const isFacture = documentType === "facture";
   const contact = CONTACT_BY_USER[username?.toLowerCase() ?? ""] ?? CONTACT_BY_USER["oscar"];
   const hasDiscount = calc.totalDiscount > 0;
+  const acompteAmount = Math.round(calc.totalNet * 0.30 * 100) / 100;
 
   const dateFormatted = documentDate
     ? new Date(documentDate + "T12:00:00").toLocaleDateString("fr-FR", {
@@ -646,7 +650,13 @@ export function DevisDocument({
             {!isFacture && (
               <View style={s.acompteBox}>
                 <Text style={s.acompteBoxTxt}>
-                  Afin de valider la réservation, un acompte de 30% sera nécessaire.
+                  Acompte de 30% demandé pour valider la réservation.
+                </Text>
+                <Text style={s.acompteBoxMontant}>
+                  Montant de l&apos;acompte : {pricePdf(acompteAmount)}
+                </Text>
+                <Text style={s.acompteBoxTxt}>
+                  La date sera automatiquement bloquée dès réception de l&apos;acompte.
                 </Text>
               </View>
             )}
