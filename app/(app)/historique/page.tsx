@@ -114,11 +114,20 @@ export default function HistoriquePage() {
       createdAt: Date.now(),
       documentType: "facture",
       formData: { ...record.formData, documentType: "facture" },
+      devis_source_id: record.id,
     };
     await saveDevis(newRecord);
     await refresh();
-    setFilter("facture");
+    // Garder le filtre "Tous" pour voir le devis ET la nouvelle facture
+    setFilter("all");
   }
+
+  // Set des devis_id qui ont déjà été convertis en facture (via devis_source_id)
+  const convertedDevisIds = new Set(
+    records
+      .filter((r) => r.documentType === "facture" && r.devis_source_id)
+      .map((r) => r.devis_source_id as string)
+  );
 
   const filtered = records.filter((r) => {
     const matchSearch =
@@ -243,6 +252,7 @@ export default function HistoriquePage() {
               const clientBadge = CLIENT_BADGE[record.clientType] ?? CLIENT_BADGE.entreprise;
               const isFacture = record.documentType === "facture";
               const hasRemise = record.totalNet !== record.totalBrut;
+              const hasFacture = !isFacture && convertedDevisIds.has(record.id);
 
               // Ligne 2 — infos activité
               const activityLabel =
@@ -293,6 +303,12 @@ export default function HistoriquePage() {
                         {isFacture ? "Facture" : "Devis"}
                       </span>
                       <span className="text-xs text-ink-muted font-mono">{record.numero}</span>
+                      {hasFacture && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0" style={{ backgroundColor: "rgba(22,163,74,0.12)", color: "#16A34A" }}>
+                          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                          Facture générée
+                        </span>
+                      )}
                       <div className="flex-1" />
                       {/* Prix à droite */}
                       <div className="flex items-baseline gap-2 shrink-0">
@@ -350,7 +366,12 @@ export default function HistoriquePage() {
                           </svg>
                         </button>
                         {record.documentType === "devis" && (
-                          <button onClick={() => handleConvertToFacture(record)} className="p-2 rounded-lg text-ink-muted hover:text-brand-teal hover:bg-brand-teal-light transition-colors" title="Convertir en facture">
+                          <button
+                            onClick={() => !hasFacture && handleConvertToFacture(record)}
+                            disabled={hasFacture}
+                            className={`p-2 rounded-lg transition-colors ${hasFacture ? "text-ink-muted/40 cursor-not-allowed" : "text-ink-muted hover:text-brand-teal hover:bg-brand-teal-light"}`}
+                            title={hasFacture ? "Facture déjà générée" : "Convertir en facture"}
+                          >
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                               <polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/>
                               <polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>
@@ -396,6 +417,14 @@ export default function HistoriquePage() {
                       </span>
                       <span className="text-xs text-ink-muted font-mono ml-auto shrink-0">{record.numero}</span>
                     </div>
+                    {hasFacture && (
+                      <div className="mb-2">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold" style={{ backgroundColor: "rgba(22,163,74,0.12)", color: "#16A34A" }}>
+                          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                          Facture générée
+                        </span>
+                      </div>
+                    )}
                     {/* Ligne 2 : chips */}
                     <div className="flex flex-wrap gap-1.5 mb-2.5">
                       {activityLabel && (
@@ -454,7 +483,12 @@ export default function HistoriquePage() {
                         </svg>
                       </button>
                       {record.documentType === "devis" && (
-                        <button onClick={() => handleConvertToFacture(record)} className="flex-1 flex items-center justify-center h-10 rounded-xl bg-surface-muted text-ink-muted active:text-brand-teal active:bg-brand-teal-light transition-colors" title="→ Facture">
+                        <button
+                          onClick={() => !hasFacture && handleConvertToFacture(record)}
+                          disabled={hasFacture}
+                          className={`flex-1 flex items-center justify-center h-10 rounded-xl transition-colors ${hasFacture ? "bg-surface-muted text-ink-muted/40 cursor-not-allowed" : "bg-surface-muted text-ink-muted active:text-brand-teal active:bg-brand-teal-light"}`}
+                          title={hasFacture ? "Facture déjà générée" : "→ Facture"}
+                        >
                           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/>
                             <polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>

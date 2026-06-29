@@ -91,6 +91,8 @@ export interface DevisRecord {
   totalNet: number;
   documentType: DocumentType;
   formData: DevisFormData;
+  /** ID du devis source si ce document est une facture issue d'une conversion */
+  devis_source_id?: string;
 }
 
 export interface CalculationResult {

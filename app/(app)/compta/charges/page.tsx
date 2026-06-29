@@ -254,9 +254,9 @@ export default function ChargesPage() {
     if (isNaN(heures) || heures <= 0) {
       heures = calcSessionHours(sessionForm.heureDebut, sessionForm.heureFin);
     }
-    if (heures <= 0) return;
     const tarif = parseFloat(sessionForm.tarif) || emp.tarif_horaire;
     const bonus = parseFloat(sessionForm.bonus) || 0;
+    if (heures <= 0 && bonus <= 0) return;
     const montant = heures * tarif + bonus;
     setSaving(true);
     try {
@@ -1100,7 +1100,7 @@ export default function ChargesPage() {
                   </div>
                 )}
 
-                <button onClick={handleSaveSession} disabled={saving || !sessionForm.employeeId || !sessionForm.date || sessionHoursPreview <= 0} className="btn-primary w-full">
+                <button onClick={handleSaveSession} disabled={saving || !sessionForm.employeeId || !sessionForm.date || (sessionHoursPreview <= 0 && sessionBonusPreview <= 0)} className="btn-primary w-full">
                   Enregistrer la session
                 </button>
               </div>
