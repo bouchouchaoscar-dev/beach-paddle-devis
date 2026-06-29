@@ -48,6 +48,7 @@ function FactureLibreForm() {
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [saved, setSaved] = useState(false);
 
   // Load from duplicate param
   useEffect(() => {
@@ -101,6 +102,7 @@ function FactureLibreForm() {
     }
 
     setSubmitting(true);
+    setSaved(false);
     try {
       const numero = await generateNumero(date);
 
@@ -155,7 +157,12 @@ function FactureLibreForm() {
         },
       };
 
-      // Generate PDF
+      // 1. Save first so the record is in archives regardless of PDF success
+      await saveDevis(record);
+      setSaved(true);
+
+      // 2. Generate PDF
+      const fileName = `Facture_libre_${numero.replace(/[°/]/g, "_")}.pdf`;
       const res = await fetch("/api/generate-pdf-libre", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -169,23 +176,22 @@ function FactureLibreForm() {
           lignes: lignesData,
           notes: notes.trim() || undefined,
           username: session?.username,
-          fileName: `Facture_libre_${numero.replace(/[°/]/g, "_")}.pdf`,
+          fileName,
         }),
       });
 
-      if (!res.ok) throw new Error("Erreur lors de la génération du PDF.");
+      if (!res.ok) throw new Error("Facture enregistrée mais erreur lors de la génération du PDF.");
 
-      // Save to Supabase
-      await saveDevis(record);
-
-      // Download PDF
+      // 3. Download — append to DOM so iOS Safari can open the PDF in its native reader
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `Facture_libre_${numero.replace(/[°/]/g, "_")}.pdf`;
+      a.download = fileName;
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
 
       router.push("/historique");
     } catch (e) {
@@ -234,7 +240,7 @@ function FactureLibreForm() {
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="input-field"
+                className="input-field w-full"
               />
             </div>
 
@@ -372,6 +378,16 @@ function FactureLibreForm() {
             className="input-field resize-none"
           />
         </div>
+
+        {/* Success */}
+        {saved && !error && (
+          <div className="px-4 py-3 rounded-xl text-sm font-medium text-green-700 bg-green-50 border border-green-200 flex items-center gap-2">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+            Facture enregistrée — téléchargement en cours…
+          </div>
+        )}
 
         {/* Error */}
         {error && (

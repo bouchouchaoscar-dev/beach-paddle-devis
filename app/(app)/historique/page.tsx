@@ -156,8 +156,10 @@ export default function HistoriquePage() {
       const a = document.createElement("a");
       a.href = url;
       a.download = `Facture_libre_${record.numero.replace(/[°/]/g, "_")}.pdf`;
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
     } catch (e) {
       console.error("[historique] viewFactureLibre", e);
     }
