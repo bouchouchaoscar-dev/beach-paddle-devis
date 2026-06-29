@@ -83,6 +83,7 @@ export default function ChargesPage() {
   const [addingEmp, setAddingEmp] = useState(false);
   const [sessionPayeFilter, setSessionPayeFilter] = useState<"all" | "payees" | "non_payees">("all");
   const [togglingPayeId, setTogglingPayeId] = useState<string | null>(null);
+  const [sessionError, setSessionError] = useState("");
   const [sessionForm, setSessionForm] = useState({
     employeeId: "",
     date: new Date().toISOString().split("T")[0],
@@ -248,6 +249,7 @@ export default function ChargesPage() {
   }
 
   async function handleSaveSession() {
+    setSessionError("");
     const emp = employees.find((e) => e.id === sessionForm.employeeId);
     if (!emp || !sessionForm.date) return;
     let heures = parseFloat(sessionForm.heures);
@@ -278,13 +280,20 @@ export default function ChargesPage() {
         montant,
         categorie: "salaire",
         fournisseur: emp.nom,
-        description: `${heures}h — ${emp.nom}${bonus > 0 ? ` + ${bonus}€ bonus` : ""}`,
+        description: `${heures > 0 ? `${heures}h` : "Bonus"}${bonus > 0 ? ` + ${bonus}€ bonus` : ""} — ${emp.nom}`,
         saison: sessionForm.date.slice(0, 4),
         statut_paiement: "paye",
         created_by: "",
       });
       setSessionForm((f) => ({ ...f, heures: "", notes: "", heureDebut: "", heureFin: "", tarif: String(emp.tarif_horaire), bonus: "0" }));
       await load();
+    } catch (err) {
+      const msg = (err as Error).message ?? "";
+      if (msg.includes("bonus")) {
+        setSessionError("Colonne 'bonus' manquante dans Supabase. Exécutez le script SQL data/sql_work_sessions_columns.sql dans l'éditeur Supabase.");
+      } else {
+        setSessionError(`Erreur : ${msg || "Impossible d'enregistrer la session"}`);
+      }
     } finally {
       setSaving(false);
     }
@@ -1074,9 +1083,9 @@ export default function ChargesPage() {
                   <input type="text" value={sessionForm.notes} placeholder="Optionnel" onChange={(e) => setSessionForm((f) => ({ ...f, notes: e.target.value }))} className="input-field" />
                 </div>
 
-                {sessionHoursPreview > 0 && selectedEmp && (
+                {(sessionHoursPreview > 0 || sessionBonusPreview > 0) && selectedEmp && (
                   <div className="px-4 py-2.5 rounded-xl bg-brand-teal-light border border-brand-teal/20 text-sm">
-                    {sessionBonusPreview > 0 ? (
+                    {sessionHoursPreview > 0 && sessionBonusPreview > 0 ? (
                       <div className="space-y-0.5">
                         <div className="flex items-center justify-between text-ink-secondary">
                           <span>{sessionHoursPreview}h × {sessionTarifPreview}€</span>
@@ -1088,20 +1097,40 @@ export default function ChargesPage() {
                         </div>
                         <div className="flex items-center justify-between font-bold font-mono text-brand-teal border-t border-brand-teal/20 pt-1 mt-1">
                           <span>Total</span>
-                          <span>{formatPrice(sessionMontantPreview)}</span>
+                          <span>{formatPrice(sessionHoursPreview * sessionTarifPreview + sessionBonusPreview)}</span>
                         </div>
+                      </div>
+                    ) : sessionHoursPreview > 0 ? (
+                      <div className="flex items-center justify-between">
+                        <span className="text-ink-secondary">{sessionHoursPreview}h × {sessionTarifPreview}€</span>
+                        <span className="font-bold font-mono text-brand-teal">{formatPrice(sessionHoursPreview * sessionTarifPreview)}</span>
                       </div>
                     ) : (
                       <div className="flex items-center justify-between">
-                        <span className="text-ink-secondary">{sessionHoursPreview}h × {sessionTarifPreview}€</span>
-                        <span className="font-bold font-mono text-brand-teal">{formatPrice(sessionMontantPreview)}</span>
+                        <span className="text-green-700 font-semibold">Bonus exceptionnel</span>
+                        <span className="font-bold font-mono text-green-700">+{formatPrice(sessionBonusPreview)}</span>
                       </div>
                     )}
                   </div>
                 )}
 
-                <button onClick={handleSaveSession} disabled={saving || !sessionForm.employeeId || !sessionForm.date || (sessionHoursPreview <= 0 && sessionBonusPreview <= 0)} className="btn-primary w-full">
-                  Enregistrer la session
+                {sessionError && (
+                  <div className="px-3 py-2.5 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700 leading-snug">
+                    {sessionError}
+                  </div>
+                )}
+
+                <button
+                  onClick={handleSaveSession}
+                  disabled={saving || !sessionForm.employeeId || !sessionForm.date || (sessionHoursPreview <= 0 && sessionBonusPreview <= 0)}
+                  className="btn-primary w-full gap-2"
+                >
+                  {saving ? (
+                    <>
+                      <svg className="animate-spin" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                      Enregistrement…
+                    </>
+                  ) : "Enregistrer la session"}
                 </button>
               </div>
             </div>
