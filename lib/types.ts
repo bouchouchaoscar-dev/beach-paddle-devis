@@ -1,7 +1,13 @@
 export type ClientType = "entreprise" | "association" | "scolaire" | "loisirs" | "organisme_public" | "particulier";
 export type ActivityType = "paddle" | "kayak" | "hybride" | "mega_paddle" | "none";
 export type Duration = "30min" | "1h" | "1h30" | "2h";
-export type DocumentType = "devis" | "facture";
+export type DocumentType = "devis" | "facture" | "facture_libre";
+
+export interface FactureLibreLigne {
+  id: string;
+  description: string;
+  montant: number;
+}
 
 export type SnackingFormula =
   | "dejeuner"
@@ -93,6 +99,10 @@ export interface DevisRecord {
   formData: DevisFormData;
   /** ID du devis source si ce document est une facture issue d'une conversion */
   devis_source_id?: string;
+  /** Lignes de facturation (facture_libre uniquement) */
+  lignes?: FactureLibreLigne[];
+  /** Notes optionnelles (facture_libre uniquement) */
+  notes?: string;
 }
 
 export interface CalculationResult {

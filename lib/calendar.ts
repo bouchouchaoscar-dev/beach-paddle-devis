@@ -116,8 +116,8 @@ const CAL_ACT_LABELS: Record<string, string> = {
 /** Synchronise calendar_events depuis un DevisRecord sauvegardé (best-effort).
  *  Crée l'événement s'il n'existe pas encore, le met à jour sinon. */
 export async function syncCalendarEventFromDevis(record: DevisRecord): Promise<void> {
-  // Les factures n'apparaissent jamais dans le calendrier — elles sont liées au devis original
-  if (record.documentType === "facture") return;
+  // Les factures et factures libres n'apparaissent jamais dans le calendrier
+  if (record.documentType === "facture" || record.documentType === "facture_libre") return;
 
   const fd = record.formData;
   const dateEvent = fd.date || record.date;
