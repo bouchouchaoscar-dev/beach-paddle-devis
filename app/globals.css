@@ -85,6 +85,14 @@ input:-webkit-autofill:focus {
     @apply w-full px-4 py-2.5 rounded-xl border border-surface-border bg-white text-ink placeholder:text-ink-placeholder text-sm transition-all duration-200 focus:outline-none focus:border-brand-orange focus:shadow-orange-glow;
   }
 
+  /* Normalise input[type="date"] sur iOS Safari — sinon la hauteur native dépasse */
+  input[type="date"].input-field {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 42px;
+    line-height: 1.25;
+  }
+
   .label {
     @apply block text-sm font-medium text-ink-secondary mb-1.5;
   }
