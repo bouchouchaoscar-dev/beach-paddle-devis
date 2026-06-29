@@ -63,7 +63,7 @@ export async function saveDevis(record: DevisRecord): Promise<{ source: "supabas
     {
       id: record.id,
       numero: record.numero,
-      type: record.documentType,
+      type: record.documentType === "facture_libre" ? "facture" : record.documentType,
       client_nom: record.clientName,
       client_type: record.clientType,
       client_adresse: record.formData.clientAddress || null,

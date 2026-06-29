@@ -49,6 +49,8 @@ function FactureLibreForm() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [pdfFileName, setPdfFileName] = useState<string>("");
 
   // Load from duplicate param
   useEffect(() => {
@@ -103,6 +105,7 @@ function FactureLibreForm() {
 
     setSubmitting(true);
     setSaved(false);
+    setPdfUrl(null);
     try {
       const numero = await generateNumero(date);
 
@@ -157,8 +160,12 @@ function FactureLibreForm() {
         },
       };
 
-      // 1. Save first so the record is in archives regardless of PDF success
-      await saveDevis(record);
+      // 1. Save first — type "facture_libre" est mappé en "facture" côté Supabase dans storage.ts
+      const saveResult = await saveDevis(record);
+      if (saveResult.source === "localStorage") {
+        // Supabase a refusé l'insertion — on continue quand même mais on prévient
+        console.warn("[facture-libre] Supabase write failed, saved to localStorage only");
+      }
       setSaved(true);
 
       // 2. Generate PDF
@@ -182,18 +189,12 @@ function FactureLibreForm() {
 
       if (!res.ok) throw new Error("Facture enregistrée mais erreur lors de la génération du PDF.");
 
-      // 3. Download — append to DOM so iOS Safari can open the PDF in its native reader
+      // 3. Créer le blob URL — on affiche un lien cliquable dans le DOM
+      // (iOS Safari bloque a.click() après async, mais un vrai <a> dans le DOM fonctionne)
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 10000);
-
-      router.push("/historique");
+      setPdfFileName(fileName);
+      setPdfUrl(url);
     } catch (e) {
       setError((e as Error).message || "Erreur inattendue.");
     } finally {
@@ -233,14 +234,14 @@ function FactureLibreForm() {
             Informations client
           </h2>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 overflow-hidden">
+            <div className="min-w-0">
               <label className="block text-xs font-semibold text-ink-secondary mb-1.5">Date de la facture</label>
               <input
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="input-field w-full"
+                className="input-field min-w-0"
               />
             </div>
 
@@ -379,13 +380,48 @@ function FactureLibreForm() {
           />
         </div>
 
-        {/* Success */}
+        {/* Success + Download link */}
         {saved && !error && (
-          <div className="px-4 py-3 rounded-xl text-sm font-medium text-green-700 bg-green-50 border border-green-200 flex items-center gap-2">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="20 6 9 17 4 12" />
-            </svg>
-            Facture enregistrée — téléchargement en cours…
+          <div className="space-y-3">
+            <div className="px-4 py-3 rounded-xl text-sm font-medium text-green-700 bg-green-50 border border-green-200 flex items-center gap-2">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              Facture enregistrée dans les archives
+            </div>
+
+            {pdfUrl ? (
+              <div className="pb-6 space-y-2">
+                {/* Vrai lien <a> dans le DOM — fonctionne sur iOS Safari */}
+                <a
+                  href={pdfUrl}
+                  download={pdfFileName}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-primary w-full h-12 text-sm gap-2 flex items-center justify-center no-underline"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                  Télécharger la facture PDF
+                </a>
+                <button
+                  onClick={() => router.push("/historique")}
+                  className="w-full h-10 text-sm text-ink-muted hover:text-ink transition-colors"
+                >
+                  Voir les archives →
+                </button>
+              </div>
+            ) : (
+              <div className="pb-6 flex items-center justify-center gap-2 text-sm text-ink-muted h-12">
+                <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                </svg>
+                Génération du PDF…
+              </div>
+            )}
           </div>
         )}
 
@@ -396,35 +432,37 @@ function FactureLibreForm() {
           </div>
         )}
 
-        {/* Submit */}
-        <div
-          className="pb-6"
-          style={{ opacity: 0, animation: "slideUp 0.4s cubic-bezier(0.16,1,0.3,1) 0.25s forwards" }}
-        >
-          <button
-            onClick={handleSubmit}
-            disabled={submitting || !clientName.trim() || total === 0}
-            className="btn-primary w-full h-12 text-sm gap-2 disabled:opacity-50 disabled:pointer-events-none"
+        {/* Submit — masqué une fois enregistré */}
+        {!saved && (
+          <div
+            className="pb-6"
+            style={{ opacity: 0, animation: "slideUp 0.4s cubic-bezier(0.16,1,0.3,1) 0.25s forwards" }}
           >
-            {submitting ? (
-              <>
-                <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                </svg>
-                Génération en cours…
-              </>
-            ) : (
-              <>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                  <polyline points="7 10 12 15 17 10"/>
-                  <line x1="12" y1="15" x2="12" y2="3"/>
-                </svg>
-                Générer et télécharger la facture
-              </>
-            )}
-          </button>
-        </div>
+            <button
+              onClick={handleSubmit}
+              disabled={submitting || !clientName.trim() || total === 0}
+              className="btn-primary w-full h-12 text-sm gap-2 disabled:opacity-50 disabled:pointer-events-none"
+            >
+              {submitting ? (
+                <>
+                  <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                  </svg>
+                  Enregistrement…
+                </>
+              ) : (
+                <>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                  Générer et télécharger la facture
+                </>
+              )}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
