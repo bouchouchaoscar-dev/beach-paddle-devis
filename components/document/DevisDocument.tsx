@@ -351,11 +351,9 @@ const s = StyleSheet.create({
     lineHeight: 1.5,
   },
   acompteBoxMontant: {
-    fontSize: 10,
+    fontSize: 9,
     color: RED,
     fontFamily: "Helvetica-Bold",
-    marginTop: "1.5mm",
-    marginBottom: "1.5mm",
   },
 });
 
@@ -650,12 +648,10 @@ export function DevisDocument({
             {!isFacture && (
               <View style={s.acompteBox}>
                 <Text style={s.acompteBoxTxt}>
-                  Acompte de 30% demandé pour valider la réservation.
+                  {"Acompte de 30% demandé pour valider la réservation — soit "}
+                  <Text style={s.acompteBoxMontant}>{pricePdf(acompteAmount)}</Text>
                 </Text>
-                <Text style={s.acompteBoxMontant}>
-                  Montant de l&apos;acompte : {pricePdf(acompteAmount)}
-                </Text>
-                <Text style={s.acompteBoxTxt}>
+                <Text style={{ ...s.acompteBoxTxt, marginTop: "2mm" }}>
                   La date sera automatiquement bloquée dès réception de l&apos;acompte.
                 </Text>
               </View>
