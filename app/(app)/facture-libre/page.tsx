@@ -7,6 +7,7 @@ import { saveDevis, generateNumero, generateId, getDevisById } from "@/lib/stora
 import type { DevisRecord, FactureLibreLigne, ClientType } from "@/lib/types";
 import { formatPrice } from "@/lib/calculations";
 import { buildFactureLibreFileName } from "@/lib/filename";
+import { fetchPdfBlobUrl } from "@/lib/pdf-download";
 
 interface LigneState {
   id: string;
@@ -244,27 +245,18 @@ function FactureLibreForm() {
         setSaved(true);
 
         const fileName = buildFactureLibreFileName(clientName, date);
-        const res = await fetch("/api/generate-pdf-libre", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            numero,
-            date,
-            clientType,
-            clientName: record.clientName,
-            clientAddress: clientAddress.trim(),
-            objet: objet.trim(),
-            lignes: lignesData,
-            notes: notes.trim() || undefined,
-            username: session?.username,
-            fileName,
-          }),
+        const url = await fetchPdfBlobUrl("/api/generate-pdf-libre", {
+          numero,
+          date,
+          clientType,
+          clientName: record.clientName,
+          clientAddress: clientAddress.trim(),
+          objet: objet.trim(),
+          lignes: lignesData,
+          notes: notes.trim() || undefined,
+          username: session?.username,
+          fileName,
         });
-
-        if (!res.ok) throw new Error("Facture enregistrée mais erreur lors de la génération du PDF.");
-
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
         setPdfFileName(fileName);
         setPdfUrl(url);
       }

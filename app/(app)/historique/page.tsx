@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import type { DevisRecord } from "@/lib/types";
 import { getDevisList, deleteDevis, saveDevis, generateId, generateNumero, clearLocalCache, localCacheCount } from "@/lib/storage";
@@ -9,6 +9,7 @@ import { formatPrice, calculateDevis } from "@/lib/calculations";
 import { DURATION_LABELS } from "@/lib/pricing";
 import { DocumentPreview } from "@/components/document/DocumentPreview";
 import { buildFactureLibreFileName } from "@/lib/filename";
+import { fetchPdfBlobUrl, tryAutoDownload } from "@/lib/pdf-download";
 
 type FilterType = "all" | "devis" | "facture";
 
@@ -77,6 +78,9 @@ export default function HistoriquePage() {
   const [selectedRecord, setSelectedRecord] = useState<DevisRecord | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [cacheCount, setCacheCount] = useState(0);
+  const [flLoading, setFlLoading] = useState<string | null>(null);
+  const [flReady, setFlReady] = useState<{ url: string; name: string } | null>(null);
+  const flBlobRef = useRef<string | null>(null);
 
   useEffect(() => {
     getDevisList().then(setRecords);
@@ -133,37 +137,37 @@ export default function HistoriquePage() {
 
   async function handleViewFactureLibre(record: DevisRecord) {
     if (!record.lignes) return;
-    const session = getSession();
+    setFlLoading(record.id);
+    if (flBlobRef.current) { URL.revokeObjectURL(flBlobRef.current); flBlobRef.current = null; }
+    setFlReady(null);
     try {
-      const res = await fetch("/api/generate-pdf-libre", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          numero: record.numero,
-          date: record.date,
-          clientType: record.clientType,
-          clientName: record.clientName,
-          clientAddress: record.formData?.clientAddress || "",
-          objet: record.prestationDescription || "",
-          lignes: record.lignes,
-          notes: record.notes,
-          username: session?.username,
-          fileName: buildFactureLibreFileName(record.clientName, record.date),
-        }),
+      const session = getSession();
+      const fileName = buildFactureLibreFileName(record.clientName, record.date);
+      const url = await fetchPdfBlobUrl("/api/generate-pdf-libre", {
+        numero: record.numero,
+        date: record.date,
+        clientType: record.clientType,
+        clientName: record.clientName,
+        clientAddress: record.formData?.clientAddress || "",
+        objet: record.prestationDescription || "",
+        lignes: record.lignes,
+        notes: record.notes,
+        username: session?.username,
+        fileName,
       });
-      if (!res.ok) return;
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = buildFactureLibreFileName(record.clientName, record.date);
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      flBlobRef.current = url;
+      tryAutoDownload(url, fileName);
+      setFlReady({ url, name: fileName });
     } catch (e) {
       console.error("[historique] viewFactureLibre", e);
+    } finally {
+      setFlLoading(null);
     }
+  }
+
+  function dismissFlReady() {
+    if (flBlobRef.current) { URL.revokeObjectURL(flBlobRef.current); flBlobRef.current = null; }
+    setFlReady(null);
   }
 
   const filtered = records.filter((r) => {
@@ -399,12 +403,17 @@ export default function HistoriquePage() {
                       <div className="flex items-center gap-1 shrink-0">
                         <button
                           onClick={() => isFactureLibre ? handleViewFactureLibre(record) : setSelectedRecord(record)}
-                          className="p-2 rounded-lg text-ink-muted hover:text-brand-teal hover:bg-brand-teal-light transition-colors"
+                          disabled={isFactureLibre && flLoading === record.id}
+                          className="p-2 rounded-lg text-ink-muted hover:text-brand-teal hover:bg-brand-teal-light transition-colors disabled:opacity-50"
                           title="Voir / Télécharger"
                         >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
-                          </svg>
+                          {isFactureLibre && flLoading === record.id ? (
+                            <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                          ) : (
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                            </svg>
+                          )}
                         </button>
                         <button
                           onClick={() => router.push(isFactureLibre ? "/facture-libre?edit=" + record.id : "/dashboard?edit=" + record.id)}
@@ -530,12 +539,17 @@ export default function HistoriquePage() {
                     <div className="flex items-center gap-2 mt-3 pt-3 border-t border-surface-border">
                       <button
                         onClick={() => isFactureLibre ? handleViewFactureLibre(record) : setSelectedRecord(record)}
-                        className="flex-1 flex items-center justify-center h-10 rounded-xl bg-surface-muted text-ink-muted active:text-brand-teal active:bg-brand-teal-light transition-colors"
+                        disabled={isFactureLibre && flLoading === record.id}
+                        className="flex-1 flex items-center justify-center h-10 rounded-xl bg-surface-muted text-ink-muted active:text-brand-teal active:bg-brand-teal-light transition-colors disabled:opacity-50"
                         title="Voir"
                       >
-                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
-                        </svg>
+                        {isFactureLibre && flLoading === record.id ? (
+                          <svg className="animate-spin" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                        ) : (
+                          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                          </svg>
+                        )}
                       </button>
                       <button
                         onClick={() => router.push(isFactureLibre ? "/facture-libre?edit=" + record.id : "/dashboard?edit=" + record.id)}
@@ -622,6 +636,41 @@ export default function HistoriquePage() {
           existingNumero={selectedRecord.numero}
           existingId={selectedRecord.id}
         />
+      )}
+
+      {/* Toast PDF prêt — fallback iOS pour facture_libre */}
+      {flReady && (
+        <div
+          className="fixed bottom-6 inset-x-4 sm:left-1/2 sm:-translate-x-1/2 sm:w-auto sm:inset-x-auto z-50 bg-white rounded-2xl shadow-float border border-surface-border px-4 py-3 flex items-center gap-3"
+          style={{ opacity: 0, animation: "slideUp 0.3s cubic-bezier(0.16,1,0.3,1) forwards" }}
+        >
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: "rgba(99,102,241,0.1)" }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+              <line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-ink">PDF prêt</p>
+            <p className="text-xs text-ink-muted truncate">{flReady.name}</p>
+          </div>
+          <a
+            href={flReady.url}
+            download={flReady.name}
+            className="btn-primary text-xs px-4 py-2 shrink-0"
+            onClick={() => setTimeout(dismissFlReady, 5000)}
+          >
+            Télécharger
+          </a>
+          <button
+            onClick={dismissFlReady}
+            className="p-1.5 rounded-lg text-ink-muted hover:text-ink hover:bg-surface-muted transition-colors shrink-0"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
       )}
     </>
   );

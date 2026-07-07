@@ -10,6 +10,7 @@ import { saveDevis, generateNumero, generateId } from "@/lib/storage";
 import { NumericInput } from "@/components/ui/NumericInput";
 import type { DevisRecord } from "@/lib/types";
 import { getSession } from "@/lib/auth";
+import { fetchPdfBlobUrl, tryAutoDownload } from "@/lib/pdf-download";
 
 // 210mm at 96 dpi
 const DOC_NATURAL_WIDTH = 794;
@@ -92,6 +93,7 @@ export function DocumentPreview({ form, calc, onClose, onFormChange, readOnly, e
     form.acompteVerse !== undefined && form.acompteVerse > 0 ? String(form.acompteVerse) : ""
   );
   const [generating, setGenerating] = useState(false);
+  const [pdfReady, setPdfReady] = useState<{ url: string; name: string } | null>(null);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "local" | "error">("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
   const [pdfError, setPdfError] = useState<string | null>(null);
@@ -103,6 +105,8 @@ export function DocumentPreview({ form, calc, onClose, onFormChange, readOnly, e
 
   // Stable record ID — generated once (or reuse existing for updates)
   const recordId = useRef<string>(existingId ?? generateId());
+  // Holds the current PDF blob URL so we can revoke it on unmount or next generation.
+  const blobUrlRef = useRef<string | null>(null);
 
   // Refs to always read latest props in async callbacks without adding effect deps
   const formRef = useRef(form);
@@ -211,6 +215,11 @@ export function DocumentPreview({ form, calc, onClose, onFormChange, readOnly, e
     return () => { document.body.style.overflow = ""; };
   }, []);
 
+  // Revoke any pending blob URL when the modal is closed
+  useEffect(() => {
+    return () => { if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current); };
+  }, []);
+
   // Recalculate scale when container resizes
   useEffect(() => {
     function calcScale() {
@@ -244,6 +253,8 @@ export function DocumentPreview({ form, calc, onClose, onFormChange, readOnly, e
   async function handleDownloadPDF() {
     setGenerating(true);
     setPdfError(null);
+    setPdfReady(null);
+    if (blobUrlRef.current) { URL.revokeObjectURL(blobUrlRef.current); blobUrlRef.current = null; }
     try {
       const activityLabel =
         form.activity === "paddle" ? "Paddle" :
@@ -258,39 +269,23 @@ export function DocumentPreview({ form, calc, onClose, onFormChange, readOnly, e
         .filter(Boolean)
         .join(" ") + ".pdf";
 
-      const response = await fetch("/api/generate-pdf", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          form,
-          calc: calcWithAcompte,
-          numero,
-          documentType,
-          acompteVerse: acompteNum > 0 ? acompteNum : undefined,
-          documentDate: todayStr,
-          fileName,
-          username: getSession()?.username,
-        }),
+      const url = await fetchPdfBlobUrl("/api/generate-pdf", {
+        form,
+        calc: calcWithAcompte,
+        numero,
+        documentType,
+        acompteVerse: acompteNum > 0 ? acompteNum : undefined,
+        documentDate: todayStr,
+        fileName,
+        username: getSession()?.username,
       });
 
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({})) as { error?: string };
-        throw new Error(err.error || `Erreur serveur ${response.status}`);
-      }
-
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-
-      // Approche universelle : a.download déclenche le téléchargement sur desktop/Android.
-      // Sur iOS Safari, a.download est ignoré et le PDF s'ouvre dans le lecteur natif
-      // (partageable via la feuille de partage iOS).
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      blobUrlRef.current = url;
+      // Best-effort auto-download (desktop/Android). On iOS the gesture context is
+      // lost after await, so a.click() is silently ignored — the declarative <a>
+      // rendered by DownloadBtn is the iOS fallback.
+      tryAutoDownload(url, fileName);
+      setPdfReady({ url, name: fileName });
 
       // Re-sauvegarder avec le documentType et l'acompte définitifs.
       // La sauvegarde au montage utilisait l'état initial — si l'utilisateur
@@ -330,26 +325,55 @@ export function DocumentPreview({ form, calc, onClose, onFormChange, readOnly, e
     }
   }
 
-  const DownloadBtn = ({ fullWidth }: { fullWidth?: boolean }) => (
-    <button
-      onClick={handleDownloadPDF}
-      disabled={generating || !numero}
-      className={`btn-primary gap-2 ${fullWidth ? "w-full py-3" : ""}`}
-    >
-      {generating ? (
-        <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-          <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-        </svg>
-      ) : (
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-          <polyline points="7 10 12 15 17 10" />
-          <line x1="12" y1="15" x2="12" y2="3" />
-        </svg>
-      )}
-      {generating ? "Génération…" : "Télécharger PDF"}
-    </button>
-  );
+  const DownloadBtn = ({ fullWidth }: { fullWidth?: boolean }) => {
+    const cls = `btn-primary gap-2 ${fullWidth ? "w-full py-3 justify-center" : ""}`;
+    const icon = (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+        <polyline points="7 10 12 15 17 10" />
+        <line x1="12" y1="15" x2="12" y2="3" />
+      </svg>
+    );
+
+    // PDF is ready: render a real <a> so iOS Safari can handle it natively.
+    // Desktop/Android already received the file via tryAutoDownload(); this is the fallback.
+    if (pdfReady) {
+      return (
+        <a
+          href={pdfReady.url}
+          download={pdfReady.name}
+          className={cls}
+          onClick={() => {
+            setTimeout(() => {
+              if (blobUrlRef.current === pdfReady.url) {
+                URL.revokeObjectURL(pdfReady.url);
+                blobUrlRef.current = null;
+              }
+              setPdfReady(null);
+            }, 5000);
+          }}
+        >
+          {icon}
+          Télécharger PDF
+        </a>
+      );
+    }
+
+    return (
+      <button
+        onClick={handleDownloadPDF}
+        disabled={generating || !numero}
+        className={cls}
+      >
+        {generating ? (
+          <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+          </svg>
+        ) : icon}
+        {generating ? "Génération…" : "Télécharger PDF"}
+      </button>
+    );
+  };
 
 
   return (
