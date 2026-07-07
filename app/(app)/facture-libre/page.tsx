@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { saveDevis, generateNumero, generateId, getDevisById } from "@/lib/storage";
@@ -53,41 +53,93 @@ function FactureLibreForm() {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pdfFileName, setPdfFileName] = useState<string>("");
 
-  // Load from duplicate param
+  // Mode édition
+  const [editRecord, setEditRecord] = useState<DevisRecord | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
+  const formLoadedRef = useRef(false);
+
+  const isEditing = editRecord !== null;
+
+  function markDirty() {
+    if (formLoadedRef.current) setIsDirty(true);
+  }
+
+  // Charger depuis ?edit=<id> ou ?duplicate=<id>
   useEffect(() => {
+    const editId = searchParams?.get("edit");
     const dupId = searchParams?.get("duplicate");
-    if (!dupId) return;
-    getDevisById(dupId).then((record) => {
-      if (!record || record.documentType !== "facture_libre") return;
-      setDate(new Date().toISOString().slice(0, 10));
-      setClientType(record.clientType);
-      setClientName(record.clientName);
-      setClientAddress(record.formData?.clientAddress || "");
-      setObjet(record.prestationDescription || "");
-      setNotes(record.notes || "");
-      if (record.lignes && record.lignes.length > 0) {
-        setLignes(record.lignes.map((l) => ({
-          id: generateId(),
-          description: l.description,
-          montantStr: String(l.montant),
-        })));
-      }
-    });
+
+    if (editId) {
+      getDevisById(editId).then((record) => {
+        if (!record || record.documentType !== "facture_libre") return;
+        setEditRecord(record);
+        setDate(record.date);
+        setClientType(record.clientType);
+        setClientName(record.clientName);
+        setClientAddress(record.formData?.clientAddress || "");
+        setObjet(record.prestationDescription || "");
+        setNotes(record.notes || "");
+        if (record.lignes && record.lignes.length > 0) {
+          setLignes(record.lignes.map((l) => ({
+            id: l.id,
+            description: l.description,
+            montantStr: String(l.montant),
+          })));
+        }
+        // Marquer le formulaire comme chargé après le prochain rendu
+        setTimeout(() => { formLoadedRef.current = true; }, 0);
+      });
+    } else if (dupId) {
+      getDevisById(dupId).then((record) => {
+        if (!record || record.documentType !== "facture_libre") return;
+        setDate(new Date().toISOString().slice(0, 10));
+        setClientType(record.clientType);
+        setClientName(record.clientName);
+        setClientAddress(record.formData?.clientAddress || "");
+        setObjet(record.prestationDescription || "");
+        setNotes(record.notes || "");
+        if (record.lignes && record.lignes.length > 0) {
+          setLignes(record.lignes.map((l) => ({
+            id: generateId(),
+            description: l.description,
+            montantStr: String(l.montant),
+          })));
+        }
+        setTimeout(() => { formLoadedRef.current = true; }, 0);
+      });
+    } else {
+      // Nouveau document : déjà prêt
+      formLoadedRef.current = true;
+    }
   }, [searchParams]);
+
+  // Avertissement si l'utilisateur quitte avec des modifications non enregistrées
+  useEffect(() => {
+    if (!isDirty || saved) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [isDirty, saved]);
 
   const total = lignes.reduce((sum, l) => sum + parseMontant(l.montantStr), 0);
 
   function updateLigne(idx: number, patch: Partial<LigneState>) {
+    markDirty();
     setLignes((prev) => prev.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
   }
 
   function addLigne() {
     if (lignes.length >= 5) return;
+    markDirty();
     setLignes((prev) => [...prev, newLigne()]);
   }
 
   function removeLigne(idx: number) {
     if (lignes.length <= 1) return;
+    markDirty();
     setLignes((prev) => prev.filter((_, i) => i !== idx));
   }
 
@@ -108,100 +160,148 @@ function FactureLibreForm() {
     setSaved(false);
     setPdfUrl(null);
     try {
-      const numero = await generateNumero(date);
-
       const lignesData: FactureLibreLigne[] = validLignes.map((l) => ({
         id: l.id,
         description: l.description.trim(),
         montant: parseMontant(l.montantStr),
       }));
-
       const totalNet = lignesData.reduce((s, l) => s + l.montant, 0);
 
-      const record: DevisRecord = {
-        id: generateId(),
-        numero,
-        date,
-        createdAt: Date.now(),
-        clientType,
-        clientName: clientName.trim(),
-        prestationDescription: objet.trim(),
-        participantsCount: 0,
-        totalBrut: totalNet,
-        totalNet,
-        documentType: "facture_libre",
-        lignes: lignesData,
-        notes: notes.trim() || undefined,
-        formData: {
+      if (isEditing && editRecord) {
+        // ── Mode édition : UPDATE avec le même id/numero/createdAt ──
+        const record: DevisRecord = {
+          ...editRecord,
           date,
-          dateADefinir: false,
-          heureDebut: "",
           clientType,
           clientName: clientName.trim(),
-          clientFirstName: "",
-          clientLastName: "",
-          clientAddress: clientAddress.trim(),
           prestationDescription: objet.trim(),
-          participantsCount: 0,
-          activity: "none",
-          duration: "1h",
-          megaPaddleCount: 0,
-          megaEscapeCount: 0,
-          coach: { enabled: false, description: "", price: 0 },
-          snackingItems: [],
-          discount: {
-            discountRate: 0,
-            discountEnabled: false,
-            accompagnatorsEnabled: false,
-            accompagnatorsCount: 0,
-            extraDiscountEnabled: false,
-            extraDiscountRate: 0,
-          },
-          documentType: "facture_libre",
-        },
-      };
-
-      // 1. Save first — type "facture_libre" est mappé en "facture" côté Supabase dans storage.ts
-      const saveResult = await saveDevis(record);
-      if (saveResult.source === "localStorage") {
-        // Supabase a refusé l'insertion — on continue quand même mais on prévient
-        console.warn("[facture-libre] Supabase write failed, saved to localStorage only");
-      }
-      setSaved(true);
-
-      // 2. Generate PDF
-      const fileName = buildFactureLibreFileName(clientName, date);
-      const res = await fetch("/api/generate-pdf-libre", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          numero,
-          date,
-          clientType,
-          clientName: record.clientName,
-          clientAddress: clientAddress.trim(),
-          objet: objet.trim(),
+          totalBrut: totalNet,
+          totalNet,
           lignes: lignesData,
           notes: notes.trim() || undefined,
-          username: session?.username,
-          fileName,
-        }),
-      });
+          formData: {
+            ...editRecord.formData,
+            date,
+            clientType,
+            clientName: clientName.trim(),
+            clientAddress: clientAddress.trim(),
+            prestationDescription: objet.trim(),
+            documentType: "facture_libre",
+          },
+        };
 
-      if (!res.ok) throw new Error("Facture enregistrée mais erreur lors de la génération du PDF.");
+        await saveDevis(record);
+        setIsDirty(false);
+        setSaved(true);
+        setTimeout(() => router.push("/historique"), 1500);
+      } else {
+        // ── Mode création ──
+        const numero = await generateNumero(date);
+        const record: DevisRecord = {
+          id: generateId(),
+          numero,
+          date,
+          createdAt: Date.now(),
+          clientType,
+          clientName: clientName.trim(),
+          prestationDescription: objet.trim(),
+          participantsCount: 0,
+          totalBrut: totalNet,
+          totalNet,
+          documentType: "facture_libre",
+          lignes: lignesData,
+          notes: notes.trim() || undefined,
+          formData: {
+            date,
+            dateADefinir: false,
+            heureDebut: "",
+            clientType,
+            clientName: clientName.trim(),
+            clientFirstName: "",
+            clientLastName: "",
+            clientAddress: clientAddress.trim(),
+            prestationDescription: objet.trim(),
+            participantsCount: 0,
+            activity: "none",
+            duration: "1h",
+            megaPaddleCount: 0,
+            megaEscapeCount: 0,
+            coach: { enabled: false, description: "", price: 0 },
+            snackingItems: [],
+            discount: {
+              discountRate: 0,
+              discountEnabled: false,
+              accompagnatorsEnabled: false,
+              accompagnatorsCount: 0,
+              extraDiscountEnabled: false,
+              extraDiscountRate: 0,
+            },
+            documentType: "facture_libre",
+          },
+        };
 
-      // 3. Créer le blob URL — on affiche un lien cliquable dans le DOM
-      // (iOS Safari bloque a.click() après async, mais un vrai <a> dans le DOM fonctionne)
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      setPdfFileName(fileName);
-      setPdfUrl(url);
+        await saveDevis(record);
+        setSaved(true);
+
+        const fileName = buildFactureLibreFileName(clientName, date);
+        const res = await fetch("/api/generate-pdf-libre", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            numero,
+            date,
+            clientType,
+            clientName: record.clientName,
+            clientAddress: clientAddress.trim(),
+            objet: objet.trim(),
+            lignes: lignesData,
+            notes: notes.trim() || undefined,
+            username: session?.username,
+            fileName,
+          }),
+        });
+
+        if (!res.ok) throw new Error("Facture enregistrée mais erreur lors de la génération du PDF.");
+
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        setPdfFileName(fileName);
+        setPdfUrl(url);
+      }
     } catch (e) {
       setError((e as Error).message || "Erreur inattendue.");
     } finally {
       setSubmitting(false);
     }
   }
+
+  const SaveButton = ({ compact = false }: { compact?: boolean }) => (
+    <button
+      onClick={handleSubmit}
+      disabled={submitting || !clientName.trim() || total === 0}
+      className={`btn-primary ${compact ? "h-9 px-4 text-xs gap-1.5" : "w-full h-12 text-sm gap-2"} disabled:opacity-50 disabled:pointer-events-none`}
+    >
+      {submitting ? (
+        <>
+          <svg className="animate-spin" width={compact ? 13 : 16} height={compact ? 13 : 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+          </svg>
+          {isEditing ? "Enregistrement…" : "Enregistrement…"}
+        </>
+      ) : (
+        <>
+          <svg width={compact ? 13 : 16} height={compact ? 13 : 16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            {isEditing ? (
+              <><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></>
+            ) : (
+              <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></>
+            )}
+          </svg>
+          {isEditing ? "Enregistrer les modifications" : "Générer et télécharger la facture"}
+        </>
+      )}
+    </button>
+  );
 
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6">
@@ -212,16 +312,29 @@ function FactureLibreForm() {
       >
         <button
           onClick={() => router.back()}
-          className="p-2 rounded-xl text-ink-muted hover:bg-surface-muted hover:text-ink transition-colors"
+          className="p-2 rounded-xl text-ink-muted hover:bg-surface-muted hover:text-ink transition-colors shrink-0"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="15 18 9 12 15 6" />
           </svg>
         </button>
-        <div>
-          <h1 className="text-xl font-bold tracking-tight text-ink">Facture personnalisée</h1>
-          <p className="text-sm text-ink-muted mt-0.5">Facture libre sans lien à une prestation</p>
+        <div className="flex-1 min-w-0">
+          {isEditing ? (
+            <>
+              <h1 className="text-xl font-bold tracking-tight text-ink">Modification de la facture</h1>
+              <p className="text-sm font-mono text-ink-muted mt-0.5">{editRecord?.numero}</p>
+            </>
+          ) : (
+            <>
+              <h1 className="text-xl font-bold tracking-tight text-ink">Facture personnalisée</h1>
+              <p className="text-sm text-ink-muted mt-0.5">Facture libre sans lien à une prestation</p>
+            </>
+          )}
         </div>
+        {/* Bouton Enregistrer en haut — mode édition uniquement */}
+        {isEditing && !saved && (
+          <SaveButton compact />
+        )}
       </div>
 
       <div className="space-y-4">
@@ -241,7 +354,7 @@ function FactureLibreForm() {
               <input
                 type="date"
                 value={date}
-                onChange={(e) => setDate(e.target.value)}
+                onChange={(e) => { setDate(e.target.value); markDirty(); }}
                 className="input-field"
                 style={{ minWidth: 0 }}
               />
@@ -251,7 +364,7 @@ function FactureLibreForm() {
               <label className="block text-xs font-semibold text-ink-secondary mb-1.5">Type de client</label>
               <select
                 value={clientType}
-                onChange={(e) => setClientType(e.target.value as ClientType)}
+                onChange={(e) => { setClientType(e.target.value as ClientType); markDirty(); }}
                 className="input-field"
               >
                 {CLIENT_TYPE_OPTIONS.map((o) => (
@@ -265,7 +378,7 @@ function FactureLibreForm() {
               <input
                 type="text"
                 value={clientName}
-                onChange={(e) => setClientName(e.target.value)}
+                onChange={(e) => { setClientName(e.target.value); markDirty(); }}
                 placeholder="Nom de la société / personne"
                 className="input-field"
               />
@@ -276,7 +389,7 @@ function FactureLibreForm() {
               <input
                 type="text"
                 value={clientAddress}
-                onChange={(e) => setClientAddress(e.target.value)}
+                onChange={(e) => { setClientAddress(e.target.value); markDirty(); }}
                 placeholder="Adresse complète"
                 className="input-field"
               />
@@ -287,7 +400,7 @@ function FactureLibreForm() {
               <input
                 type="text"
                 value={objet}
-                onChange={(e) => setObjet(e.target.value)}
+                onChange={(e) => { setObjet(e.target.value); markDirty(); }}
                 placeholder="Ex : Prestation de communication, Mise à disposition de matériel…"
                 className="input-field"
               />
@@ -375,54 +488,55 @@ function FactureLibreForm() {
           </h2>
           <textarea
             value={notes}
-            onChange={(e) => setNotes(e.target.value)}
+            onChange={(e) => { setNotes(e.target.value); markDirty(); }}
             placeholder="Informations complémentaires, conditions de paiement…"
             rows={3}
             className="input-field resize-none"
           />
         </div>
 
-        {/* Success + Download link */}
+        {/* Confirmation succès */}
         {saved && !error && (
           <div className="space-y-3">
             <div className="px-4 py-3 rounded-xl text-sm font-medium text-green-700 bg-green-50 border border-green-200 flex items-center gap-2">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="20 6 9 17 4 12" />
               </svg>
-              Facture enregistrée dans les archives
+              {isEditing ? "Facture mise à jour — redirection en cours…" : "Facture enregistrée dans les archives"}
             </div>
 
-            {pdfUrl ? (
-              <div className="pb-6 space-y-2">
-                {/* Vrai lien <a> dans le DOM — fonctionne sur iOS Safari */}
-                <a
-                  href={pdfUrl}
-                  download={pdfFileName}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn-primary w-full h-12 text-sm gap-2 flex items-center justify-center no-underline"
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                    <polyline points="7 10 12 15 17 10"/>
-                    <line x1="12" y1="15" x2="12" y2="3"/>
+            {!isEditing && (
+              pdfUrl ? (
+                <div className="pb-6 space-y-2">
+                  <a
+                    href={pdfUrl}
+                    download={pdfFileName}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-primary w-full h-12 text-sm gap-2 flex items-center justify-center no-underline"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                      <polyline points="7 10 12 15 17 10"/>
+                      <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    Télécharger la facture PDF
+                  </a>
+                  <button
+                    onClick={() => router.push("/historique")}
+                    className="w-full h-10 text-sm text-ink-muted hover:text-ink transition-colors"
+                  >
+                    Voir les archives →
+                  </button>
+                </div>
+              ) : (
+                <div className="pb-6 flex items-center justify-center gap-2 text-sm text-ink-muted h-12">
+                  <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
                   </svg>
-                  Télécharger la facture PDF
-                </a>
-                <button
-                  onClick={() => router.push("/historique")}
-                  className="w-full h-10 text-sm text-ink-muted hover:text-ink transition-colors"
-                >
-                  Voir les archives →
-                </button>
-              </div>
-            ) : (
-              <div className="pb-6 flex items-center justify-center gap-2 text-sm text-ink-muted h-12">
-                <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                </svg>
-                Génération du PDF…
-              </div>
+                  Génération du PDF…
+                </div>
+              )
             )}
           </div>
         )}
@@ -434,35 +548,13 @@ function FactureLibreForm() {
           </div>
         )}
 
-        {/* Submit — masqué une fois enregistré */}
+        {/* Bouton bas — masqué une fois enregistré */}
         {!saved && (
           <div
             className="pb-6"
             style={{ opacity: 0, animation: "slideUp 0.4s cubic-bezier(0.16,1,0.3,1) 0.25s forwards" }}
           >
-            <button
-              onClick={handleSubmit}
-              disabled={submitting || !clientName.trim() || total === 0}
-              className="btn-primary w-full h-12 text-sm gap-2 disabled:opacity-50 disabled:pointer-events-none"
-            >
-              {submitting ? (
-                <>
-                  <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                  </svg>
-                  Enregistrement…
-                </>
-              ) : (
-                <>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                    <polyline points="7 10 12 15 17 10"/>
-                    <line x1="12" y1="15" x2="12" y2="3"/>
-                  </svg>
-                  Générer et télécharger la facture
-                </>
-              )}
-            </button>
+            <SaveButton />
           </div>
         )}
       </div>
