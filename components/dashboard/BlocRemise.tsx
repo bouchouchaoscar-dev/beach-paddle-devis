@@ -15,6 +15,18 @@ interface Props {
 
 const ANIM = { opacity: 0, animation: "slideUp 0.25s cubic-bezier(0.16,1,0.3,1) forwards" } as const;
 
+// Mapping label remise selon le type de client
+function getDiscountLabel(type: string): string {
+  switch (type) {
+    case "entreprise":       return "Remise exceptionnelle groupe Entreprise";
+    case "organisme_public": return "Remise exceptionnelle Organisme public";
+    case "association":      return "Remise exceptionnelle groupe Association";
+    case "scolaire":         return "Remise exceptionnelle Établissement scolaire";
+    case "loisirs":          return "Remise exceptionnelle Service Jeunesse";
+    default:                 return "Remise exceptionnelle";
+  }
+}
+
 // Stepper partagé pour le nombre d'accompagnateurs
 function AccomptStepper({
   count,
@@ -26,8 +38,8 @@ function AccomptStepper({
   onIncrement: () => void;
 }) {
   return (
-    <div className="flex items-center gap-3" style={ANIM}>
-      <label className="text-sm text-ink-secondary whitespace-nowrap">Nombre d&apos;accompagnateurs :</label>
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3" style={ANIM}>
+      <label className="text-sm text-ink-secondary">Nombre d&apos;accompagnateurs :</label>
       <div className="flex items-center gap-0">
         <button
           type="button"
@@ -164,7 +176,7 @@ export function BlocRemise({ form, onChange }: Props) {
         {discount.discountEnabled && (
           <div className="space-y-4" style={ANIM}>
             <div>
-              <label className="label">Remise exceptionnelle groupe entreprise</label>
+              <label className="label">{getDiscountLabel("entreprise")}</label>
               <DiscountRateRow rates={ENTERPRISE_DISCOUNT_RATES} />
             </div>
             <div
@@ -203,7 +215,7 @@ export function BlocRemise({ form, onChange }: Props) {
           </div>
           {discount.discountEnabled && (
             <div className="space-y-3" style={ANIM}>
-              <label className="label">Remise exceptionnelle groupe association</label>
+              <label className="label">{getDiscountLabel("association")}</label>
               <DiscountRateRow rates={ENTERPRISE_DISCOUNT_RATES} />
             </div>
           )}
@@ -255,11 +267,8 @@ export function BlocRemise({ form, onChange }: Props) {
     );
   }
 
-  // ── Scolaire / loisirs ────────────────────────────────────────────────────
-  const label =
-    clientType === "scolaire"
-      ? "REMISE EXCEPTIONNELLE ÉTABLISSEMENT SCOLAIRE"
-      : "REMISE EXCEPTIONNELLE SERVICE JEUNESSE";
+  // ── Scolaire / loisirs / organisme_public / particulier ──────────────────
+  const label = getDiscountLabel(clientType);
 
   return (
     <section className="card p-6 space-y-5">

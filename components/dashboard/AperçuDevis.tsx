@@ -191,20 +191,25 @@ export function AperçuDevis({ form, calc, onGenerate }: Props) {
             </span>
           </div>
 
-          {calc.totalNet > 0 && (
+          {calc.totalNet > 0 && form.documentType !== "facture" && (
             <div
-              className="flex items-center justify-between rounded-lg"
+              className="rounded-xl"
               style={{
-                backgroundColor: "rgba(0,113,227,0.04)",
-                border: "1px dashed rgba(0,113,227,0.2)",
+                backgroundColor: "#FFF5F5",
+                border: "1.5px solid #F0A0A0",
                 padding: "10px 12px",
                 marginTop: "10px",
               }}
             >
-              <span className="text-xs text-ink-secondary">Acompte 30%</span>
-              <span className="text-xs font-bold font-mono" style={{ color: "#0071E3" }}>
-                {formatPrice(Math.round(calc.totalNet * 0.3 * 100) / 100)}
-              </span>
+              <p className="text-xs font-semibold italic leading-relaxed" style={{ color: "#D94F04" }}>
+                Acompte de 30% demandé pour valider la réservation —{" "}
+                <span className="font-bold not-italic">
+                  soit {formatPrice(Math.round(calc.totalNet * 0.3 * 100) / 100)}
+                </span>
+              </p>
+              <p className="text-xs italic mt-1" style={{ color: "#D94F04", opacity: 0.8 }}>
+                La date sera bloquée dès réception de l&apos;acompte.
+              </p>
             </div>
           )}
         </div>
