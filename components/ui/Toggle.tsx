@@ -21,13 +21,13 @@ export function Toggle({ checked, onChange, label, size = "md" }: ToggleProps) {
         tabIndex={0}
         onClick={() => onChange(!checked)}
         onKeyDown={(e) => e.key === " " && onChange(!checked)}
-        className={`relative inline-flex ${h} ${w} shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange focus-visible:ring-offset-2 cursor-pointer`}
+        className={`relative inline-flex items-center ${h} ${w} shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange focus-visible:ring-offset-2 cursor-pointer`}
         style={{ backgroundColor: checked ? "#0071E3" : "#C7C7CC" }}
       >
         <span
           className={`pointer-events-none inline-block ${thumb} rounded-full bg-white shadow-sm ring-0 transition-transform duration-200 ${
             checked ? translate : "translate-x-0.5"
-          } mt-0.5`}
+          }`}
         />
       </div>
       {label && <span className="text-sm font-medium text-ink-secondary">{label}</span>}
