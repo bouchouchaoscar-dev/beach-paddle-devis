@@ -799,41 +799,23 @@ export default function ChargesPage() {
                             </div>
                           ) : null;
                         })()}
-                        {deletingEmpId === emp.id ? (
-                          <div className="flex items-center gap-1" onClick={(ev) => ev.stopPropagation()}>
-                            <span className="text-xs text-brand-red font-medium">Supprimer ?</span>
+                        <div className="flex items-center gap-1" onClick={(ev) => ev.stopPropagation()}>
+                          {!emp.actif && (
                             <button
-                              onClick={() => handleDeleteEmployee(emp.id)}
-                              className="text-xs font-semibold text-white bg-brand-red px-2 py-1 rounded-lg hover:opacity-80 transition-opacity"
+                              onClick={() => updateEmployee(emp.id, { actif: true }).then(load)}
+                              className="text-xs font-medium text-brand-teal px-2 py-1 rounded-lg hover:bg-brand-teal-light transition-colors"
                             >
-                              Oui
+                              Réactiver
                             </button>
-                            <button
-                              onClick={() => setDeletingEmpId(null)}
-                              className="text-xs text-ink-muted px-2 py-1 rounded-lg hover:bg-surface-muted transition-colors"
-                            >
-                              Non
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1" onClick={(ev) => ev.stopPropagation()}>
-                            {emp.actif && (
-                              <button
-                                onClick={() => updateEmployee(emp.id, { actif: false }).then(load)}
-                                className="text-xs text-ink-muted hover:text-brand-red transition-colors px-2 py-1 rounded-lg hover:bg-brand-red-light"
-                              >
-                                Désactiver
-                              </button>
-                            )}
-                            <button
-                              onClick={() => setDeletingEmpId(emp.id)}
-                              className="p-1.5 rounded-lg text-ink-muted hover:text-brand-red hover:bg-brand-red-light transition-colors"
-                              title="Supprimer l'employé"
-                            >
-                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-                            </button>
-                          </div>
-                        )}
+                          )}
+                          <button
+                            onClick={() => setDeletingEmpId(emp.id)}
+                            className="p-1.5 rounded-lg text-ink-muted hover:text-brand-red hover:bg-brand-red-light transition-colors"
+                            title="Supprimer l'employé"
+                          >
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -1565,6 +1547,37 @@ export default function ChargesPage() {
       )}
 
       {/* ── Edit immobilisation modal ── */}
+      {/* Modale confirmation suppression employé */}
+      {deletingEmpId && (() => {
+        const emp = employees.find((e) => e.id === deletingEmpId);
+        if (!emp) return null;
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }}>
+            <div className="bg-white rounded-2xl shadow-float p-6 max-w-sm w-full mx-4" style={{ opacity: 0, animation: "scaleIn 0.25s cubic-bezier(0.16,1,0.3,1) forwards" }}>
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-4" style={{ backgroundColor: "rgba(224,49,49,0.1)" }}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#E03131" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                </svg>
+              </div>
+              <h3 className="text-base font-bold text-ink mb-1">Supprimer {emp.nom} ?</h3>
+              <p className="text-sm text-ink-secondary mb-5">
+                ⚠️ Toutes ses sessions de travail seront également supprimées.
+              </p>
+              <div className="flex gap-2">
+                <button onClick={() => setDeletingEmpId(null)} className="btn-secondary flex-1">Annuler</button>
+                <button
+                  onClick={() => handleDeleteEmployee(deletingEmpId)}
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-white font-semibold text-sm transition-all duration-200 active:scale-[0.98]"
+                  style={{ backgroundColor: "#E03131" }}
+                >
+                  Confirmer la suppression
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {editingImmo && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
