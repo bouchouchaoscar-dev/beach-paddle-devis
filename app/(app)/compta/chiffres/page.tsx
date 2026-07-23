@@ -56,7 +56,18 @@ export default function ChiffresPage() {
     soldeClient: "",
   });
   const [editingEntry, setEditingEntry] = useState<CaEntry | null>(null);
-  const [editForm, setEditForm] = useState({ montant: "", notes: "" });
+  const [editForm, setEditForm] = useState({
+    montant: "",
+    notes: "",
+    includeAcompte: false,
+    acompteMontant: "",
+    acompteClient: "",
+    includeSolde: false,
+    soldeMontant: "",
+    soldeClient: "",
+  });
+  const [editAcompteId, setEditAcompteId] = useState<string | null>(null);
+  const [editSoldeId, setEditSoldeId] = useState<string | null>(null);
   const [editSaving, setEditSaving] = useState(false);
 
   const isAll = saison === "all";
@@ -199,8 +210,22 @@ export default function ChiffresPage() {
   }
 
   function openEdit(e: CaEntry) {
+    const dayEntries = monthEntriesByDate[e.date] ?? [];
+    const existingAcompte = dayEntries.find((d) => d.source === "acompte");
+    const existingSolde = dayEntries.find((d) => d.source === "solde");
+    setEditAcompteId(existingAcompte?.id ?? null);
+    setEditSoldeId(existingSolde?.id ?? null);
     setEditingEntry(e);
-    setEditForm({ montant: String(e.montant), notes: e.notes ?? "" });
+    setEditForm({
+      montant: String(e.montant),
+      notes: e.notes ?? "",
+      includeAcompte: !!existingAcompte,
+      acompteMontant: existingAcompte ? String(existingAcompte.montant) : "",
+      acompteClient: existingAcompte?.notes ?? "",
+      includeSolde: !!existingSolde,
+      soldeMontant: existingSolde ? String(existingSolde.montant) : "",
+      soldeClient: existingSolde?.notes ?? "",
+    });
   }
 
   async function handleUpdateEntry() {
@@ -210,6 +235,29 @@ export default function ChiffresPage() {
     setEditSaving(true);
     try {
       await updateCaEntry(editingEntry.id, { montant, notes: editForm.notes || undefined });
+
+      // Acompte: create / update / delete
+      const acompteMontant = parseFloat(editForm.acompteMontant);
+      const hasAcompte = editForm.includeAcompte && !isNaN(acompteMontant) && acompteMontant > 0;
+      if (hasAcompte && editAcompteId) {
+        await updateCaEntry(editAcompteId, { montant: acompteMontant, notes: editForm.acompteClient || undefined });
+      } else if (hasAcompte && !editAcompteId) {
+        await saveCaEntry({ date: editingEntry.date, montant: acompteMontant, source: "acompte", notes: editForm.acompteClient || undefined, saison: editingEntry.date.slice(0, 4), created_by: "" });
+      } else if (!hasAcompte && editAcompteId) {
+        await deleteCaEntry(editAcompteId);
+      }
+
+      // Solde: create / update / delete
+      const soldeMontant = parseFloat(editForm.soldeMontant);
+      const hasSolde = editForm.includeSolde && !isNaN(soldeMontant) && soldeMontant > 0;
+      if (hasSolde && editSoldeId) {
+        await updateCaEntry(editSoldeId, { montant: soldeMontant, notes: editForm.soldeClient || undefined });
+      } else if (hasSolde && !editSoldeId) {
+        await saveCaEntry({ date: editingEntry.date, montant: soldeMontant, source: "solde", notes: editForm.soldeClient || undefined, saison: editingEntry.date.slice(0, 4), created_by: "" });
+      } else if (!hasSolde && editSoldeId) {
+        await deleteCaEntry(editSoldeId);
+      }
+
       setEditingEntry(null);
       await load();
     } finally {
@@ -721,7 +769,7 @@ export default function ChiffresPage() {
           onClick={() => setEditingEntry(null)}
         >
           <div
-            className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5 space-y-4"
+            className="bg-white rounded-2xl shadow-xl w-full max-w-md p-5 space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
@@ -783,6 +831,115 @@ export default function ChiffresPage() {
                 className="input-field"
               />
             </div>
+
+            {/* Acompte section — only for regular CA entries */}
+            {editingEntry.source !== "acompte" && editingEntry.source !== "solde" && (
+              <div className="border-t border-surface-border pt-3">
+                <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                  <div
+                    onClick={() => setEditForm((f) => ({ ...f, includeAcompte: !f.includeAcompte }))}
+                    className={`relative w-9 h-5 rounded-full transition-colors duration-200 flex-shrink-0 ${editForm.includeAcompte ? "bg-blue-500" : "bg-surface-border"}`}
+                  >
+                    <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200 ${editForm.includeAcompte ? "translate-x-4" : "translate-x-0"}`} />
+                  </div>
+                  <span className="text-sm font-medium text-ink">Inclure un acompte reçu</span>
+                </label>
+                {editForm.includeAcompte && (
+                  <div className="mt-3 space-y-2.5 pl-1">
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <label className="label">Montant acompte (€)</label>
+                        <div className="flex items-center gap-0">
+                          <button type="button" onClick={() => setEditForm((f) => ({ ...f, acompteMontant: String(Math.max(0, (parseFloat(f.acompteMontant) || 0) - 10)) }))} className="flex items-center justify-center w-9 h-9 rounded-l-xl border border-r-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border hover:text-ink transition-colors active:scale-95">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                          </button>
+                          <div className="relative flex-1">
+                            <NumericInput
+                              inputMode="decimal"
+                              value={editForm.acompteMontant}
+                              min={0}
+                              step={10}
+                              placeholder="0"
+                              onChange={(e) => setEditForm((f) => ({ ...f, acompteMontant: e.target.value }))}
+                              className="w-full h-9 border border-surface-border bg-white text-center text-sm font-bold font-mono text-ink outline-none pr-6 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                            />
+                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-muted text-sm pointer-events-none">€</span>
+                          </div>
+                          <button type="button" onClick={() => setEditForm((f) => ({ ...f, acompteMontant: String((parseFloat(f.acompteMontant) || 0) + 10) }))} className="flex items-center justify-center w-9 h-9 rounded-r-xl border border-l-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border hover:text-ink transition-colors active:scale-95">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                          </button>
+                        </div>
+                      </div>
+                      <div className="flex-1">
+                        <label className="label">De qui</label>
+                        <input
+                          type="text"
+                          value={editForm.acompteClient}
+                          placeholder="Nom client / groupe"
+                          onChange={(e) => setEditForm((f) => ({ ...f, acompteClient: e.target.value }))}
+                          className="input-field"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Solde section — only for regular CA entries */}
+            {editingEntry.source !== "acompte" && editingEntry.source !== "solde" && (
+              <div className="border-t border-surface-border pt-3">
+                <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                  <div
+                    onClick={() => setEditForm((f) => ({ ...f, includeSolde: !f.includeSolde }))}
+                    className={`relative w-9 h-5 rounded-full transition-colors duration-200 flex-shrink-0 ${editForm.includeSolde ? "bg-green-500" : "bg-surface-border"}`}
+                  >
+                    <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform duration-200 ${editForm.includeSolde ? "translate-x-4" : "translate-x-0"}`} />
+                  </div>
+                  <span className="text-sm font-medium text-ink">Solde reçu (complément de paiement)</span>
+                </label>
+                {editForm.includeSolde && (
+                  <div className="mt-3 space-y-2.5 pl-1">
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <label className="label">Montant solde (€)</label>
+                        <div className="flex items-center gap-0">
+                          <button type="button" onClick={() => setEditForm((f) => ({ ...f, soldeMontant: String(Math.max(0, (parseFloat(f.soldeMontant) || 0) - 10)) }))} className="flex items-center justify-center w-9 h-9 rounded-l-xl border border-r-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border hover:text-ink transition-colors active:scale-95">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                          </button>
+                          <div className="relative flex-1">
+                            <NumericInput
+                              inputMode="decimal"
+                              value={editForm.soldeMontant}
+                              min={0}
+                              step={10}
+                              placeholder="0"
+                              onChange={(e) => setEditForm((f) => ({ ...f, soldeMontant: e.target.value }))}
+                              className="w-full h-9 border border-surface-border bg-white text-center text-sm font-bold font-mono text-ink outline-none pr-6 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                            />
+                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-muted text-sm pointer-events-none">€</span>
+                          </div>
+                          <button type="button" onClick={() => setEditForm((f) => ({ ...f, soldeMontant: String((parseFloat(f.soldeMontant) || 0) + 10) }))} className="flex items-center justify-center w-9 h-9 rounded-r-xl border border-l-0 border-surface-border bg-surface-muted text-ink-secondary hover:bg-surface-border hover:text-ink transition-colors active:scale-95">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                          </button>
+                        </div>
+                      </div>
+                      <div className="flex-1">
+                        <label className="label">De qui</label>
+                        <input
+                          type="text"
+                          value={editForm.soldeClient}
+                          placeholder="Nom client / groupe"
+                          onChange={(e) => setEditForm((f) => ({ ...f, soldeClient: e.target.value }))}
+                          className="input-field"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="flex gap-2 pt-1">
               <button onClick={() => setEditingEntry(null)} className="btn-secondary flex-1">
                 Annuler
