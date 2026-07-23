@@ -69,6 +69,7 @@ export default function ChiffresPage() {
   const [editAcompteId, setEditAcompteId] = useState<string | null>(null);
   const [editSoldeId, setEditSoldeId] = useState<string | null>(null);
   const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const isAll = saison === "all";
 
@@ -232,36 +233,67 @@ export default function ChiffresPage() {
     if (!editingEntry) return;
     const montant = parseFloat(editForm.montant);
     if (isNaN(montant) || montant <= 0) return;
-    setEditSaving(true);
+
+    const acompteMontant = parseFloat(editForm.acompteMontant);
+    const hasAcompte = editForm.includeAcompte && !isNaN(acompteMontant) && acompteMontant > 0;
+    const soldeMontant = parseFloat(editForm.soldeMontant);
+    const hasSolde = editForm.includeSolde && !isNaN(soldeMontant) && soldeMontant > 0;
+
+    // Snapshot pour rollback
+    const snapshot = entries;
+
+    // 1. Optimistic update — mettre à jour l'affichage immédiatement
+    const updatedMain: CaEntry = { ...editingEntry, montant, notes: editForm.notes || undefined };
+    let optimistic = entries.map((e) => (e.id === editingEntry.id ? updatedMain : e));
+
+    if (hasAcompte && editAcompteId) {
+      optimistic = optimistic.map((e) =>
+        e.id === editAcompteId ? { ...e, montant: acompteMontant, notes: editForm.acompteClient || undefined } : e
+      );
+    } else if (hasAcompte && !editAcompteId) {
+      optimistic = [...optimistic, { id: `tmp-${editingEntry.date}-acompte`, date: editingEntry.date, montant: acompteMontant, source: "acompte" as const, notes: editForm.acompteClient || undefined, saison: editingEntry.date.slice(0, 4), created_by: "" }];
+    } else if (!hasAcompte && editAcompteId) {
+      optimistic = optimistic.filter((e) => e.id !== editAcompteId);
+    }
+
+    if (hasSolde && editSoldeId) {
+      optimistic = optimistic.map((e) =>
+        e.id === editSoldeId ? { ...e, montant: soldeMontant, notes: editForm.soldeClient || undefined } : e
+      );
+    } else if (hasSolde && !editSoldeId) {
+      optimistic = [...optimistic, { id: `tmp-${editingEntry.date}-solde`, date: editingEntry.date, montant: soldeMontant, source: "solde" as const, notes: editForm.soldeClient || undefined, saison: editingEntry.date.slice(0, 4), created_by: "" }];
+    } else if (!hasSolde && editSoldeId) {
+      optimistic = optimistic.filter((e) => e.id !== editSoldeId);
+    }
+
+    setEntries(optimistic);
+    setEditingEntry(null); // Fermer la modale immédiatement
+
+    // 2. Requêtes en parallèle en arrière-plan
+    const ops: Promise<unknown>[] = [
+      updateCaEntry(editingEntry.id, { montant, notes: editForm.notes || undefined }),
+    ];
+    if (hasAcompte && editAcompteId) {
+      ops.push(updateCaEntry(editAcompteId, { montant: acompteMontant, notes: editForm.acompteClient || undefined }));
+    } else if (hasAcompte && !editAcompteId) {
+      ops.push(saveCaEntry({ date: editingEntry.date, montant: acompteMontant, source: "acompte", notes: editForm.acompteClient || undefined, saison: editingEntry.date.slice(0, 4), created_by: "" }));
+    } else if (!hasAcompte && editAcompteId) {
+      ops.push(deleteCaEntry(editAcompteId));
+    }
+    if (hasSolde && editSoldeId) {
+      ops.push(updateCaEntry(editSoldeId, { montant: soldeMontant, notes: editForm.soldeClient || undefined }));
+    } else if (hasSolde && !editSoldeId) {
+      ops.push(saveCaEntry({ date: editingEntry.date, montant: soldeMontant, source: "solde", notes: editForm.soldeClient || undefined, saison: editingEntry.date.slice(0, 4), created_by: "" }));
+    } else if (!hasSolde && editSoldeId) {
+      ops.push(deleteCaEntry(editSoldeId));
+    }
+
     try {
-      await updateCaEntry(editingEntry.id, { montant, notes: editForm.notes || undefined });
-
-      // Acompte: create / update / delete
-      const acompteMontant = parseFloat(editForm.acompteMontant);
-      const hasAcompte = editForm.includeAcompte && !isNaN(acompteMontant) && acompteMontant > 0;
-      if (hasAcompte && editAcompteId) {
-        await updateCaEntry(editAcompteId, { montant: acompteMontant, notes: editForm.acompteClient || undefined });
-      } else if (hasAcompte && !editAcompteId) {
-        await saveCaEntry({ date: editingEntry.date, montant: acompteMontant, source: "acompte", notes: editForm.acompteClient || undefined, saison: editingEntry.date.slice(0, 4), created_by: "" });
-      } else if (!hasAcompte && editAcompteId) {
-        await deleteCaEntry(editAcompteId);
-      }
-
-      // Solde: create / update / delete
-      const soldeMontant = parseFloat(editForm.soldeMontant);
-      const hasSolde = editForm.includeSolde && !isNaN(soldeMontant) && soldeMontant > 0;
-      if (hasSolde && editSoldeId) {
-        await updateCaEntry(editSoldeId, { montant: soldeMontant, notes: editForm.soldeClient || undefined });
-      } else if (hasSolde && !editSoldeId) {
-        await saveCaEntry({ date: editingEntry.date, montant: soldeMontant, source: "solde", notes: editForm.soldeClient || undefined, saison: editingEntry.date.slice(0, 4), created_by: "" });
-      } else if (!hasSolde && editSoldeId) {
-        await deleteCaEntry(editSoldeId);
-      }
-
-      setEditingEntry(null);
-      await load();
-    } finally {
-      setEditSaving(false);
+      await Promise.all(ops);
+      load(); // Sync silencieux pour récupérer les vrais IDs (pas d'await)
+    } catch {
+      setEntries(snapshot); // Rollback
+      setEditError("Erreur lors de la sauvegarde — veuillez réessayer.");
     }
   }
 
@@ -761,6 +793,18 @@ export default function ChiffresPage() {
         )}
       </div>
 
+      {/* Toast d'erreur sauvegarde CA */}
+      {editError && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg border"
+          style={{ background: "#FFF5F5", borderColor: "#F0A0A0", color: "#D94F04", minWidth: 260, maxWidth: "calc(100vw - 32px)" }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <p className="text-sm font-medium flex-1">{editError}</p>
+          <button onClick={() => setEditError(null)} className="p-1 rounded-md opacity-60 hover:opacity-100 transition-opacity">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+      )}
+
       {/* ── Edit CA modal ── */}
       {editingEntry && (
         <div
@@ -944,12 +988,8 @@ export default function ChiffresPage() {
               <button onClick={() => setEditingEntry(null)} className="btn-secondary flex-1">
                 Annuler
               </button>
-              <button onClick={handleUpdateEntry} disabled={editSaving || !editForm.montant} className="btn-primary flex-1">
-                {editSaving ? (
-                  <svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-                ) : (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                )}
+              <button onClick={handleUpdateEntry} disabled={!editForm.montant} className="btn-primary flex-1">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                 Sauvegarder
               </button>
             </div>
