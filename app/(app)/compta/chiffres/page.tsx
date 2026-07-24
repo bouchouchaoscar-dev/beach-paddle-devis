@@ -68,7 +68,6 @@ export default function ChiffresPage() {
   });
   const [editAcompteId, setEditAcompteId] = useState<string | null>(null);
   const [editSoldeId, setEditSoldeId] = useState<string | null>(null);
-  const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
   const isAll = saison === "all";
@@ -251,7 +250,7 @@ export default function ChiffresPage() {
         e.id === editAcompteId ? { ...e, montant: acompteMontant, notes: editForm.acompteClient || undefined } : e
       );
     } else if (hasAcompte && !editAcompteId) {
-      optimistic = [...optimistic, { id: `tmp-${editingEntry.date}-acompte`, date: editingEntry.date, montant: acompteMontant, source: "acompte" as const, notes: editForm.acompteClient || undefined, saison: editingEntry.date.slice(0, 4), created_by: "" }];
+      optimistic = [...optimistic, { id: `tmp-${editingEntry.date}-acompte`, date: editingEntry.date, montant: acompteMontant, source: "acompte" as const, notes: editForm.acompteClient || undefined, saison: editingEntry.date.slice(0, 4), created_by: "", created_at: "" }];
     } else if (!hasAcompte && editAcompteId) {
       optimistic = optimistic.filter((e) => e.id !== editAcompteId);
     }
@@ -261,7 +260,7 @@ export default function ChiffresPage() {
         e.id === editSoldeId ? { ...e, montant: soldeMontant, notes: editForm.soldeClient || undefined } : e
       );
     } else if (hasSolde && !editSoldeId) {
-      optimistic = [...optimistic, { id: `tmp-${editingEntry.date}-solde`, date: editingEntry.date, montant: soldeMontant, source: "solde" as const, notes: editForm.soldeClient || undefined, saison: editingEntry.date.slice(0, 4), created_by: "" }];
+      optimistic = [...optimistic, { id: `tmp-${editingEntry.date}-solde`, date: editingEntry.date, montant: soldeMontant, source: "solde" as const, notes: editForm.soldeClient || undefined, saison: editingEntry.date.slice(0, 4), created_by: "", created_at: "" }];
     } else if (!hasSolde && editSoldeId) {
       optimistic = optimistic.filter((e) => e.id !== editSoldeId);
     }

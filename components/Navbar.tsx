@@ -6,6 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { logout, getSession } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
+import { getStatutRow, resolveStatut } from "@/lib/statut";
 
 function CalendarTodayBadge() {
   const [count, setCount] = useState<number>(0);
@@ -59,6 +60,35 @@ function QontoPendingBadge() {
     <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-bold leading-none">
       {count > 9 ? "9+" : count}
     </span>
+  );
+}
+
+const STATUT_COLORS: Record<string, string> = {
+  ouvert:           "#16A34A",
+  incertain:        "#D97706",
+  ferme_aujourdhui: "#DC2626",
+  ferme_saison:     "#334155",
+};
+
+function StatutDot() {
+  const [color, setColor] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const row = await getStatutRow();
+        const { statut } = resolveStatut(row);
+        setColor(STATUT_COLORS[statut] ?? null);
+      } catch {}
+    })();
+  }, []);
+
+  if (!color) return null;
+  return (
+    <span
+      className="w-2 h-2 rounded-full flex-shrink-0"
+      style={{ backgroundColor: color }}
+    />
   );
 }
 
@@ -117,6 +147,16 @@ export function Navbar() {
           <line x1="16" y1="2" x2="16" y2="6"/>
           <line x1="8" y1="2" x2="8" y2="6"/>
           <line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
+      ),
+    },
+    {
+      href: "/statut",
+      label: "Statut",
+      icon: (
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/>
+          <line x1="12" y1="2" x2="12" y2="12"/>
         </svg>
       ),
     },
@@ -219,6 +259,7 @@ export function Navbar() {
                   </span>
                   <span className="hidden sm:inline">{link.label}</span>
                   {link.href === "/calendrier" && <CalendarTodayBadge />}
+                  {link.href === "/statut" && <StatutDot />}
                 </Link>
               );
             })}
