@@ -94,8 +94,10 @@ export default function StatutPage() {
     try {
       await setStatut(statut);
       await load();
-    } catch {
-      setError("Erreur lors de la mise à jour. Vérifiez votre connexion.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("[statut] setStatut failed:", msg);
+      setError(`Erreur : ${msg}`);
     } finally {
       setSaving(null);
     }
