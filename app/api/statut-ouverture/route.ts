@@ -1,9 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@supabase/supabase-js";
 import { resolveStatut } from "@/lib/statut";
 import type { StatutRow } from "@/lib/statut";
 
 export const dynamic = "force-dynamic";
+
+// Client local avec fetch no-store pour bypasser le Next.js Data Cache.
+// Le client singleton de lib/supabase.ts laisse Next.js mettre en cache
+// les requêtes fetch internes — ce client force chaque requête à aller
+// directement en base sans passer par le cache.
+const supabaseFresh = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  { global: { fetch: (url, options) => fetch(url, { ...options, cache: "no-store" }) } }
+);
 
 export async function GET(request: NextRequest) {
   const secret = request.headers.get("x-api-secret");
@@ -11,7 +21,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseFresh
     .from("statut_ouverture")
     .select("id, statut, date_jour, mis_a_jour")
     .eq("id", 1)
