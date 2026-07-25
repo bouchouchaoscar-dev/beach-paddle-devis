@@ -21,9 +21,10 @@ export function parisToday(): string {
 
 export function resolveStatut(row: StatutRow | null): StatutResult {
   if (!row) return { statut: "auto", misAJourLe: null };
-  // ferme_saison ne s'expire jamais
-  if (row.statut === "ferme_saison") return { statut: "ferme_saison", misAJourLe: row.mis_a_jour };
-  // Les autres statuts expirent si la date stockée n'est pas aujourd'hui (Paris)
+  // Statuts persistants : "ouvert" et "ferme_saison" ne s'expirent jamais
+  if (row.statut === "ouvert" || row.statut === "ferme_saison")
+    return { statut: row.statut, misAJourLe: row.mis_a_jour };
+  // Statuts du jour : "incertain" et "ferme_aujourdhui" expirent si la date n'est pas aujourd'hui (Paris)
   if (row.date_jour !== parisToday()) return { statut: "auto", misAJourLe: row.mis_a_jour };
   return { statut: row.statut, misAJourLe: row.mis_a_jour };
 }

@@ -202,8 +202,8 @@ export default function StatutPage() {
 
       {/* Note expiration */}
       <p className="text-xs text-ink-muted text-center px-2">
-        Les statuts &quot;Ouvert&quot;, &quot;Incertain&quot; et &quot;Fermé aujourd&apos;hui&quot; s&apos;appliquent uniquement au jour J.
-        &quot;Fermé saison&quot; persiste jusqu&apos;au prochain changement.
+        &laquo;&nbsp;Ouvert&nbsp;&raquo; et &laquo;&nbsp;Fermé pour la saison&nbsp;&raquo; restent actifs jusqu&apos;au prochain changement.
+        &laquo;&nbsp;Incertain&nbsp;&raquo; et &laquo;&nbsp;Fermé aujourd&apos;hui&nbsp;&raquo; ne s&apos;appliquent qu&apos;au jour même et se réinitialisent automatiquement le lendemain.
       </p>
 
       {/* Erreur */}
