@@ -23,9 +23,9 @@ export function getDefaultForm(): DevisFormData {
     discount: {
       discountRate: 10,
       discountEnabled: true,
-      accompagnatorsEnabled: true,
+      accompagnatorsEnabled: false,
       accompagnatorsCount: 2,
-      extraDiscountEnabled: true,
+      extraDiscountEnabled: false,
       extraDiscountRate: 10,
     },
     documentType: "devis",

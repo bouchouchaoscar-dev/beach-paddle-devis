@@ -34,58 +34,22 @@ export function calculateDevis(
 
   const totalBrut = round2(activitySubtotal + coachSubtotal + snackingSubtotal);
 
-  // Discount
+  // Discount — même logique pour tous les types de client
   let discountAmount = 0;
   let accompagnatorsCost = 0;
-  let extraDiscountAmount = 0;
+  const extraDiscountAmount = 0;
   let totalDiscount = 0;
   let totalNet = totalBrut;
 
-  if (
-    (form.clientType === "entreprise" || form.clientType === "organisme_public" || form.clientType === "particulier") &&
-    form.discount.discountEnabled
-  ) {
+  if (form.discount.discountEnabled) {
     discountAmount = round2(totalBrut * (form.discount.discountRate / 100));
-    totalDiscount = discountAmount;
-    totalNet = round2(totalBrut - discountAmount);
-  } else if (form.clientType === "association") {
-    if (form.discount.discountEnabled) {
-      discountAmount = round2(totalBrut * (form.discount.discountRate / 100));
-    }
-    if (form.discount.accompagnatorsEnabled && form.discount.accompagnatorsCount > 0) {
-      const pricePerPerson = totalBrut > 0 ? round2(totalBrut / n) : 0;
-      accompagnatorsCost = round2(pricePerPerson * form.discount.accompagnatorsCount);
-    }
-    totalDiscount = round2(discountAmount + accompagnatorsCost);
-    totalNet = round2(totalBrut - totalDiscount);
-  } else if (
-    form.clientType === "scolaire" ||
-    form.clientType === "loisirs"
-  ) {
-    // Step 1: accompagnateurs offerts
-    if (
-      form.discount.accompagnatorsEnabled &&
-      form.discount.accompagnatorsCount > 0
-    ) {
-      const pricePerPerson =
-        totalBrut > 0 ? round2(totalBrut / n) : 0;
-      accompagnatorsCost = round2(
-        pricePerPerson * form.discount.accompagnatorsCount
-      );
-    }
-
-    const afterAccompagnators = round2(totalBrut - accompagnatorsCost);
-
-    // Step 2: remise supplémentaire
-    if (form.discount.extraDiscountEnabled) {
-      extraDiscountAmount = round2(
-        afterAccompagnators * (form.discount.extraDiscountRate / 100)
-      );
-    }
-
-    totalDiscount = round2(accompagnatorsCost + extraDiscountAmount);
-    totalNet = round2(totalBrut - totalDiscount);
   }
+  if (form.discount.accompagnatorsEnabled && form.discount.accompagnatorsCount > 0 && n > 0) {
+    const pricePerPerson = round2(totalBrut / n);
+    accompagnatorsCost = round2(pricePerPerson * form.discount.accompagnatorsCount);
+  }
+  totalDiscount = round2(discountAmount + accompagnatorsCost);
+  totalNet = round2(totalBrut - totalDiscount);
 
   const exactRate = totalBrut > 0 ? (totalDiscount / totalBrut) * 100 : 0;
   const totalDiscountRate = Math.round(exactRate * 2) / 2; // arrondi au 0.5 le plus proche

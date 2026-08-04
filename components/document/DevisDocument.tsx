@@ -384,7 +384,11 @@ export function DevisDocument({
       ? "REMISE EXCEPTIONNELLE GROUPE ASSOCIATION"
       : form.clientType === "scolaire"
       ? "REMISE EXCEPTIONNELLE ÉTABLISSEMENT SCOLAIRE"
-      : "REMISE EXCEPTIONNELLE SERVICE JEUNESSE";
+      : form.clientType === "loisirs"
+      ? "REMISE EXCEPTIONNELLE SERVICE JEUNESSE"
+      : form.clientType === "organisme_public"
+      ? "REMISE ORGANISME PUBLIC"
+      : "REMISE EXCEPTIONNELLE";
 
   // ── Auto-compression : compte les lignes de contenu pour choisir la densité
   const contentRows = (

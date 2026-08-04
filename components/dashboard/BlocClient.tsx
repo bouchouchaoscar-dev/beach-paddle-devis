@@ -80,12 +80,11 @@ const CLIENT_OPTIONS: { value: ClientType; label: string; icon: React.ReactNode 
 ];
 
 function getDiscountDefaults(v: ClientType) {
-  const isScol = v === "scolaire" || v === "loisirs";
   return {
     discountEnabled: v !== "particulier",
-    accompagnatorsEnabled: isScol,
-    extraDiscountEnabled: isScol,
     discountRate: v === "particulier" ? 0 : 10,
+    accompagnatorsEnabled: false,
+    extraDiscountEnabled: false,
     extraDiscountRate: 10,
   };
 }
