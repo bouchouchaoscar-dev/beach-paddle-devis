@@ -275,6 +275,9 @@ function DashboardContent() {
           onFormChange={onChange}
           existingId={editingRecord?.id}
           existingNumero={editingRecord?.numero}
+          existingTotals={editingRecord
+            ? { totalBrut: editingRecord.totalBrut, totalNet: editingRecord.totalNet }
+            : undefined}
         />
       )}
     </>

@@ -85,9 +85,11 @@ interface Props {
   existingNumero?: string;
   /** ID existant (modification) — réutilise l'ID pour mettre à jour le même enregistrement */
   existingId?: string;
+  /** Montants stockés du document source — copiés tels quels, jamais recalculés */
+  existingTotals?: { totalBrut: number; totalNet: number };
 }
 
-export function DocumentPreview({ form, calc, onClose, onFormChange, readOnly, existingNumero, existingId }: Props) {
+export function DocumentPreview({ form, calc, onClose, onFormChange, readOnly, existingNumero, existingId, existingTotals }: Props) {
   const [documentType, setDocumentType] = useState<DocumentType>(form.documentType);
   const [acompteVerse, setAcompteVerse] = useState<string>(() =>
     form.acompteVerse !== undefined && form.acompteVerse > 0 ? String(form.acompteVerse) : ""
@@ -149,8 +151,8 @@ export function DocumentPreview({ form, calc, onClose, onFormChange, readOnly, e
           clientName: form.clientName,
           prestationDescription: form.prestationDescription,
           participantsCount: form.participantsCount,
-          totalBrut: calc.totalBrut,
-          totalNet: calc.totalNet,
+          totalBrut: existingTotals?.totalBrut ?? calc.totalBrut,
+          totalNet: existingTotals?.totalNet ?? calc.totalNet,
           documentType,
           formData: { ...form, documentType },
         };
@@ -193,8 +195,8 @@ export function DocumentPreview({ form, calc, onClose, onFormChange, readOnly, e
         clientName: f.clientName,
         prestationDescription: f.prestationDescription,
         participantsCount: f.participantsCount,
-        totalBrut: c.totalBrut,
-        totalNet: c.totalNet,
+        totalBrut: existingTotals?.totalBrut ?? c.totalBrut,
+        totalNet: existingTotals?.totalNet ?? c.totalNet,
         documentType,
         formData: {
           ...f,
