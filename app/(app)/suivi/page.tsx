@@ -9,6 +9,7 @@ import {
   updateSuiviMouvement,
   deleteSuiviMouvement,
 } from "@/lib/suivi";
+import { DatePicker } from "@/components/ui/DatePicker";
 import { formatPrice } from "@/lib/calculations";
 import type { SuiviReference, SuiviMouvement, MouvementType, MouvementCompte } from "@/lib/suivi-types";
 
@@ -368,11 +369,10 @@ export default function SuiviPage() {
           {/* Date */}
           <div>
             <label className="text-xs font-medium text-ink-muted block mb-1">Date</label>
-            <input
-              type="date"
+            <DatePicker
               value={form.date}
-              onChange={(e) => setForm((p) => ({ ...p, date: e.target.value }))}
-              className="input-field"
+              onChange={(v) => setForm((p) => ({ ...p, date: v }))}
+              allowPast
             />
           </div>
 
@@ -590,11 +590,10 @@ export default function SuiviPage() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-medium text-ink-muted block mb-1">Date</label>
-                <input
-                  type="date"
+                <DatePicker
                   value={editDraft.date}
-                  onChange={(e) => setEditDraft((p) => ({ ...p, date: e.target.value }))}
-                  className="input-field"
+                  onChange={(v) => setEditDraft((p) => ({ ...p, date: v }))}
+                  allowPast
                 />
               </div>
               <div>
