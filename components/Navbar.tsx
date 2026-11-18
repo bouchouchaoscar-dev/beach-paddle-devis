@@ -288,6 +288,31 @@ export function Navbar() {
                 </Link>
               );
             })}
+
+            {/* Separator */}
+            <div className="w-px h-5 bg-surface-border mx-1.5 shrink-0" />
+
+            {/* Suivi */}
+            {(() => {
+              const active = pathname === "/suivi";
+              return (
+                <Link
+                  href="/suivi"
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 whitespace-nowrap ${
+                    active ? "" : "text-ink-secondary hover:bg-surface-muted hover:text-ink"
+                  }`}
+                  style={active ? { backgroundColor: "rgba(124,58,237,0.08)", color: "#7C3AED" } : undefined}
+                >
+                  <span style={active ? { color: "#7C3AED" } : { color: "var(--color-ink-muted, #8E8E93)" }}>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="22 17 13.5 8.5 8.5 13.5 2 7"/>
+                      <polyline points="16 17 22 17 22 11"/>
+                    </svg>
+                  </span>
+                  <span className="hidden sm:inline">Suivi</span>
+                </Link>
+              );
+            })()}
           </div>
         </div>
 
