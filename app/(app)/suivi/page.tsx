@@ -127,6 +127,12 @@ export default function SuiviPage() {
     setLoading(false);
   }, []);
 
+  // Refetch silencieux des mouvements après mutation — pas de setLoading, tri serveur conservé
+  const refetchMouvements = useCallback(async () => {
+    const mvts = await getSuiviMouvements();
+    setMouvements(mvts);
+  }, []);
+
   useEffect(() => { load(); }, [load]);
 
   // ── Computed ─────────────────────────────────────────────────────────────
@@ -160,7 +166,7 @@ export default function SuiviPage() {
     const { error } = await addSuiviMouvement(form.date, form.type, form.compte, val, form.note || null);
     if (error) { show(error, "error"); } else {
       setForm({ date: todayStr(), type: "virement", compte: "Qonto", montant: "", note: "" });
-      await load();
+      await refetchMouvements();
       show("Mouvement ajouté");
     }
     setAdding(false);
@@ -179,7 +185,7 @@ export default function SuiviPage() {
     if (isNaN(val) || val <= 0) { show("Montant invalide", "error"); return; }
     setSavingEdit(true);
     const { error } = await updateSuiviMouvement(editingMvt.id, editDraft.date, editDraft.type, editDraft.compte, val, editDraft.note || null);
-    if (error) { show(error, "error"); } else { setEditingMvt(null); await load(); show("Mouvement mis à jour"); }
+    if (error) { show(error, "error"); } else { setEditingMvt(null); await refetchMouvements(); show("Mouvement mis à jour"); }
     setSavingEdit(false);
   }
 
@@ -188,7 +194,7 @@ export default function SuiviPage() {
   async function confirmDelete() {
     if (!deletingId) return;
     const { error } = await deleteSuiviMouvement(deletingId);
-    if (error) { show(error, "error"); } else { await load(); show("Mouvement supprimé"); }
+    if (error) { show(error, "error"); } else { await refetchMouvements(); show("Mouvement supprimé"); }
     setDeletingId(null);
   }
 
