@@ -43,6 +43,10 @@ function parseMontant(s: string): number {
   return parseFloat(s.replace(",", "."));
 }
 
+function normalizeStr(s: string): string {
+  return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+}
+
 // ── Icons (inline SVG) ─────────────────────────────────────────────────────
 
 function IconPencil() {
@@ -119,6 +123,11 @@ export default function SuiviPage() {
   // Delete confirmation
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  // Filters (local — reset on page load, don't affect KPIs)
+  const [filterType, setFilterType] = useState<"all" | MouvementType>("all");
+  const [filterCompte, setFilterCompte] = useState<"all" | MouvementCompte>("all");
+  const [filterSearch, setFilterSearch] = useState("");
+
   const load = useCallback(async () => {
     setLoading(true);
     const [ref, mvts] = await Promise.all([getSuiviReference(), getSuiviMouvements()]);
@@ -139,6 +148,20 @@ export default function SuiviPage() {
 
   const totalDeduit = mouvements.reduce((s, m) => s + m.montant, 0);
   const partRestante = (reference?.montant ?? 0) - totalDeduit;
+
+  const filteredMouvements = mouvements.filter((m) => {
+    if (filterType !== "all" && m.type !== filterType) return false;
+    if (filterCompte !== "all" && m.compte !== filterCompte) return false;
+    if (filterSearch.trim()) {
+      const q = normalizeStr(filterSearch.trim());
+      if (!normalizeStr(m.note ?? "").includes(q)) return false;
+    }
+    return true;
+  });
+  const filteredTotal = filteredMouvements.reduce((s, m) => s + m.montant, 0);
+
+  const filtersActive = filterType !== "all" || filterCompte !== "all" || filterSearch.trim() !== "";
+  function resetFilters() { setFilterType("all"); setFilterCompte("all"); setFilterSearch(""); }
 
   // ── Reference ─────────────────────────────────────────────────────────────
 
@@ -499,12 +522,104 @@ export default function SuiviPage() {
 
       {/* Mouvements list */}
       <div
-        className="space-y-2"
+        className="space-y-3"
         style={{ opacity: 0, animation: "slideUp 0.4s cubic-bezier(0.16,1,0.3,1) 0.2s forwards" }}
       >
-        <h2 className="text-sm font-semibold text-ink px-1">Mouvements ({mouvements.length})</h2>
+        {/* Header */}
+        <div className="flex items-center justify-between gap-2 px-1">
+          <h2 className="text-sm font-semibold text-ink">
+            Mouvements ({mouvements.length})
+          </h2>
+          {filtersActive && (
+            <button
+              onClick={resetFilters}
+              className="btn-ghost text-xs px-2 py-1 text-ink-muted flex items-center gap-1"
+            >
+              <IconX /> Réinitialiser
+            </button>
+          )}
+        </div>
 
-        {loading ? (
+        {/* Filter bar — shown only when data is loaded */}
+        {!loading && mouvements.length > 0 && (
+          <div className="card p-3 space-y-2.5">
+            {/* Pills row */}
+            <div className="flex flex-wrap gap-x-5 gap-y-2">
+              {/* Type */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[10px] font-bold text-ink-muted uppercase tracking-wide shrink-0">Type</span>
+                {([
+                  { value: "all",      label: "Tous" },
+                  { value: "virement", label: "Virement" },
+                  { value: "carte",    label: "Carte" },
+                ] as { value: "all" | MouvementType; label: string }[]).map(({ value, label }) => {
+                  const active = filterType === value;
+                  const activeBg = value === "virement" ? "#7C3AED" : value === "carte" ? "#0071E3" : "#1D1D1F";
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setFilterType(value)}
+                      className="text-[11px] font-semibold px-2.5 py-1 rounded-full transition-all duration-150"
+                      style={active
+                        ? { backgroundColor: activeBg, color: "white" }
+                        : { backgroundColor: "transparent", color: "#6E6E73", border: "1px solid #E5E5EA" }
+                      }
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Compte */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[10px] font-bold text-ink-muted uppercase tracking-wide shrink-0">Compte</span>
+                {([
+                  { value: "all",    label: "Tous" },
+                  { value: "Qonto",  label: "Qonto" },
+                  { value: "SumUp",  label: "SumUp" },
+                ] as { value: "all" | MouvementCompte; label: string }[]).map(({ value, label }) => {
+                  const active = filterCompte === value;
+                  const activeBg = value === "Qonto" ? "#0071E3" : value === "SumUp" ? "#16A34A" : "#1D1D1F";
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setFilterCompte(value)}
+                      className="text-[11px] font-semibold px-2.5 py-1 rounded-full transition-all duration-150"
+                      style={active
+                        ? { backgroundColor: activeBg, color: "white" }
+                        : { backgroundColor: "transparent", color: "#6E6E73", border: "1px solid #E5E5EA" }
+                      }
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Search */}
+            <div className="relative">
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-ink-muted">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+              </div>
+              <input
+                type="text"
+                value={filterSearch}
+                onChange={(e) => setFilterSearch(e.target.value)}
+                placeholder="Rechercher dans les notes…"
+                className="input-field !pl-8"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Skeleton */}
+        {loading && (
           <div className="space-y-2">
             {[1, 2, 3].map((i) => (
               <div key={i} className="card p-4 animate-pulse">
@@ -513,28 +628,37 @@ export default function SuiviPage() {
               </div>
             ))}
           </div>
-        ) : mouvements.length === 0 ? (
+        )}
+
+        {/* Empty states */}
+        {!loading && mouvements.length === 0 && (
           <div className="card p-6 flex items-center justify-center text-sm text-ink-muted">
             Aucun mouvement enregistré
           </div>
-        ) : (
+        )}
+        {!loading && mouvements.length > 0 && filteredMouvements.length === 0 && (
+          <div className="card p-5 flex flex-col items-center gap-1 text-center">
+            <p className="text-sm text-ink-muted">Aucun mouvement pour ces filtres</p>
+            <button onClick={resetFilters} className="text-xs font-medium mt-1" style={{ color: "#7C3AED" }}>
+              Réinitialiser les filtres
+            </button>
+          </div>
+        )}
+
+        {/* Filtered list */}
+        {!loading && filteredMouvements.length > 0 && (
           <div className="space-y-2">
-            {mouvements.map((mvt) => (
-              <div
-                key={mvt.id}
-                className="card p-4 flex items-start gap-3"
-              >
+            {filteredMouvements.map((mvt) => (
+              <div key={mvt.id} className="card p-4 flex items-start gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-1.5 mb-1">
                     <span className="text-xs font-semibold text-ink font-mono">{formatDate(mvt.date)}</span>
-                    {/* Type badge */}
                     <span
                       className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold text-white"
                       style={{ backgroundColor: mvt.type === "virement" ? "#7C3AED" : "#0071E3" }}
                     >
                       {mvt.type === "virement" ? "Virement" : "Carte"}
                     </span>
-                    {/* Compte badge */}
                     <span
                       className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold"
                       style={{
@@ -545,33 +669,34 @@ export default function SuiviPage() {
                       {mvt.compte}
                     </span>
                   </div>
-                  {mvt.note && (
-                    <p className="text-xs text-ink-muted truncate">{mvt.note}</p>
-                  )}
+                  {mvt.note && <p className="text-xs text-ink-muted truncate">{mvt.note}</p>}
                 </div>
-
                 <div className="flex items-center gap-2 shrink-0">
                   <span className="text-sm font-bold font-mono" style={{ color: "#E03131" }}>
                     −{formatPrice(mvt.montant)}
                   </span>
-                  <button
-                    onClick={() => startEditMvt(mvt)}
-                    className="btn-ghost p-1.5 text-ink-muted hover:text-ink"
-                    title="Modifier"
-                  >
+                  <button onClick={() => startEditMvt(mvt)} className="btn-ghost p-1.5 text-ink-muted hover:text-ink" title="Modifier">
                     <IconPencil />
                   </button>
-                  <button
-                    onClick={() => setDeletingId(mvt.id)}
-                    className="btn-ghost p-1.5 text-ink-muted hover:text-red-500"
-                    title="Supprimer"
-                  >
+                  <button onClick={() => setDeletingId(mvt.id)} className="btn-ghost p-1.5 text-ink-muted hover:text-red-500" title="Supprimer">
                     <IconTrash />
                   </button>
                 </div>
               </div>
             ))}
           </div>
+        )}
+
+        {/* Summary */}
+        {!loading && filteredMouvements.length > 0 && (
+          <p className="text-xs text-ink-muted text-right px-1">
+            {filteredMouvements.length} mouvement{filteredMouvements.length > 1 ? "s" : ""}
+            {filtersActive ? " (filtrés)" : ""}
+            {" · "}
+            <span className="font-mono font-semibold" style={{ color: "#E03131" }}>
+              {formatPrice(filteredTotal)}
+            </span>
+          </p>
         )}
       </div>
 
