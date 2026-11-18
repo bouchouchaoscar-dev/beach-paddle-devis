@@ -361,7 +361,7 @@ export default function SuiviPage() {
       {/* Add form */}
       <div
         className="card p-5 space-y-4"
-        style={{ opacity: 0, animation: "slideUp 0.4s cubic-bezier(0.16,1,0.3,1) 0.15s forwards" }}
+        style={{ opacity: 0, animation: "slideUp 0.4s cubic-bezier(0.16,1,0.3,1) 0.15s forwards", position: "relative", zIndex: 10 }}
       >
         <h2 className="text-sm font-semibold text-ink">Ajouter un mouvement</h2>
 
@@ -578,7 +578,7 @@ export default function SuiviPage() {
         >
           <div
             className="bg-white rounded-2xl shadow-elevated w-full max-w-md p-5 space-y-4"
-            style={{ animation: "slideUp 0.3s cubic-bezier(0.16,1,0.3,1) forwards" }}
+            style={{ animation: "slideUp 0.3s cubic-bezier(0.16,1,0.3,1) forwards", position: "relative", zIndex: 1 }}
           >
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-ink">Modifier le mouvement</h3>
