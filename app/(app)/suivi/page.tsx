@@ -615,6 +615,19 @@ export default function SuiviPage() {
                 className="input-field !pl-8"
               />
             </div>
+
+            {/* Résumé inline — toujours visible sous les filtres */}
+            <div className="flex items-baseline justify-between pt-1 border-t border-surface-border">
+              <p className="text-xs text-ink-muted">
+                {filteredMouvements.length} mouvement{filteredMouvements.length > 1 ? "s" : ""}
+                {filtersActive && mouvements.length !== filteredMouvements.length
+                  ? ` sur ${mouvements.length}`
+                  : ""}
+              </p>
+              <p className="text-lg font-bold font-mono tracking-tight" style={{ color: "#E03131" }}>
+                −{formatPrice(filteredTotal)}
+              </p>
+            </div>
           </div>
         )}
 
@@ -687,17 +700,6 @@ export default function SuiviPage() {
           </div>
         )}
 
-        {/* Summary */}
-        {!loading && filteredMouvements.length > 0 && (
-          <p className="text-xs text-ink-muted text-right px-1">
-            {filteredMouvements.length} mouvement{filteredMouvements.length > 1 ? "s" : ""}
-            {filtersActive ? " (filtrés)" : ""}
-            {" · "}
-            <span className="font-mono font-semibold" style={{ color: "#E03131" }}>
-              {formatPrice(filteredTotal)}
-            </span>
-          </p>
-        )}
       </div>
 
       {/* Edit modal */}
